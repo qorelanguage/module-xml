@@ -1323,6 +1323,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
 
         if (name && !omit_type)
             rh."^attributes^" = ("xsi:type": "ns1:" + name) + ah;
+        else if (ah)
+            rh."^attributes^" = ah;
         #printf("complex type %s returning %y from %y\n", name, rh, h);
         return rh;
     }
@@ -1353,7 +1355,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             if (exists attr_val) {
                 if (attr.use == "prohibited")
                     throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize element %y with attribute %y; the WSDL marks this attribute as prohibited", getName(), xa.name);
-                ah."^attributes^".(xa.name) = attr_val;
+                ah.(xa.name) = attr_val;
             }
         }
 
@@ -1402,6 +1404,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
 
             rh{kl} = elementmap{kl}.deserialize(types, mrh, getValue(mrh, val{kl}));
         }
+        if (ah)
+            rh."^attributes^" = ah;
         return rh;
     }
 }
