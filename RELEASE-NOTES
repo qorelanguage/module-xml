@@ -7,6 +7,7 @@ version 1.3
 * WSDL module fixes and enhancements:
   + many WSDL handling/SOAP messaging fixes including major namespace handling
     and serialization/deserialization fixes
+  + complexType attributes are now serialized and deserialized correctly
   + perform environment-variable substitution on the file path in
     WSDLLib::getWSDL()
 * allow for XSD imports without a URI scheme to be imported with custom logic

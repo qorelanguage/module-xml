@@ -266,6 +266,7 @@ printf("%s\n", make_xml($h, XGF_ADD_FORMATTING));@endcode
     - added the @ref Qore::Xml::SaxIterator "SaxIterator" and @ref Qore::Xml::FileSaxIterator "FileSaxIterator" classes
     - <a href="../../WSDL/html/index.html">WSDL</a> fixes and enhancements:
       - many major SOAP messaging and WSDL handling fixes including major namespace handling and serialization/deserialization fixes
+      - complexType attributes are now serialized and deserialized correctly
       - allow for XSD imports without a URI scheme to be imported with custom logic
       - perform environment-variable substitution on the file path in WSDLLib::getWSDL()
     - <a href="../../SoapClient/html/index.html">SoapClient</a> fixes:
