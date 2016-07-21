@@ -44,3 +44,9 @@ docs/xml/
 
 # cmake build dir
 build/
+
+#eclipse
+.autotools
+.cproject
+.project
+.settings/

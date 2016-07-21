@@ -261,6 +261,13 @@ printf("%s\n", make_xml($h, XGF_ADD_FORMATTING));@endcode
 
     @section xmlreleasenotes Release Notes
 
+    @subsection xml14 xml Module Version 1.4
+    <b>Changes and Bug Fixes in This Release</b>
+    - <a href="../../WSDL/html/index.html">WSDL</a> fixes and enhancements:
+      - fixed a bug in late resolution of <tt>complexTypes</tt> (<a href="https://github.com/qorelanguage/qore/issues/975">issue 975</a>)
+      - fixed a bug handling empty complexType declarations (<a href="https://github.com/qorelanguage/qore/issues/984">issue 984</a>)
+      - fixed a bug handling complexType extentions (<a href="https://github.com/qorelanguage/qore/issues/985">issue 985</a>)
+
     @subsection xml13 xml Module Version 1.3
     <b>Changes and Bug Fixes in This Release</b>
     - added the @ref Qore::Xml::SaxIterator "SaxIterator" and @ref Qore::Xml::FileSaxIterator "FileSaxIterator" classes

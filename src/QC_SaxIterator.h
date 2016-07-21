@@ -26,6 +26,7 @@
 #define _QORE_QC_SAXITERATOR_H
 
 #include "QC_XmlReader.h"
+#include "qore/InputStream.h"
 
 #include <string>
 
@@ -34,6 +35,9 @@ DLLLOCAL QoreClass *initSaxIteratorClass(QoreNamespace& ns);
 
 DLLEXPORT extern qore_classid_t CID_FILESAXITERATOR;
 DLLLOCAL QoreClass *initFileSaxIteratorClass(QoreNamespace& ns);
+
+DLLEXPORT extern qore_classid_t CID_INPUTSTREAMSAXITERATOR;
+DLLLOCAL QoreClass *initInputStreamSaxIteratorClass(QoreNamespace& ns);
 
 DLLLOCAL extern QoreClass* QC_SAXITERATOR;
 
@@ -44,6 +48,9 @@ protected:
    bool val;
 
 public:
+   DLLLOCAL QoreSaxIterator(InputStream *is, const char* ename, const char* enc, ExceptionSink* xsink) : QoreXmlReaderData(is, enc, xsink), element_name(ename), element_depth(-1), val(true) {
+   }
+
    DLLLOCAL QoreSaxIterator(QoreStringNode* xml, const char* ename, ExceptionSink* xsink) : QoreXmlReaderData(xml, xsink), element_name(ename), element_depth(-1), val(false) {
    }
 
@@ -81,7 +88,7 @@ public:
       }
 
       while (true) {
-         if (!readSkipWhitespace(xsink)) {
+         if (readSkipWhitespace(xsink) != 1) {
             val = false;
             break;
          }

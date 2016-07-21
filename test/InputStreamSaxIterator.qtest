@@ -1,0 +1,89 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+# make sure we have the right version of qore
+%requires qore >= 0.8.13
+
+%new-style
+%require-types
+%strict-args
+%enable-all-warnings
+%no-child-restrictions
+
+%requires QUnit
+
+%requires Util
+%requires xml
+
+%exec-class InputStreamSaxIteratorTest
+
+class TestInputStream inherits InputStream {
+    private {
+        list data;
+    }
+
+    constructor(list data) {
+        self.data = data;
+    }
+
+    *binary read(int limit) {
+        if (data.empty()) {
+            return NOTHING;
+        }
+        any a = shift data;
+        if (a.typeCode() == NT_STRING) {
+            a = binary(a);
+        }
+        if (a.typeCode() != NT_BINARY) {
+            throw a;
+        }
+        if (a.size() < limit) {
+            return a;
+        }
+        unshift data, a.substr(limit);
+        return a.substr(0, limit);
+    }
+}
+
+class InputStreamSaxIteratorTest inherits QUnit::Test {
+
+    constructor() : QUnit::Test("InputStreamSaxIteratorTest", "1.0") {
+        addTestCase("success", \success());
+        addTestCase("failInHeader", \failInHeader());
+        addTestCase("failInNext", \failInNext());
+        addTestCase("failInGetValue", \failInGetValue());
+        set_return_value(main());
+    }
+
+    success() {
+        InputStreamSaxIterator it(new StringInputStream("<r><x /><x>a</x></r>"), "x");
+        assertTrue(it.next());
+        assertEq(NOTHING, it.getValue());
+        assertTrue(it.next());
+        assertEq("a", it.getValue());
+        assertFalse(it.next());
+    }
+
+    failInHeader() {
+        TestInputStream is(("<r>", 1));
+        InputStreamSaxIterator it(is, "x");
+        assertThrows("1", \it.next());
+    }
+
+    failInNext() {
+        TestInputStream is(("<r>", "<x>a", "</x><y>", 2));
+        InputStreamSaxIterator it(is, "x");
+        assertTrue(it.next());
+        assertEq("a", it.getValue());
+        assertThrows("2", \it.next());
+    }
+
+    failInGetValue() {
+        TestInputStream is(("<r>", "<x>a", "</x><x>", "b", 3));
+        InputStreamSaxIterator it(is, "x");
+        assertTrue(it.next());
+        assertEq("a", it.getValue());
+        assertTrue(it.next());
+        assertThrows("3", \it.getValue());
+    }
+}

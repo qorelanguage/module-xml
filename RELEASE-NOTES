@@ -1,4 +1,14 @@
 ***********
+version 1.4
+***********
+
+* WSDL module fixes and enhancements
+  + fixed a bug in late resolution of complexTypes (issue 975)
+  + fixed a bug handling empty complexType declarations (issue 984)
+  + fixed a bug handling complexType extentions (issue 985)
+* Added InputStreamSaxIterator class
+
+***********
 version 1.3
 ***********
 

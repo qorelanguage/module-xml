@@ -1,0 +1,61 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/** @file InputStreamSaxIterator.qpp defines the InputStreamSaxIterator class */
+/*
+  QC_InputStreamSaxIterator.qpp
+
+  Qore Programming Language
+
+  Copyright (C) 2016 Qore Technologies s.r.o.
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include "qore-xml-module.h"
+
+#include "QC_SaxIterator.h"
+
+//! The InputStreamSaxIterator class provides a SAX iterator for input streams based on <a href="http://xmlsoft.org">libxml2</a>
+/**
+ */
+qclass InputStreamSaxIterator [arg=QoreSaxIterator* i; ns=Qore::Xml; vparent=SaxIterator; private_members=InputStream is];
+
+//! creates a new InputStreamSaxIterator object from the input stream and the element name passed
+/** @param is the input stream
+    @param element_name the name of the element to iterate through
+    @param encoding an optional encoding of the input stream; if not given, then any encoding given in the file's XML preamble is used
+
+    @par Example:
+    @code
+    InputStreamSaxIterator i(is, "DetailRecord");
+    map printf("record %d: %y\n", $#, $1), i;
+    @endcode
+
+    @throw XMLDOC-CONSTRUCTOR-ERROR error parsing XML string
+ */
+InputStreamSaxIterator::constructor(Qore::InputStream[InputStream] is, string element_name, *string encoding) [dom=FILESYSTEM] {
+   ReferenceHolder<QoreSaxIterator> holder(new QoreSaxIterator(is, element_name->getBuffer(), encoding ? encoding->getBuffer() : 0, xsink), xsink);
+   if (*xsink)
+      return;
+   self->setPrivate(CID_INPUTSTREAMSAXITERATOR, holder.release());
+   self->setValue("is", static_cast<QoreObject *>(obj_is->refSelf()), xsink);
+}
+
+//! Throws an exception; objects of this class cannot be copied
+/**
+    @throw INPUTSTREAMSAXITERATOR-COPY-ERROR objects of this class cannot be copied
+ */
+InputStreamSaxIterator::copy() {
+   xsink->raiseException("INPUTSTREAMSAXITERATOR-COPY-ERROR", "objects of this class cannot be copied");
+}

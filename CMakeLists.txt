@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(qore-xml-module)
 
 set (VERSION_MAJOR 1)
-set (VERSION_MINOR 3)
+set (VERSION_MINOR 4)
 set (VERSION_PATCH 0)
 
 
@@ -44,6 +44,7 @@ qore_check_symbol(xmlTextReaderGetParserLineNumber HAVE_XMLTEXTREADERGETPARSERLI
 
 set(QPP_SRC
     src/QC_FileSaxIterator.qpp
+    src/QC_InputStreamSaxIterator.qpp
     src/QC_XmlDoc.qpp
     src/QC_XmlReader.qpp
     src/ql_xml.qpp
