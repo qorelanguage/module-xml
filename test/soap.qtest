@@ -304,6 +304,20 @@ class SoapTest inherits QUnit::Test {
             return;
         }
 
+        # check attributes
+        foreach hash h in (v1."^attributes^".pairIterator()) {
+            (*string nsp1, *string key) = (h.key =~ x/^(\w+):(\w+)$/);
+            if (nsp1 && key) {
+                *string uri1 = nh1.pmap{nsp1};
+                if (!uri1)
+                    throw "SOAP-NAMESPACE-ERROR", sprintf("%s (%s) namespace prefix in %y in the generated value is not defined", assert, loc, h.key);
+
+                # check type value
+                if (key == "type" && uri1 == XSI_NS && h.value =~ / /)
+                    throw "SOAP-TYPE-ERROR", sprintf("%s (%s) xsi:type=%y is invalid", assert, loc, h.value);
+            }
+        }
+
         foreach string rkey in (v2.keyIterator()) {
             (*string nsp2, *string key) = (rkey =~ x/^(\w+):(\w+)$/);
             if (!nsp2) {

@@ -480,11 +480,15 @@ public class WSDL::XsdNamedData inherits WSDL::XsdData {
         string name;
         #! input namespace prefix (if any given)
         *string ns;
+        #! descriptive name flag
+        descriptive_name;
     }
 
     constructor(string n_name, string n_ns) {
         name = n_name;
         ns = n_ns;
+        # if the name has a space in it, then it's a descriptive name
+        descriptive_name = (name =~ / /);
     }
 
     constructor(reference e, *string desc_name) {
@@ -499,6 +503,8 @@ public class WSDL::XsdNamedData inherits WSDL::XsdData {
         }
         else
             name = desc_name ?? "<unnamed type>";
+        # if the name has a space in it, then it's a descriptive name
+        descriptive_name = (name =~ / /);
     }
 
     string getName() {
@@ -507,6 +513,10 @@ public class WSDL::XsdNamedData inherits WSDL::XsdData {
 
     *string getInputNamespacePrefix() {
         return ns;
+    }
+
+    bool hasRealName() {
+        return !descriptive_name;
     }
 }
 
@@ -1041,7 +1051,7 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
 
             if (nillable || type.isNillable()) {
                 hash rh = ("xsi:nil" : "true");
-                if (!omit_type || type != self)
+                if ((!omit_type || type != self) && type.hasRealName())
                     rh += ("xsi:type" : type.getNameWithNS());
                 return ("^attributes^" : rh);
             }
@@ -1053,7 +1063,7 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         }
 
         *hash pf;
-        if (!omit_type || type != self)
+        if ((!omit_type || type != self) && type.hasRealName())
             pf = ("^attributes^": ("xsi:type": omit_ns ? type.getName() : type.getNameWithNS()));
 
         if (tc == NT_LIST) {
@@ -1504,7 +1514,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             }
         }
 
-        if (name && !omit_type)
+        #printf("name: %y desc: %y\n", name, descriptive_name);
+        if (name && !omit_type && !descriptive_name)
             rh."^attributes^" += ("xsi:type": "ns1:" + name) + ah;
         else if (ah)
             rh."^attributes^" += ah;

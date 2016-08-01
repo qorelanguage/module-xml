@@ -6,6 +6,7 @@ version 1.4
   + fixed a bug in late resolution of complexTypes (issue 975)
   + fixed a bug handling empty complexType declarations (issue 984)
   + fixed a bug handling complexType extentions (issue 985)
+  + fixed a bug in xsi:type handling in serialized XML (issue 1091)
 * Added InputStreamSaxIterator class
 
 ***********
