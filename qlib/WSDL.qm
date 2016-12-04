@@ -149,7 +149,7 @@ public namespace WSDL {
                 "xmlns:xsi": XSI_NS,
             ),
         ),
-        );
+    );
 
     #! soap 1.2 envelope namespaces
     public const ENVELOPE_12_NS = (
@@ -160,7 +160,7 @@ public namespace WSDL {
               "xmlns:xsi": XSI_NS,
             ),
         ),
-        );
+    );
 
     #! soap encoding URI
     public const SOAP_ENCODING = "http://schemas.xmlsoap.org/soap/encoding/";
@@ -175,7 +175,7 @@ public namespace WSDL {
         Type::NothingType : "string",
         Type::NullType    : "string",
         Type::Binary      : "base64Binary",
-        );
+    );
 
     # error codes
     const SOAP_SERIALIZATION_ERROR = "SOAP-SERIALIZATION-ERROR";
@@ -1851,6 +1851,52 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return b;
     }
 
+    private hash serializeSoapMessage(any h, Binding binding, *hash header, *hash nsh, bool request, bool soap12, reference mpm) {
+        string io = request ? "input" : "output";
+        # setup namespaces for SOAP envelope
+        hash rh = nsc.hasSoap12() ? WSDL::ENVELOPE_12_NS : WSDL::ENVELOPE_11_NS;
+        string soapenvEnvelope = rh.firstKey();
+        rh{soapenvEnvelope}."^attributes^" += nsc.getOutputNamespaceHash(nsh);
+        if (header) {
+            #printf("DEBUG %s header: %y\n", io, header);
+
+            if (binding.operations{name}{io}.header.typeCode() == NT_LIST) {
+                throw "WSDL-BINDING-ERROR", sprintf("multi headers not yet implemented");  # TODO
+            }
+            *hash hdr = binding.operations{name}{io}.header;
+            hash h;
+            if (hdr) {
+                hash hh.(hdr.part) = header;
+                h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hh);
+            } else {
+                h = header;
+            }
+            rh{soapenvEnvelope}."soapenv:Header" = h;
+        }
+
+        # do we have mime/multipart io format?
+        if (exists binding.operations{name}{io}.multipart)
+            mpm = new MultiPartRelatedMessage();
+
+        #printf("DEBUG: docstyle: %y\n", binding.operations{name}.docstyle);
+        if (self{io}) {
+            *hash body;
+            if (binding.operations{name}.docstyle)
+                body = self{io}.serializeDocument(NOTHING, binding.operations{name}{io}, mpm, h);
+            else {
+                string mname = input_name ? input_name : name + (request ? "":"Response");
+                if (binding.operations{name}{io})
+                    body = self{io}.serialize(binding.operations{name}{io}, mpm, mname, h);
+            }
+            if (body) {
+                rh{soapenvEnvelope}."soapenv:Body" = body;
+            }
+        } else if (exists h)
+            throw SOAP_SERIALIZATION_ERROR, sprintf("%s value provided for operation %y with no %s message (%y)", request?"request":"response", name, io, h);
+
+        return rh;
+    }
+
     #! serializes a request to an XML string for the operation
     /** @param h the request to serialize
         @param binding SOAP binding
@@ -1865,46 +1911,12 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         - \c hdr: hash of HTTP headers
         */
     hash serializeRequest(any h, Binding binding, *hash header, *string enc, *hash nsh, *int xml_opts, *string req_soapaction) {
-        # setup namespaces for SOAP envelope
-        hash rh = nsc.hasSoap12() ? WSDL::ENVELOPE_12_NS : WSDL::ENVELOPE_11_NS;
 
         if (!exists req_soapaction)
             req_soapaction = bindings{name}.soapAction;
 
-        rh."soapenv:Envelope"."^attributes^" += nsc.getOutputNamespaceHash(nsh);
-
-        #printf("DEBUG header: %y\n", header);
-
-        if (header) {
-            *hash hdr = binding.operations{name}.input.header;
-            if (hdr) {
-                hash hh.(hdr.part) = header;
-                rh."soapenv:Envelope"."soapenv:Header" = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hh);
-            }
-            else {
-                rh."soapenv:Envelope"."soapenv:Header" = header;
-            }
-        }
-
         MultiPartRelatedMessage mpm;
-        # do we have mime/multipart input format?
-        if (exists binding.operations{name}.input.multipart)
-            mpm = new MultiPartRelatedMessage();
-
-        #printf("DEBUG: docstyle: %y\n", binding.operations{name}.docstyle);
-        if (input) {
-            if (binding.operations{name}.docstyle)
-                rh."soapenv:Envelope"."soapenv:Body" = input.serializeDocument(NOTHING, binding.operations{name}.input, mpm, h);
-            else {
-                string mname = input_name ? input_name : name;
-                if (input)
-                    rh."soapenv:Envelope"."soapenv:Body" = input.serialize(binding.operations{name}.input, mpm, mname, h);
-            }
-        }
-        else if (exists h)
-            throw SOAP_SERIALIZATION_ERROR, sprintf("request value provided for operation %y with no input message (%y)", name, h);
-
-        string body = make_xml(rh, xml_opts, enc);
+        string body = make_xml(serializeSoapMessage(h, binding, header, nsh, True, nsc.hasSoap12(), \mpm), xml_opts, enc);
 
         if (mpm) {
             mpm.splicePart(body, sprintf("<%s>", binding.operations{name}.input.body.parts), nsc.hasSoap12() ? MimeTypeSoapXml : MimeTypeXml);
@@ -1974,40 +1986,13 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         else
             soap12 = nsc.hasSoap12();
 
-        # setup namespaces for SOAP envelope
-        hash rh = soap12 ? WSDL::ENVELOPE_12_NS : WSDL::ENVELOPE_11_NS;
-
-        rh."soapenv:Envelope"."^attributes^" += nsc.getOutputNamespaceHash(nsh);
-
-        if (header) {
-            *hash hdr = binding.operations{name}.output.header;
-            if (hdr) {
-                hash hh.(hdr.part) = header;
-                rh."soapenv:Envelope"."soapenv:Header" = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hh);
-            }
-            else {
-                rh."soapenv:Envelope"."soapenv:Header" = header;
-            }
-        }
 
         MultiPartRelatedMessage mpm;
         # do we have mime/multipart output format?
         if (exists binding.operations{name}.output.multipart)
             mpm = new MultiPartRelatedMessage();
 
-        #printf("DEBUG: docstyle: %y\n", binding.operations{name}.docstyle);
-        if (output) {
-            if (binding.operations{name}.docstyle)
-                rh."soapenv:Envelope"."soapenv:Body" = output.serializeDocument(NOTHING, binding.operations{name}.output, mpm, h);
-            else {
-                string mname = input_name ? input_name : name + "Response";
-                rh."soapenv:Envelope"."soapenv:Body" = output.serialize(binding.operations{name}.output, mpm, mname, h);
-            }
-        }
-        else if (exists h)
-            throw SOAP_SERIALIZATION_ERROR, sprintf("response value provided for operation %y with no outut message (%y)", name, h);
-
-        string body = make_xml(rh, xml_opts, enc);
+        string body = make_xml(serializeSoapMessage(h, binding, header, nsh, False, soap12, \mpm), xml_opts, enc);
 
         string ct = soap12 ? MimeTypeSoapXml : MimeTypeXml;
         if (exists mpm) {
@@ -2606,23 +2591,31 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                     if (ophash{io} && !exists portTypes{port}.operations{opname}{io})
                         throw WSDL_ERROR, sprintf("cannot assign %s message definition in binding %y for operation %y with no %io: %y", io, name, opname, io, ophash);
 
-                    if (exists ophash{io}.header) {   # TODO: one or multi headers ?
-                        *hash ma = ophash{io}.header."^attributes^";
+                    if (exists ophash{io}.header) {
+                        foreach hash hdr in (ophash{io}.header) {
+                            *hash ma = ophash{io}.header."^attributes^";
 
-                        if (!ma.message)
-                            throw WSDL_ERROR, sprintf("%s binding %y for operation %y specifies a soap header element without a 'message' attribute (attr: %y)", io, name, opname, ma);
+                            if (!ma.message)
+                                throw WSDL_ERROR, sprintf("%s binding %y for operation %y specifies a soap header element without a 'message' attribute (attr: %y)", io, name, opname, ma);
 
-                        if (!ma.part)
-                            throw WSDL_ERROR, sprintf("%s binding %y for operation %y specifies a soap header element without a 'part' attribute (attr: %y)", io, name, opname, ma);
+                            if (!ma.part)
+                                throw WSDL_ERROR, sprintf("%s binding %y for operation %y specifies a soap header element without a 'part' attribute (attr: %y)", io, name, opname, ma);
 
-                        hash h = nsc.doType(ma.message);
-                        *WSMessage msg = messages.(h.val);
-                        if (!exists msg)
-                            throw WSDL_ERROR, sprintf("%s binding %y for operation %y references unknown message %y in the soap header element", io, name, opname, h.val);
+                            hash h = nsc.doType(ma.message);
+                            *WSMessage msg = messages.(h.val);
+                            if (!exists msg)
+                                throw WSDL_ERROR, sprintf("%s binding %y for operation %y references unknown message %y in the soap header element", io, name, opname, h.val);
 
-
-                        op{io}.header = ma;
-                        op{io}.header.encoded = ma.use == "encoded";   # TODO: move to WSOperation ???
+                            ma.encoded = ma.use == "encoded";   # TODO: move to WSOperation ???
+                            if (op{io}.header) {
+                                if (op{io}.header.typeCode() != NT_LIST) {
+                                    op{io}.header = () + op{io}.header;
+                                }
+                                op{io}.header += ma;
+                            } else {
+                                op{io}.header = ma;
+                            }
+                        }
                         delete ophash{io}.header;
                     }
 
@@ -2666,6 +2659,14 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
 
     string getPort() {
         return port;
+    }
+
+    bool isSoapBinding() {
+        return exists soapTransport;
+    }
+
+    bool isHttpBinding() {
+        return exists httpMethod;
     }
 }
 
