@@ -50,7 +50,7 @@
 %strict-args
 
 module SoapHandler {
-    version = "0.2.5";
+    version = "0.2.6";
     desc = "SoapHandler module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -68,6 +68,9 @@ module SoapHandler {
     This module provides the @ref SoapHandler::SoapHandler "SoapHandler" class which can be used to provide an RPC handler for the HttpServer class provided by the HttpServer module.
 
     @section soaphandler_relnotes SoapHandler Release History
+
+    @subsection soaphandler_0_2_6 SoapHandler 0.2.6
+    - reimplmented operation to support multi binding, operation can be assigned to more bindings
 
     @subsection soaphandler_0_2_5 SoapHandler 0.2.5
     - added support for matching requests with soap action values
@@ -101,7 +104,7 @@ public namespace SoapHandler {
     #! SoapHandler implementation; to be registered as a request handler in the HttpServer class
     public class SoapHandler inherits public AbstractHttpRequestHandler {
         #! version of the SoapHandler implementation
-        const Version = "0.2.5";
+        const Version = "0.2.6";
 
         #! @cond nodoc
         private {
@@ -153,6 +156,7 @@ public namespace SoapHandler {
 
         #! adds a method to the handler dynamically
         /** @param ws the WebService object for the method
+            @param binding SOAP binding
             @param op the WSOperation object for the web service operation the method corresponds to
             @param func a call reference, a closure, or a string function name to call with the deserialized arguments to the method; the return value will be serialized to SOAP according to the WSDL and sent back to the caller
             @param help optional help text for the method
@@ -162,13 +166,14 @@ public namespace SoapHandler {
             @param err_func a call reference, a closure, or a string function name to call with error information if an exception is thrown with SOAP data
             @param altpath an alternate path for the service / WSDL
          */
-        addMethod(WebService ws, WSOperation op, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath) {
+        addMethod(WebService ws, Binding binding, WSOperation op, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath) {
             if (!func)
                 throw "SOAP-SERVER-ADDMETHOD-PARAMETER-ERROR", sprintf("second argument is not a function name or callable value type (got: %y)", func);
 
             addMethodInternal(ws,
                                 ( "operation" : op,
                                   "name"      : op.name,
+                                  "binding"   : binding,
                                   "function"  : func,
                                   "err_func"  : err_func,
                                   "help"      : help,
@@ -179,6 +184,11 @@ public namespace SoapHandler {
                                 ));
             #printf("methods=%N\n", methods);
         }
+
+        addMethod(WebService ws, WSOperation op, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath) {
+            addMethod(ws, op.bindings.firstValue(), op, func, help, logopt, cmark, path, err_func, altpath);
+        }
+
 
         #! turns on or off debugging; when debugging is enabled more verbose error messages are reported
         setDebug(bool dbg = True) {
@@ -225,7 +235,7 @@ public namespace SoapHandler {
         final private addMethodInternal(WebService ws, hash method) {
             string rn = method.operation.getTopLevelRequestName();
 
-            *string sa = method.operation.soapAction;
+            *string sa = method.bindings.operations{method.name}.soapAction;
             if (sa)
                 method.soap_action = sa;
 

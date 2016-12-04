@@ -107,7 +107,9 @@ class SoapClientTest inherits QUnit::Test {
         #! command-line options
         const MyOpts = Opts + (
             "port": "p,port=i",
-            );
+            "verbose": "verbose=i",
+            "host": "host=s",
+        );
 
         const OptionColumn = 25;
         string url;
@@ -121,7 +123,8 @@ class SoapClientTest inherits QUnit::Test {
         server = new TestSoapServer(ws, m_options.port ?? DefaultPort, m_options.verbose);
         on_exit server.stop();
         serverPort = server.getListenerInfo(0).port;
-        url = sprintf("http://%s:%d", gethostname(), serverPort);
+        # when dual IPv4/IPv6 stack then may resolve gethostname() with unsupposed IP address where server is not listening
+        url = sprintf("http://%s:%d", m_options.host ? m_options.host : gethostname(), serverPort);
 
         # add test cases
         addTestCase("SoapClientTest", \soapClientTest());
