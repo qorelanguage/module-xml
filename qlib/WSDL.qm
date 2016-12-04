@@ -1838,14 +1838,14 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return request_name ? request_name : name;
     }
 
-    /** @param name the name of the binding
+    /** @param name the name of the binding, if not provided then uses the first assigned binding
 
         @return a @ref WSDL::Binding object
 
         @throw WSDL-BINDING-ERROR unknown binding
      */
-    WSDL::Binding getBinding(string bname) {
-        *Binding b = bindings{bname};
+    WSDL::Binding getBinding(*string bname) {
+        *Binding b = exists bname ? bindings{bname} : bindings.firstValue();
         if (!b)
             throw "WSDL-BINDING-ERROR", sprintf("binding %y is not a known binding for operation %y; known bindings: %y", bname, name, bindings.keys());
         return b;
@@ -1869,7 +1869,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         hash rh = nsc.hasSoap12() ? WSDL::ENVELOPE_12_NS : WSDL::ENVELOPE_11_NS;
 
         if (!exists req_soapaction)
-            req_soapaction = bindings.operations{name}.soapAction;
+            req_soapaction = bindings{name}.soapAction;
 
         rh."soapenv:Envelope"."^attributes^" += nsc.getOutputNamespaceHash(nsh);
 
@@ -1943,7 +1943,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 
     hash serializeRequest(any h, *hash header, *string enc, *hash nsh, *int xml_opts, *string req_soapaction) {
-        return serializeRequest(h, bindings.firstValue(), header, enc, nsh, xml_opts, req_soapaction);
+        return serializeRequest(h, getBinding(), header, enc, nsh, xml_opts, req_soapaction);
 
     }
 
@@ -2024,7 +2024,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 
     hash serializeResponse(any h, *hash header, *string enc, *hash nsh, *bool soap12, *int xml_opts) {
-        return serializeResponse(h, bindings.firstValue(), header, enc, nsh, soap12, xml_opts);
+        return serializeResponse(h, getBinding(), header, enc, nsh, soap12, xml_opts);
     }
 
     private list processMultiRef(hash body) {
@@ -2119,7 +2119,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 
     any deserializeRequest(hash o) {
-        return deserializeRequest(o, bindings.firstValue());
+        return deserializeRequest(o, getBinding());
     }
 
     #! parses a hash representing a parsed XML response (parsed with parse_xml()) for the operation and returns the corresponding Qore data structure
@@ -2190,7 +2190,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 
     any deserializeResponse(hash o) {
-        return deserializeResponse(o, bindings.firstValue());
+        return deserializeResponse(o, getBinding());
     }
 
     private hash processNSValue(hash h) {
@@ -3449,7 +3449,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
 
     private parseBinding(*softlist bindings) {
         foreach hash data in (bindings) {
-            WSDL::Binding b(data, nsc, \portType, \idocmap, messages);   # TODO: portType reference when I need modify inner object ?
+            WSDL::Binding b(data, nsc, \portType, \idocmap, messages);
             binding.(b.getName()) = b;
         }
     }

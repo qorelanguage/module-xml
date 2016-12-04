@@ -83,7 +83,7 @@ module SoapClient {
 %requires SoapClient
 SoapClient sc = new SoapClient(("wsdl" : "http://soap.server.org:8080/my-service?wsdl"));
 hash msg = getMessage();
-any result = sc.call("SubmitDocument", msg);
+any result = sc.call("SubmitDocument", NOTHING, msg);
     @endcode
 
     The SoapClient::constructor() takes named arguments in the form of a hash; valid arguments are:
@@ -281,9 +281,11 @@ public namespace SoapClient {
 
         #! returns a hash representing the serialized SOAP request for a given @ref WSDL::WSOperation "WSOperation"
         /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
+            @param binding SOAP binding, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param header data structure for the SOAP header, if required by the message
             @param op a reference to return the @ref WSDL::WSOperation "WSOperation" object found
+            @param b a reference to return the @ref WSDL::Binding "Binding" object found
             @param nsh a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
             @param xml_opts an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
             @param soapaction an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
@@ -293,20 +295,25 @@ public namespace SoapClient {
             - \c body: the serialized message body
 
             @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+            @throw WSDL-BINDING-ERROR the binding is not assigned to operation in the WSDL
 
             @note content encoding is not applied here but rather internally by the call() methods
         */
-        hash getMsg(string operation, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction) {
+        hash getMsg(string operation, *string binding, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction) {
             op = wsdl.getOperation(operation);
-            hash msg = op.serializeRequest(args, header, getEncoding(), nsh, xml_opts, soapaction);
+            hash msg = op.serializeRequest(args, op.getBinding(binding), header, getEncoding(), nsh, xml_opts, soapaction);
             if (msg.hdr."Content-Type" !~ /charset=/i)
                 msg.hdr."Content-Type" += ";charset=" + getEncoding();
 
             return msg;
         }
+        deprecated hash getMsg(string operation, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction) {
+            return getMsg(operation, NOTHING, args, header, \op, nsh, xml_opts, soapaction);
+        }
 
         #! makes a server call with the given operation, arguments, options, and optional info hash reference and returns the result
         /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
+            @param binding SOAP binding, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param opts an optional hash of options for the call as follows:
             - \c soap_header: a hash giving SOAP header information, if required by the message
@@ -330,18 +337,24 @@ public namespace SoapClient {
             - \c body: the serialized message body
 
             @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+            @throw WSDL-BINDING-ERROR the binding is not assigned to operation in the WSDL
             @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
 
             @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
 
             @since %SoapClient 0.2.4.1
          */
-        any callOperation(string operation, any args, *hash opts, *reference info) {
-            return makeCallIntern(\info, operation, args, opts.soap_header, opts.http_header, opts.xml_opts, opts.soapaction);
+        any callOperation(string operation, *string binding, any args, *hash opts, *reference info) {
+            return makeCallIntern(\info, operation, binding, args, opts.soap_header, opts.http_header, opts.xml_opts, opts.soapaction);
+        }
+
+        deprecated any callOperation(string operation, any args, *hash opts, *reference info) {
+            return callOperation(operation, NOTHING, args, opts, \info);
         }
 
         #! makes a server call with the given operation and arguments and returns the deserialized result
         /** @param operation the operation name for the SOAP call
+            @param binding SOAP binding, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param header optional soap headers (if required by the operation)
             @param nsh a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
@@ -350,17 +363,23 @@ public namespace SoapClient {
             @return the deserialized result of the SOAP call to the SOAP server
 
             @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+            @throw WSDL-BINDING-ERROR the binding is not assigned to operation in the WSDL
             @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
 
             @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
         */
-        any call(string operation, any args, *hash header, *hash nsh) {
+        any call(string operation, *string binding, any args, *hash header, *hash nsh) {
             hash info;
-            return makeCallIntern(\info, operation, args, header, nsh);
+            return makeCallIntern(\info, operation, binding, args, header, nsh);
+        }
+
+        deprecated any call(string operation, any args, *hash header, *hash nsh) {
+            return call(operation, NOTHING, args, header, nsh);
         }
 
         #! makes a server call with the given operation and arguments and returns the deserialized result
         /** @param operation the operation name for the SOAP call
+            @param binding SOAP binding, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
             - \c "headers": a hash of HTTP request headers
@@ -377,12 +396,16 @@ public namespace SoapClient {
             @return the deserialized result of the SOAP call to the SOAP server
 
             @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+            @throw WSDL-BINDING-ERROR the binding is not assigned to operation in the WSDL
             @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
 
             @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
         */
-        any call(string operation, any args, *reference info) {
-            return makeCallIntern(\info, operation, args);
+        any call(string operation, *string binding, any args, *reference info) {
+            return makeCallIntern(\info, operation, binding, args);
+        }
+        deprecated any call(string operation, any args, *reference info) {
+            return call(operation, NOTHING, args, \info);
         }
 
         #! makes a server call with the given operation and arguments and returns the deserialized result with an output argument giving technical information about the call
@@ -398,6 +421,7 @@ public namespace SoapClient {
             - \c "request-body": the raw XML request body
             - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
             @param operation the operation name for the SOAP call
+            @param binding SOAP binding, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param header optional soap headers (if required by the operation)
             @param nsh a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
@@ -405,18 +429,22 @@ public namespace SoapClient {
             @return the deserialized result of the SOAP call to the SOAP server
 
             @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+            @throw WSDL-BINDING-ERROR the binding is not assigned to operation in the WSDL
             @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
 
             @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
         */
-        any call(reference info, string operation, any args, *hash header, *hash nsh) {
-            return makeCallIntern(\info, operation, args, header, nsh);
+        any call(reference info, string operation, *string binding, any args, *hash header, *hash nsh) {
+            return makeCallIntern(\info, operation, binding, args, header, nsh);
+        }
+        deprecated any call(reference info, string operation, any args, *hash header, *hash nsh) {
+            return call(\info, operation, NOTHING, args, header, nsh);
         }
 
         #! makes the call to the SOAP server and ensures that SOAP fault responses returned with a 500-series status code are processed as a SOAP fault so that error information is returned in the resulting exception
-        private any makeCallIntern(*reference info, string operation, any args, *hash header, *hash nsh, *int xml_opts, *string soapaction) {
+        private any makeCallIntern(*reference info, string operation, *string binding, any args, *hash header, *hash nsh, *int xml_opts, *string soapaction) {
             WSOperation op;
-            hash msg = getMsg(operation, args, header, \op, nsh, xml_opts, soapaction);
+            hash msg = getMsg(operation, binding, args, header, \op, nsh, xml_opts, soapaction);
             hash hdr = headers + msg.hdr;
 
             date now = now_us();
@@ -456,7 +484,7 @@ public namespace SoapClient {
             msglog(('reason': 'response', 'header': rmsg.header, 'body': rmsg.body));
             hash xmldata = WSDLLib::parseSOAPMessage(rmsg);
             #printf("DEBUG ans: %s\n", rh);
-            return op.deserializeResponse(xmldata);
+            return op.deserializeResponse(xmldata, op.getBinding(binding));
         }
 
         #! uses SoapClient::call() to transparently serialize the argument and make a call to the given operation and return the deserialized results
@@ -471,7 +499,7 @@ public namespace SoapClient {
             @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
         */
         any methodGate(string op, any arg) {
-            return call(op, arg);
+            return call(op, NOTHING, arg);
         }
 
         #! returns a hash that can be used to ensure serialization with the XSD type given as the \a type argument
