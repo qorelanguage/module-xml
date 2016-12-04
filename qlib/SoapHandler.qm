@@ -156,8 +156,8 @@ public namespace SoapHandler {
 
         #! adds a method to the handler dynamically
         /** @param ws the WebService object for the method
-            @param binding SOAP binding
             @param op the WSOperation object for the web service operation the method corresponds to
+            @param binding SOAP binding name, leave empty to use the first assigned binding
             @param func a call reference, a closure, or a string function name to call with the deserialized arguments to the method; the return value will be serialized to SOAP according to the WSDL and sent back to the caller
             @param help optional help text for the method
             @param logopt log options which can be used by a custom logger (see the \a getLogMessage parameter in the constructor)
@@ -166,7 +166,7 @@ public namespace SoapHandler {
             @param err_func a call reference, a closure, or a string function name to call with error information if an exception is thrown with SOAP data
             @param altpath an alternate path for the service / WSDL
          */
-        addMethod(WebService ws, Binding binding, WSOperation op, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath) {
+        addMethod(WebService ws, WSOperation op, *string binding, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath) {
             if (!func)
                 throw "SOAP-SERVER-ADDMETHOD-PARAMETER-ERROR", sprintf("second argument is not a function name or callable value type (got: %y)", func);
 
@@ -186,7 +186,7 @@ public namespace SoapHandler {
         }
 
         addMethod(WebService ws, WSOperation op, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath) {
-            addMethod(ws, op.bindings.firstValue(), op, func, help, logopt, cmark, path, err_func, altpath);
+            addMethod(ws, op, NOTHING, func, help, logopt, cmark, path, err_func, altpath);
         }
 
 
@@ -235,7 +235,8 @@ public namespace SoapHandler {
         final private addMethodInternal(WebService ws, hash method) {
             string rn = method.operation.getTopLevelRequestName();
 
-            *string sa = method.bindings.operations{method.name}.soapAction;
+            hash binding = method.operation.getBinding(method.binding);
+            *string sa = binding.soapAction;
             if (sa)
                 method.soap_action = sa;
 

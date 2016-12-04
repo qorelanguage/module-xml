@@ -1775,7 +1775,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         *string soapAction;  # TODO: remove   SoapHandler, SoapClient
         *string request_name;
 
-        # link to binding
+        # params per associated binding
         hash bindings;
     }
 
@@ -1815,7 +1815,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 
     setDocStyle(reference idocmap) {
-        # docstyle = True;  # property of in binding
+        # docstyle = True;  # property per binding
 
         foreach string key in (input.args.keyIterator()) {
             # FIXME: could be a type here instead of an element
@@ -1840,18 +1840,33 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
 
     /** @param name the name of the binding, if not provided then uses the first assigned binding
 
-        @return a @ref WSDL::Binding object
+        @return a binding param hash
 
         @throw WSDL-BINDING-ERROR unknown binding
      */
-    WSDL::Binding getBinding(*string bname) {
-        *Binding b = exists bname ? bindings{bname} : bindings.firstValue();
-        if (!b)
+    hash getBinding(*string bname) {
+        if (bindings && !exists bname)
+            return bindings.firstValue();
+        if (!exists bindings{bname})
             throw "WSDL-BINDING-ERROR", sprintf("binding %y is not a known binding for operation %y; known bindings: %y", bname, name, bindings.keys());
-        return b;
+        return bindings{bname};
     }
 
-    private hash serializeSoapMessage(any h, Binding binding, *hash header, *hash nsh, bool request, bool soap12, reference mpm) {
+    /** @param bname binding name, must be unique in operation
+        @param opparams binding getOperationParams
+
+        @throw WSDL-BINDING-ERROR when binding already registered
+     */
+
+    addBinding(string bname, hash opparams) {
+        if (bindings{bname}) {
+            throw "WSDL-BINDING-ERROR", sprintf("binding %y is already registered in operation %y", bname, name);
+        }
+        opparams.name = bname;
+        bindings{bname} = opparams;
+    }
+
+    private hash serializeSoapMessage(any h, hash binding, *hash header, *hash nsh, bool request, bool soap12, reference mpm) {
         string io = request ? "input" : "output";
         # setup namespaces for SOAP envelope
         hash rh = nsc.hasSoap12() ? WSDL::ENVELOPE_12_NS : WSDL::ENVELOPE_11_NS;
@@ -1860,10 +1875,10 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         if (header) {
             #printf("DEBUG %s header: %y\n", io, header);
 
-            if (binding.operations{name}{io}.header.typeCode() == NT_LIST) {
+            if (binding{io}.header.typeCode() == NT_LIST) {
                 throw "WSDL-BINDING-ERROR", sprintf("multi headers not yet implemented");  # TODO
             }
-            *hash hdr = binding.operations{name}{io}.header;
+            *hash hdr = binding{io}.header;
             hash h;
             if (hdr) {
                 hash hh.(hdr.part) = header;
@@ -1875,18 +1890,18 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         }
 
         # do we have mime/multipart io format?
-        if (exists binding.operations{name}{io}.multipart)
+        if (exists binding{io}.multipart)
             mpm = new MultiPartRelatedMessage();
 
-        #printf("DEBUG: docstyle: %y\n", binding.operations{name}.docstyle);
+        #printf("DEBUG: docstyle: %y\n", binding.docstyle);
         if (self{io}) {
             *hash body;
-            if (binding.operations{name}.docstyle)
-                body = self{io}.serializeDocument(NOTHING, binding.operations{name}{io}, mpm, h);
+            if (binding.docstyle)
+                body = self{io}.serializeDocument(NOTHING, binding{io}, mpm, h);
             else {
                 string mname = input_name ? input_name : name + (request ? "":"Response");
-                if (binding.operations{name}{io})
-                    body = self{io}.serialize(binding.operations{name}{io}, mpm, mname, h);
+                if (binding{io})
+                    body = self{io}.serialize(binding{io}, mpm, mname, h);
             }
             if (body) {
                 rh{soapenvEnvelope}."soapenv:Body" = body;
@@ -1899,7 +1914,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
 
     #! serializes a request to an XML string for the operation
     /** @param h the request to serialize
-        @param binding SOAP binding
+        @param bname SOAP binding name or empty to get the first assigned binding
         @param header optional soap header info to serialize if required (ex: authorization info)
         @param enc the optional encoding to use; if this argument is not present, then the default encoding will be used
         @param nsh an optional namespace hash for the output message
@@ -1910,7 +1925,8 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         - \c body: XML string in the SOAP request format
         - \c hdr: hash of HTTP headers
         */
-    hash serializeRequest(any h, Binding binding, *hash header, *string enc, *hash nsh, *int xml_opts, *string req_soapaction) {
+    hash serializeRequest(any h, *string bname, *hash header, *string enc, *hash nsh, *int xml_opts, *string req_soapaction) {
+        hash binding = getBinding(bname);
 
         if (!exists req_soapaction)
             req_soapaction = bindings{name}.soapAction;
@@ -1919,7 +1935,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         string body = make_xml(serializeSoapMessage(h, binding, header, nsh, True, nsc.hasSoap12(), \mpm), xml_opts, enc);
 
         if (mpm) {
-            mpm.splicePart(body, sprintf("<%s>", binding.operations{name}.input.body.parts), nsc.hasSoap12() ? MimeTypeSoapXml : MimeTypeXml);
+            mpm.splicePart(body, sprintf("<%s>", binding.input.body.parts), nsc.hasSoap12() ? MimeTypeSoapXml : MimeTypeXml);
 
             hash rv = mpm.getMsgAndHeaders();
             if (req_soapaction) {
@@ -1955,13 +1971,13 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 
     hash serializeRequest(any h, *hash header, *string enc, *hash nsh, *int xml_opts, *string req_soapaction) {
-        return serializeRequest(h, getBinding(), header, enc, nsh, xml_opts, req_soapaction);
+        return serializeRequest(h, NOTHING, header, enc, nsh, xml_opts, req_soapaction);
 
     }
 
     #! serializes a SOAP response to an XML string for the operation
     /** @param h the response to serialize
-        @param binding SOAP binding
+        @param bname SOAP binding name, leave empty to get the first assigned binding
         @param header SOAP header hash
         @param enc the optional encoding to use; if this argument is not present, then the default encoding will be used
         @param nsh namespace hash
@@ -1972,7 +1988,8 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         - \c body: XML string in the SOAP request format
         - \c hdr: hash of HTTP headers
     */
-    hash serializeResponse(any h, Binding binding, *hash header, *string enc, *hash nsh, *bool soap12, *int xml_opts) {
+    hash serializeResponse(any h, *string bname, *hash header, *string enc, *hash nsh, *bool soap12, *int xml_opts) {
+        hash binding = getBinding(bname);
         if (exists soap12) {
             if (soap12) {
                 if (!nsc.hasSoap12())
@@ -1989,14 +2006,14 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
 
         MultiPartRelatedMessage mpm;
         # do we have mime/multipart output format?
-        if (exists binding.operations{name}.output.multipart)
+        if (exists binding.output.multipart)
             mpm = new MultiPartRelatedMessage();
 
         string body = make_xml(serializeSoapMessage(h, binding, header, nsh, False, soap12, \mpm), xml_opts, enc);
 
         string ct = soap12 ? MimeTypeSoapXml : MimeTypeXml;
         if (exists mpm) {
-            mpm.splicePart(body, sprintf("<%s>", binding.operations{name}.output.body.parts), ct);
+            mpm.splicePart(body, sprintf("<%s>", binding.output.body.parts), ct);
             return mpm.getMsgAndHeaders();
         }
 
@@ -2009,7 +2026,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 
     hash serializeResponse(any h, *hash header, *string enc, *hash nsh, *bool soap12, *int xml_opts) {
-        return serializeResponse(h, getBinding(), header, enc, nsh, soap12, xml_opts);
+        return serializeResponse(h, NOTHING, header, enc, nsh, soap12, xml_opts);
     }
 
     private list processMultiRef(hash body) {
@@ -2068,14 +2085,15 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
 
     #! parses a hash representing a parsed XML request (parsed with parseXMLAsData()) for the operation and returns the corresponding Qore data structure
     /** @param o the parsed XML request (parsed with parseXMLAsData()) for the operation
-        @param binding SOAP binding
+        @param bname SOAP binding name, leave empty to use the first assigned binding
         @return the Qore data structure corresponding to the request data
     */
-    any deserializeRequest(hash o, Binding binding) {
+    any deserializeRequest(hash o, *string bname) {
         WSDL::XsdBase::removeNS(\o);
         WSDL::XsdBase::removeNS(\o.Envelope);
 
         *hash body = o.Envelope.Body;
+        hash binding = getBinding(bname);
 
         if (!input) {
             if (exists body)
@@ -2090,7 +2108,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         #any ns = msg.".ns";
         msg -= ("ns", ".ns");
 
-        if (binding.operations{name}.docstyle)
+        if (binding.docstyle)
             return input.deserializeDocument(mrh, msg);
 
         string mname = input_name ? input_name : name;
@@ -2103,16 +2121,12 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return input.deserialize(mrh, msg);
     }
 
-    any deserializeRequest(hash o) {
-        return deserializeRequest(o, getBinding());
-    }
-
     #! parses a hash representing a parsed XML response (parsed with parse_xml()) for the operation and returns the corresponding Qore data structure
     /** @param o the parsed XML response (parsed with parse_xml()) for the operation
-        @param binding SOAP binding
+        @param bname SOAP binding name, leave empty to use the first assigned binding
         @return the Qore data structure corresponding to the response data
     */
-    any deserializeResponse(hash o, Binding binding) {
+    any deserializeResponse(hash o, *string bname) {
         WSDL::XsdBase::removeNS2(\o);
         WSDL::XsdBase::removeNS2(\o.Envelope);
 
@@ -2161,7 +2175,9 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
             }
         }
 
-        if (binding.operations{name}.docstyle)
+        hash binding = getBinding(bname);
+
+        if (binding.docstyle)
             return output.deserializeDocument(mrh, msg);
 
         string mname = input_name ? input_name : name + "Response";
@@ -2172,10 +2188,6 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         msg -= (".ns", "ns");
 
         return output.deserialize(mrh, msg);
-    }
-
-    any deserializeResponse(hash o) {
-        return deserializeResponse(o, getBinding());
     }
 
     private hash processNSValue(hash h) {
@@ -2451,12 +2463,9 @@ class WSDL::XsdLateResolverHelper {
 public class WSDL::Binding inherits WSDL::XsdNamedData {
     private {
         string port;
-    }
-    public {
         bool docstyle = False;
         *string httpMethod;
         *string soapTransport;
-        hash operations = {};
     }
 
     constructor(hash data, Namespaces nsc, reference portTypes, reference idocmap, *hash messages) : XsdNamedData(\data) {
@@ -2497,9 +2506,6 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
             if (!exists portTypes{port}.operations{opname})
                 throw WSDL_ERROR, sprintf("binding %y references unknown porttype %y operation %y", name, port, opname);
 
-            if (exists operations{opname}) {
-                throw WSDL_ERROR, sprintf("binding %y already contains operation %y", name, opname);
-            }
             hash op;
             op.name = opname;
             WSDL::XsdBase::removeNS(\ophash);
@@ -2649,8 +2655,13 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                 }
             }
 
-            operations{opname} = op;
-            portTypes{port}.operations{opname}.bindings{name} = self;   # register itself in operation
+
+            portTypes{port}.operations{opname}.addBinding(name,
+                (
+                "httpMethod": httpMethod,
+                "soapTransport": soapTransport,
+                ) + op
+            );
         }
 
         #binding = data;
@@ -2660,7 +2671,7 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
     string getPort() {
         return port;
     }
-
+/*
     bool isSoapBinding() {
         return exists soapTransport;
     }
@@ -2668,6 +2679,7 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
     bool isHttpBinding() {
         return exists httpMethod;
     }
+    */
 }
 
 # private namespace prefix redefinition class

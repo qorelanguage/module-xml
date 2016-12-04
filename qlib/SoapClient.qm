@@ -281,7 +281,7 @@ public namespace SoapClient {
 
         #! returns a hash representing the serialized SOAP request for a given @ref WSDL::WSOperation "WSOperation"
         /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
-            @param binding SOAP binding, if not provided use the first binding assigned to operation
+            @param binding SOAP binding name, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param header data structure for the SOAP header, if required by the message
             @param op a reference to return the @ref WSDL::WSOperation "WSOperation" object found
@@ -301,7 +301,7 @@ public namespace SoapClient {
         */
         hash getMsg(string operation, *string binding, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction) {
             op = wsdl.getOperation(operation);
-            hash msg = op.serializeRequest(args, op.getBinding(binding), header, getEncoding(), nsh, xml_opts, soapaction);
+            hash msg = op.serializeRequest(args, binding, header, getEncoding(), nsh, xml_opts, soapaction);
             if (msg.hdr."Content-Type" !~ /charset=/i)
                 msg.hdr."Content-Type" += ";charset=" + getEncoding();
 
@@ -313,7 +313,7 @@ public namespace SoapClient {
 
         #! makes a server call with the given operation, arguments, options, and optional info hash reference and returns the result
         /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
-            @param binding SOAP binding, if not provided use the first binding assigned to operation
+            @param binding SOAP binding name, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param opts an optional hash of options for the call as follows:
             - \c soap_header: a hash giving SOAP header information, if required by the message
@@ -354,7 +354,7 @@ public namespace SoapClient {
 
         #! makes a server call with the given operation and arguments and returns the deserialized result
         /** @param operation the operation name for the SOAP call
-            @param binding SOAP binding, if not provided use the first binding assigned to operation
+            @param binding SOAP binding name, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param header optional soap headers (if required by the operation)
             @param nsh a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
@@ -379,7 +379,7 @@ public namespace SoapClient {
 
         #! makes a server call with the given operation and arguments and returns the deserialized result
         /** @param operation the operation name for the SOAP call
-            @param binding SOAP binding, if not provided use the first binding assigned to operation
+            @param binding SOAP binding name, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
             - \c "headers": a hash of HTTP request headers
@@ -421,7 +421,7 @@ public namespace SoapClient {
             - \c "request-body": the raw XML request body
             - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
             @param operation the operation name for the SOAP call
-            @param binding SOAP binding, if not provided use the first binding assigned to operation
+            @param binding SOAP binding name, if not provided use the first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param header optional soap headers (if required by the operation)
             @param nsh a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
@@ -484,7 +484,7 @@ public namespace SoapClient {
             msglog(('reason': 'response', 'header': rmsg.header, 'body': rmsg.body));
             hash xmldata = WSDLLib::parseSOAPMessage(rmsg);
             #printf("DEBUG ans: %s\n", rh);
-            return op.deserializeResponse(xmldata, op.getBinding(binding));
+            return op.deserializeResponse(xmldata, binding);
         }
 
         #! uses SoapClient::call() to transparently serialize the argument and make a call to the given operation and return the deserialized results
