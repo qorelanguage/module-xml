@@ -1873,20 +1873,62 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         string soapenvEnvelope = rh.firstKey();
         rh{soapenvEnvelope}."^attributes^" += nsc.getOutputNamespaceHash(nsh);
         if (header) {
-            #printf("DEBUG %s header: %y\n", io, header);
-
-            if (binding{io}.header.typeCode() == NT_LIST) {
-                throw "WSDL-BINDING-ERROR", sprintf("multi headers not yet implemented");  # TODO
+            #printf("DEBUG: %s, header: %y\n", io, header);
+            hash outh;
+            *hash header2 = header;  # non processed values will be added to soap header
+            foreach hash hdr in (binding{io}.header) {
+                /*printf("DEBUG: hdr.message/part/msgpart: %y/%y/%y, exists: %y,%y,%y,%y, %y\n", hdr.message, hdr.part, hdr.msgpart,
+                       exists header{hdr.message}, exists header{hdr.message}{hdr.part},
+                       exists header{hdr.message}{hdr.msgpart}, exists header{hdr.part}, exists header{hdr.msgpart}
+                );*/
+                # there is not unique part name space as it may contain parts from more message so let's do a little heuristic
+                any hh;
+                if (exists header{hdr.message} && exists header{hdr.message}{hdr.part}) {
+                    hh = header{hdr.message}{hdr.part};
+                    remove header2{hdr.message}{hdr.part};
+                    if (!header2{hdr.message}) {
+                        remove header2{hdr.message};
+                    }
+                } else if (exists header{hdr.message} && exists header{hdr.message}{hdr.msgpart}) {
+                    hh = header{hdr.message}{hdr.msgpart};
+                    remove header2{hdr.message}{hdr.msgpart};
+                    if (!header2{hdr.message}) {
+                        remove header2{hdr.message};
+                    }
+                } else if (exists header{hdr.part}) {
+                    hh = header{hdr.part};
+                    remove header2{hdr.part};
+                } else if (exists header{hdr.msgpart}) {
+                    hh = header{hdr.msgpart};
+                    remove header2{hdr.msgpart};
+                }
+                if (hh) {
+                    hash hh2.(hdr.msgpart) = hh;
+                    #printf("DEBUG: serialize(%y,%y)\n", hdr.msgpart, hh2);
+                    # outh += hdr.msg.serializeDocument(hdr.msgpart, NOTHING, NOTHING, hh2); # does not work at least for non-elements
+                    hash h = hdr.msg.serialize(hdr.msgpart, NOTHING, NOTHING, hdr.msgpart, hh2); # TODO: it does no add types
+                    #printf("DEBUG: result: %y\n", h);
+                    # tricky part, flatten hash, TODO: make it more transparently
+                    string fk = h.firstKey();
+                    h{fk} = h.firstValue().firstValue();   # "ns1:name" : ("ns1: name" | "name": val) -> "ns1:name": val
+                    #printf("DEBUG: flatten result: %y\n", h);
+                    if (exists outh{fk}) {
+                        # it could in theory happoen when two message parts are equal
+                        if (outh{fk}.typeCode() != NT_LIST) {
+                            outh{fk} = () + outh{fk};
+                        }
+                        outh{fk} += h{fk};
+                    } else {
+                        outh += h;
+                    }
+                }
             }
-            *hash hdr = binding{io}.header;
-            hash h;
-            if (hdr) {
-                hash hh.(hdr.part) = header;
-                h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hh);
-            } else {
-                h = header;
+            if (header2) {
+                # append unprocessed values
+                outh += header2;
             }
-            rh{soapenvEnvelope}."soapenv:Header" = h;
+            #printf("DEBUG: outh: %y\n", outh);
+            rh{soapenvEnvelope}."soapenv:Header" = outh;
         }
 
         # do we have mime/multipart io format?
@@ -1901,7 +1943,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
             else {
                 string mname = input_name ? input_name : name + (request ? "":"Response");
                 if (binding{io})
-                    body = self{io}.serialize(binding{io}, mpm, mname, h);
+                    body = self{io}.serialize(NOTHING, binding{io}, mpm, mname, h);
             }
             if (body) {
                 rh{soapenvEnvelope}."soapenv:Body" = body;
@@ -2259,11 +2301,11 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         }
     }
 
-    hash serialize(any msginfo, any mpm, string n_name, any h) {
+    hash serialize(*string key, any msginfo, any mpm, string n_name, any h) {
         hash rh;
         #printf("DEBUG: message %s: h: %y\n", name ,h);
 
-        foreach string k in (args.keyIterator()) {
+        foreach string k in (key ? key : args.keyIterator()) {
             any v;
             if (h.hasKey(k))
                 v = remove h{k};
@@ -2345,6 +2387,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
                     XsdBase::removeNS2(\val);
 
                 string ons;
+printf("args{key}: %N\n", args{key});
                 any th = args{key}.element.serialize(val, !encoded, key, name);
                 ons = nsc.getOutputNamespacePrefix(args{key}.element.ns);
                 rh.(ons + ":" + args{key}.element.name) = th;
@@ -2546,6 +2589,10 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
 
                         delete ophash{io}.body;
                     }
+
+                    if (ophash{io}.("body", "content", "part") && !exists portTypes{port}.operations{opname}{io})
+                        throw WSDL_ERROR, sprintf("cannot assign %s message definition in binding %y for operation %y with no %s: %y", io, name, opname, io, ophash);
+
                     if (exists ophash{io}.multipartRelated) {
                         if (exists op{io}.body)
                             throw WSDL_ERROR, sprintf("%s binding %y for operation %y specifies both body and multipart elements", io, name, opname);
@@ -2594,12 +2641,10 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                         delete ophash{io}.multipartRelated;
                     }
 
-                    if (ophash{io} && !exists portTypes{port}.operations{opname}{io})
-                        throw WSDL_ERROR, sprintf("cannot assign %s message definition in binding %y for operation %y with no %io: %y", io, name, opname, io, ophash);
 
                     if (exists ophash{io}.header) {
                         foreach hash hdr in (ophash{io}.header) {
-                            *hash ma = ophash{io}.header."^attributes^";
+                            *hash ma = hdr."^attributes^";
 
                             if (!ma.message)
                                 throw WSDL_ERROR, sprintf("%s binding %y for operation %y specifies a soap header element without a 'message' attribute (attr: %y)", io, name, opname, ma);
@@ -2612,6 +2657,11 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                             if (!exists msg)
                                 throw WSDL_ERROR, sprintf("%s binding %y for operation %y references unknown message %y in the soap header element", io, name, opname, h.val);
 
+                            ma.msg = msg;
+                            hash pmap2;
+                            map pmap2{$1.value}=$1.key, msg.pmap.pairIterator();
+                            ma.msgpart = pmap2{ma.part} ?? ma.part;
+                            #printf("DEBUG: match part to message: part: %y, msg.pmap: %y->%y, ma.msgpart: %y\n", ma.part, msg.pmap, pmap2, ma.msgpart);
                             ma.encoded = ma.use == "encoded";   # TODO: move to WSOperation ???
                             if (op{io}.header) {
                                 if (op{io}.header.typeCode() != NT_LIST) {
@@ -2654,7 +2704,6 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                     }
                 }
             }
-
 
             portTypes{port}.operations{opname}.addBinding(name,
                 (

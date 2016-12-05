@@ -107,7 +107,7 @@ class SoapClientTest inherits QUnit::Test {
         #! command-line options
         const MyOpts = Opts + (
             "port": "p,port=i",
-            "verbose": "verbose=i",
+            #"verbose": "verbose=i",  # already in Opts
             "host": "host=s",
         );
 

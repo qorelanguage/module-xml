@@ -55,7 +55,7 @@ class SoapTest inherits QUnit::Test {
                 "xmlns:st": "http://qore.org/simpletest",
                 "xmlns:st1": "http://qore.org/simpletest1",
             ),
-            );
+        );
 
         # all values are strings here because we do raw XML parsing and not SOAP deserialization for the comparison
         # to avoid comparing values generated and parsed with the same code which would result in an identity test
@@ -194,7 +194,7 @@ class SoapTest inherits QUnit::Test {
                 "xmlns:soap": SOAP_11_ENV,
                 "xmlns:tes": "http://example.com/test1/test1_ws",
             ),
-            );
+        );
 
         # all values are strings here because we do raw XML parsing and not SOAP deserialization for the comparison
         # to avoid comparing values generated and parsed with the same code which would result in an identity test
@@ -207,7 +207,7 @@ class SoapTest inherits QUnit::Test {
                     ),
                 ),
             ),
-            );
+        );
 
         const SoapEnvAttr1Res = (
             "^attributes^": (
@@ -215,7 +215,7 @@ class SoapTest inherits QUnit::Test {
                 "xmlns:tes": "http://example.com/test1/test1_ws",
                 "xmlns:oth": "http://example.com/test1/other",
             ),
-            );
+        );
 
         const Test1Res = (
             "soap:Envelope": SoapEnvAttr1Res + (
@@ -247,7 +247,32 @@ class SoapTest inherits QUnit::Test {
                 "res1": "a",
                 "res2": "b",
             ),
-            );
+        );
+
+        const ForcedHeaderValues = ("h1": "1", "h2": "a");
+        const ForcedHeaderReq = (
+            "soap:Envelope": SoapEnvAttr + (
+                "soap:Header": ForcedHeaderValues
+            ),
+        );
+
+        const HeaderVal1 = (
+            "body": ("tickerSymbol": "EET1"),
+            "docs": "DOCS-M2",
+            "m3": ("SetInfo": ("name": "NAME-M3", "id": 457, "^attributes^": ("infoType": "ATW", "code": 58 ) )),
+            "unknown": "??",
+        );
+        const HeaderValReq1 = (
+            "soap:Envelope": SoapEnvAttr + (
+                "soap:Header": (
+                    "st:GetInfo": ("st:tickerSymbol": "EET1"),
+                    "st:docs": HeaderVal1.docs,
+                    "st:SetInfo": ("st:name": "NAME-M3", "st:id": "457", "^attributes^": ("infoType": "ATW", "code": "58" )),
+                    "unknown": "??",
+                ),
+            ),
+        );
+
     }
 
     constructor() : QUnit::Test("SoapTest", "1.0") {
@@ -378,12 +403,22 @@ class SoapTest inherits QUnit::Test {
         eh = op.deserializeRequest(h);
         assertEq(NOTHING, eh);
 
+        op = ws.getOperation("noInput");
+        h = op.serializeRequest(NOTHING, NOTHING, ForcedHeaderValues);
+        xh = parse_xml(h.body);
+        compareSoapMsgs("header-input-no-binding", ForcedHeaderReq, xh);
+
         op = ws.getOperation("noOutput");
         h = op.serializeResponse();
         xh = parse_xml(h.body);
         compareSoapMsgs("no-output", EmptyRes, xh);
         eh = op.deserializeResponse(h);
         assertEq(NOTHING, eh);
+
+        op = ws.getOperation("headerVal");
+        h = op.serializeRequest(NOTHING, NOTHING, HeaderVal1);
+        xh = parse_xml(h.body);
+        compareSoapMsgs("header-val", HeaderValReq1, xh);
     }
 
     test1() {
@@ -420,6 +455,11 @@ class SoapTest inherits QUnit::Test {
 
         # compare soap version in envelope
         assertEq(nh1.getSoapUri(), nh2.getSoapUri());
+
+        *hash hdr1 = SoapTest::getValue(h1, nh1.se, "Envelope", "Header");
+        *hash hdr2 = SoapTest::getValue(h2, nh2.se, "Envelope", "Header");
+        #printf("COMPARE\n%N\n%N\n%N\n%N\n\n", h1, h2, hdr1, hdr2);
+        compareSoapValue(assert, "Envelope.Header", hdr1, hdr2, nh1, nh2);
 
         *hash b1 = SoapTest::getValue(h1, nh1.se, "Envelope", "Body");
         *hash b2 = SoapTest::getValue(h2, nh2.se, "Envelope", "Body");
