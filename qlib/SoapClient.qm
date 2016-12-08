@@ -293,6 +293,8 @@ public namespace SoapClient {
             @return a hash with the following keys:
             - \c hdr: a hash of message headers
             - \c body: the serialized message body
+            - \c path: the path part of URL
+            - \c method: the HTTP request method
 
             @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
             @throw WSDL-BINDING-ERROR the binding is not assigned to operation in the WSDL
@@ -456,7 +458,7 @@ public namespace SoapClient {
             # we have to write the request key after the HTTPClient::post() call but before the log message above
             # (on_exit statements are executed in reverse order when the block is exited)
             on_exit info += ("request-body": msg.body, "request-soap-headers": header);
-            msglog(('reason': 'request', 'header': hdr, 'body': msg.body));
+            msglog(('reason': 'request', 'method': msg.method, 'path': msg.path, 'header': hdr, 'body': msg.body));
             # apply content encoding here
             data body = msg.body;
             if (seh.ce && body.size() > CompressionThreshold) {
@@ -466,7 +468,7 @@ public namespace SoapClient {
 
             hash rh;
             try {
-                rh = send(body, "POST", NOTHING, hdr, True, \info);
+                rh = send(body, msg.method, msg.path, hdr, True, \info);
                 info."response-body" = rh.body;
             }
             catch (hash ex) {

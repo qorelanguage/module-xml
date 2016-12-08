@@ -210,6 +210,16 @@
     <wsdl:part name="issue663" element="tns:issue663"/>
   </wsdl:message>
 
+  <wsdl:message name="m5">
+    <wsdl:part name="country" type="s:string"/>
+    <wsdl:part name="city" type="s:string"/>
+    <wsdl:part name="zip" type="s:integer"/>
+  </wsdl:message>
+
+  <wsdl:message name="m6">
+    <wsdl:part name="info" type="s:string"/>
+  </wsdl:message>
+
   <wsdl:portType name="pt1">
     <wsdl:operation name="getInfo">
       <wsdl:input message="tns:m1"/>
@@ -269,6 +279,62 @@
         <soap12:header message="m3" part="body" use="literal"/>
       </wsdl:input>
     </wsdl:operation>
+  </wsdl:binding>
+
+  <wsdl:portType name="pt2">
+    <wsdl:operation name="urlRepl">
+	  <wsdl:input message="tns:m5"/>
+	</wsdl:operation>
+    <wsdl:operation name="urlEncoded1">
+	  <wsdl:input message="tns:m5"/>
+	</wsdl:operation>
+    <wsdl:operation name="urlEncoded2">
+	  <wsdl:input message="tns:m5"/>
+	</wsdl:operation>
+    <wsdl:operation name="postForm">
+	  <wsdl:input message="tns:m5"/>
+	</wsdl:operation>
+    <wsdl:operation name="postText">
+	  <wsdl:input message="tns:m6"/>
+	</wsdl:operation>
+  </wsdl:portType>
+
+  <wsdl:binding name="b2" type="tns:pt2">
+    <http:binding verb="GET"/>
+    <wsdl:operation name="urlRepl">
+	  <http:operation location="get/(country)/(zip)-(city)"/>
+	  <input>
+	    <http:urlReplacement/>
+	  </input>
+	</wsdl:operation>
+    <wsdl:operation name="urlEncoded1">
+	  <http:operation location="get"/>
+	  <input>
+	    <http:urlEncoded/>
+	  </input>
+	</wsdl:operation>
+    <wsdl:operation name="urlEncoded2">
+	  <http:operation location="get?test"/>
+	  <input>
+	    <http:urlEncoded/>
+	  </input>
+	</wsdl:operation>
+  </wsdl:binding>
+
+  <wsdl:binding name="b3" type="tns:pt2">
+    <http:binding verb="POST"/>
+    <wsdl:operation name="postForm">
+	  <http:operation location="postform"/>
+	  <input>
+		<mime:content type="application/x-www-form-urlencoded"/>
+	  </input>
+	</wsdl:operation>
+    <wsdl:operation name="postText">
+	  <http:operation location="posttext"/>
+	  <input>
+	    <mime:content type="text/plain"/>
+	  </input>
+	</wsdl:operation>
   </wsdl:binding>
 
   <wsdl:service name="InfoService">

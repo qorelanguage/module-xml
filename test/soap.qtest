@@ -272,7 +272,11 @@ class SoapTest inherits QUnit::Test {
                 ),
             ),
         );
-
+        const UrlReplVal1 = (
+            "country": "CZ",
+            "city": "Prague 2",
+            "zip": "12000",
+        );
     }
 
     constructor() : QUnit::Test("SoapTest", "1.0") {
@@ -419,6 +423,33 @@ class SoapTest inherits QUnit::Test {
         h = op.serializeRequest(NOTHING, NOTHING, HeaderVal1);
         xh = parse_xml(h.body);
         compareSoapMsgs("header-val", HeaderValReq1, xh);
+
+        op = ws.getOperation("pt2", "urlRepl");
+        h = op.serializeRequest(UrlReplVal1, NOTHING);
+        assertEq("get/CZ/12000-Prague%202", h.path);
+        assertEq("GET", h.method);
+
+        op = ws.getOperation("pt2", "urlEncoded1");
+        h = op.serializeRequest(UrlReplVal1, NOTHING);
+        assertEq("get?country=CZ&city=Prague%202&zip=12000", h.path);
+        assertEq("GET", h.method);
+
+        op = ws.getOperation("pt2", "urlEncoded2");
+        h = op.serializeRequest(UrlReplVal1, NOTHING);
+        assertEq("get?test&country=CZ&city=Prague%202&zip=12000", h.path);
+        assertEq("GET", h.method);
+
+        op = ws.getOperation("pt2", "postForm");
+        h = op.serializeRequest(UrlReplVal1, NOTHING);
+        assertEq("country=CZ&city=Prague%202&zip=12000", h.body);
+        assertEq("POST", h.method);
+
+        op = ws.getOperation("pt2", "postText");
+        h = op.serializeRequest(("info": "important info &"), NOTHING);
+        assertEq("important info &", h.body);
+        assertTrue(regexpMatches(h.hdr."Content-Type", "^text\/"));
+        assertEq("POST", h.method);
+
     }
 
     test1() {

@@ -29,7 +29,7 @@
 %requires xml
 
 # need mime definitions
-%requires Mime >= 1.1
+%requires Mime >= 1.3.4.1
 
 # do not use $ for vars
 %new-style
@@ -391,7 +391,7 @@ public class WSDL::WSDLLib {
     #! takes a hash representation returned by parseMultiPartSOAPMessage and parses it to a Qore data structure, checks the content-type, and handles hrefs in the message
     static hash parseSOAPMessage(hash msg) {
         # check content-type
-        WSDLLib::checkSOAPContentType(msg."content-type");
+        WSDLLib::checkContentType(msg."content-type", SoapMimeTypes);
         hash xmldata = parse_xml(msg.body);
         if (msg.parts) {
             # parse entire data structure to find "href"s or href attributes
@@ -400,13 +400,13 @@ public class WSDL::WSDLLib {
         return xmldata;
     }
 
-    private static checkSOAPContentType(string ct) {
-        foreach string sct in (SoapMimeTypes) {
+    private static checkContentType(string ct, list MimeTypes) {
+        foreach string sct in (MimeTypes) {
             if (bindex(ct, sct) != -1)
                 return;
         }
 
-        throw "SOAP-MESSAGE-ERROR", sprintf("don't know how to handle content-type %y (expecting one of: %y)", ct, SoapMimeTypes);
+        throw "SOAP-MESSAGE-ERROR", sprintf("don't know how to handle content-type %y (expecting one of: %y)", ct, MimeTypes);
     }
 
     private static processHref(reference xmldata, string hr, hash parts) {
@@ -1954,6 +1954,35 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return rh;
     }
 
+    #! serializes path part of URL.
+    *string serializePath(any h, hash binding) {
+        string path;
+        if (binding.location) {
+            path = binding.location;
+            if (binding.input.urlReplacement) {
+                path = "";
+                foreach string k in (keys binding.input.urlReplacement) {
+                    if (k =~ /^string/) {
+                        path += binding.input.urlReplacement{k};
+                    } else if (k =~ /^part/) {
+                        if (!input) {
+                            throw SOAP_SERIALIZATION_ERROR, sprintf("url replacement requested for operation %s with no message (%y)", name, h);
+                        }
+                        hash v = input.getNameValue(binding.input.urlReplacement{k}, h);
+                        path += encode_url(v.firstValue(), True);
+                    }
+                }
+            } else if (binding.input.urlEncoded) {
+                string s = input.serializeAsUrlEncodedString(h);
+                if (s) {
+                    path += binding.location =~ /\?/ ? "&" : "?";
+                    path += s;
+                }
+            }
+        }
+        return path;
+    }
+
     #! serializes a request to an XML string for the operation
     /** @param h the request to serialize
         @param bname SOAP binding name or empty to get the first assigned binding
@@ -1966,6 +1995,8 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         @return a hash with keys:
         - \c body: XML string in the SOAP request format
         - \c hdr: hash of HTTP headers
+        - \c path: the path part of URL
+        - \c method: the HTTP request method
         */
     hash serializeRequest(any h, *string bname, *hash header, *string enc, *hash nsh, *int xml_opts, *string req_soapaction) {
         hash binding = getBinding(bname);
@@ -1973,38 +2004,60 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         if (!exists req_soapaction)
             req_soapaction = bindings{name}.soapAction;
 
-        MultiPartRelatedMessage mpm;
-        string body = make_xml(serializeSoapMessage(h, binding, header, nsh, True, nsc.hasSoap12(), \mpm), xml_opts, enc);
-
-        if (mpm) {
-            mpm.splicePart(body, sprintf("<%s>", binding.input.body.parts), nsc.hasSoap12() ? MimeTypeSoapXml : MimeTypeXml);
-
-            hash rv = mpm.getMsgAndHeaders();
-            if (req_soapaction) {
-                if (nsc.hasSoap12())
-                    rv.hdr."Content-Type" += sprintf(";action: %s", req_soapaction);
-                rv.hdr += ("SOAPAction": req_soapaction);
-            }
-
-            rv.hdr."Content-Type" += sprintf(";charset=%s", exists enc ? enc : get_default_encoding());
-            return rv;
-        }
-
         string ct;
         if (nsc.hasSoap12()) {
             ct = MimeTypeSoapXml;
             if (req_soapaction)
                 ct += sprintf(";action: %s", req_soapaction);
-        }
-        else
+        } else
             ct = MimeTypeXml;
 
-        ct += sprintf(";charset=%s", exists enc ? enc : get_default_encoding());
+        enc = enc ?? get_default_encoding();
+
+        string body;
+        if (binding.input.content) {
+            ct = binding.input.content.type;
+            if (ct == MimeTypeFormUrlEncoded) {
+                body = input.serializeAsUrlEncodedString(h);
+            } else {
+                if (input.args.size() > 1) {
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("messege %y related to input operation %y has more arguments so it's not possible assign to body", input.name, name);
+                }
+                if (ct !~ /^text\//) {
+                    delete ct;
+                }
+                # TODO: we need return raw value in case of binary
+                hash v = input.getNameValue(binding.input.content.part, h);
+                body = v.firstValue();
+            }
+        } else {
+            MultiPartRelatedMessage mpm;
+            body = make_xml(serializeSoapMessage(h, binding, header, nsh, True, nsc.hasSoap12(), \mpm), xml_opts, enc);
+            if (mpm) {
+                mpm.splicePart(body, sprintf("<%s>", binding.input.body.parts), nsc.hasSoap12() ? MimeTypeSoapXml : MimeTypeXml);
+
+                hash rv = mpm.getMsgAndHeaders();
+                if (req_soapaction) {
+                    if (nsc.hasSoap12())
+                        rv.hdr."Content-Type" += sprintf(";action: %s", req_soapaction);
+                    rv.hdr += ("SOAPAction": req_soapaction);
+                }
+
+                rv.hdr."Content-Type" += sprintf(";charset=%s", enc);
+                return rv;
+            }
+        }
+
+        if (exists enc) {
+            ct += sprintf(";charset=%s", enc);
+        }
 
         hash rv = (
             "hdr": ("Content-Type": ct),
             "body": body,
-            );
+            "path": serializePath(h, binding),
+            "method": binding.httpMethod ?? "POST",
+        );
 
         if (req_soapaction)
             rv.hdr += ("SOAPAction": req_soapaction);
@@ -2387,7 +2440,6 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
                     XsdBase::removeNS2(\val);
 
                 string ons;
-printf("args{key}: %N\n", args{key});
                 any th = args{key}.element.serialize(val, !encoded, key, name);
                 ons = nsc.getOutputNamespacePrefix(args{key}.element.ns);
                 rh.(ons + ":" + args{key}.element.name) = th;
@@ -2463,6 +2515,31 @@ printf("args{key}: %N\n", args{key});
 
         #printf("DBG WSMessage::deserializeDocument() args: %y val: %y\nRH: %y\n", args.keys(), val, rh);
         return rh;
+    }
+
+    hash getNameValue(*string key, any h) {
+        hash rv;
+        foreach string k in (key ? key : args.keyIterator()) {
+            if (args{k}.element) {
+                throw SOAP_SERIALIZATION_ERROR, sprintf("cannot get element value %y in message %y. Type part is needed", k, name);
+            }
+            any v;
+            if (h.hasKey(k))
+                v = h{k};
+            else if (pmap{k} && !exists h{k})
+                v = h.(pmap{k});
+            rv{k} = args{k}.type.serialize(v, True);
+        }
+        return rv;
+    }
+
+    string serializeAsUrlEncodedString(any h) {
+        hash nv = getNameValue(NOTHING, h);
+        list l;
+        foreach string k in (keys nv) {
+            push l, encode_url(k, True) + "=" + encode_url(nv{k}, True);
+        }
+        return l.join("&");
     }
 }
 
@@ -2581,7 +2658,6 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
             foreach string io in (("input", "output")) {
                 if (ophash{io}) {
                     WSDL::XsdBase::removeNS(\ophash{io});
-
                     if (exists ophash{io}.body) {
                         # any pa = ophash{io}.body."^attributes^";
                         op{io}.body = ophash{io}.body."^attributes^";
@@ -2675,12 +2751,38 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                         delete ophash{io}.header;
                     }
 
-                    if (exists ophash{io}.urlReplacement) {
-                        op{io}.urlReplacement = True;
+                    if (ophash{io}.hasKey("urlReplacement")) {
+                        string loc = op.location;
+                        int i = 0;
+                        hash l;
+                        while (i < loc.size()) {
+                            int j = index(loc, "(", i);
+                            if (j < 0) {
+                                j = loc.size();
+                            }
+                            if (j > i) {
+                                l{sprintf("string^%d", l.size()+1)} = substr(loc, i, j-i);
+                            }
+                            if (j < loc.size()) {
+                                i = j+1;
+                                j = index(loc, ")", i);
+                                if (j == i) {
+                                    throw WSDL_ERROR, sprintf("empty replace token in %y near %y", loc, substr(loc, i-1, loc.size()));
+                                } else if (j < 0) {
+                                    throw WSDL_ERROR, sprintf("missing close parentheses in %y near %y", loc, substr(loc, i-1, loc.size()));
+                                }
+                                string p = substr(loc, i, j-i);
+                                # if (messages)   TODO test messages / part here probably not ?
+                                l{sprintf("part^%d", l.size()+1)} = p;
+                                j++;
+                            }
+                            i = j;
+                        }
+                        op{io}.urlReplacement = l;
                         delete ophash{io}.urlReplacement;
                     }
 
-                    if (exists ophash{io}.urlEncoded) {
+                    if (ophash{io}.hasKey("urlEncoded")) {
                         op{io}.urlEncoded = True;
                         delete ophash{io}.urlEncoded;
                     }
@@ -2689,12 +2791,13 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                         op{io}.contents = ();
                         foreach any cnt in (ophash{io}.content) {
                             WSDL::XsdBase::removeNS(\cnt);
+                            cnt = remove cnt."^attributes^";
                             if (!cnt.type) {
                                 cnt.type = "*/*";
                             }
                             push op{io}.contents, cnt;
                         }
-                        # delete ophash{io}.content;  TODO: implement later
+                        delete ophash{io}.content;
                     }
 
                     delete ophash{io}.("^attributes^", "ns");
@@ -2705,6 +2808,28 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                 }
             }
 
+            if (op.input.contents) {
+                if (op.input.contents.size() > 1) {
+                    throw WSDL_ERROR, sprintf("multiple content types in binding %y for input operation %y", name, opname);
+                }
+                op.input.content = op.input.contents[0];
+                remove op.input.contents;
+                if (op.input.content.type != MimeTypeFormUrlEncoded) {
+                    if (exists op.input.content.part) {
+                        if (!exists portTypes{port}.operations{opname}.input.args{op.input.content.part}) {
+                            throw WSDL_ERROR, sprintf("missing part %y in message %y in binding %y for input operation %y", op.input.content.part, portTypes{port}.operations{opname}.input.name, name, opname);
+                        }
+                    } else {
+                        if (portTypes{port}.operations{opname}.input.args.size() != 1) {
+                            throw WSDL_ERROR, sprintf("multiple parts %y in message %y in binding %y for input operation %y", keys portTypes{port}.operations{opname}.input.args, portTypes{port}.operations{opname}.input.name, name, opname);
+                        }
+                        op.input.content.part = portTypes{port}.operations{opname}.input.args.firstKey();
+                    }
+                }
+            }
+            if (op.output.contents) {
+                throw WSDL_ERROR, sprintf("content types in binding %y for output operation %y is not yet supported", name, opname);
+            }
             portTypes{port}.operations{opname}.addBinding(name,
                 (
                 "httpMethod": httpMethod,
