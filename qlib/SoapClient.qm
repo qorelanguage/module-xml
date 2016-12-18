@@ -304,7 +304,7 @@ public namespace SoapClient {
         hash getMsg(string operation, *string binding, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction) {
             op = wsdl.getOperation(operation);
             hash msg = op.serializeRequest(args, binding, header, getEncoding(), nsh, xml_opts, soapaction);
-            if (msg.hdr."Content-Type" !~ /charset=/i)
+            if (msg.hdr."Content-Type" !~ /charset=/i && msg.body.typeCode != NT_BINARY)
                 msg.hdr."Content-Type" += ";charset=" + getEncoding();
 
             return msg;

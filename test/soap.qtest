@@ -426,13 +426,11 @@ class SoapTest inherits QUnit::Test {
 
         op = ws.getOperation("headerVal");
         h = op.serializeRequest(NOTHING, NOTHING, HeaderVal1);
-printf("HEADERVAL:%N\n", h.body);
         xh = parse_xml(h.body);
         compareSoapMsgs("header-val", HeaderValReq1, xh);
 
         op = ws.getOperation("headerVal-doc");
         h = op.serializeRequest(NOTHING, NOTHING, HeaderVal1);
-printf("HEADERVAL_DOC:%N\n", h.body);
         xh = parse_xml(h.body);
         compareSoapMsgs("header-val", HeaderValReq1, xh);
 
@@ -459,7 +457,13 @@ printf("HEADERVAL_DOC:%N\n", h.body);
         op = ws.getOperation("pt2", "postText");
         h = op.serializeRequest(("info": "important info &"), NOTHING);
         assertEq("important info &", h.body);
-        assertTrue(regexpMatches(h.hdr."Content-Type", "^text\/"));
+        assertTrue(h.hdr."Content-Type".regex("^text/"), "Content type");
+        assertEq("POST", h.method);
+
+        op = ws.getOperation("pt2", "postImg");
+        h = op.serializeRequest(("img": <ABCDEF>), NOTHING);
+        assertEq(h.hdr."Content-Type", "image/png");
+        assertEq(<ABCDEF>, h.body);
         assertEq("POST", h.method);
 
     }

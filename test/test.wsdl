@@ -220,6 +220,10 @@
     <wsdl:part name="info" type="s:string"/>
   </wsdl:message>
 
+  <wsdl:message name="m7">
+    <wsdl:part name="img" type="s:base64Binary"/>
+  </wsdl:message>
+
   <wsdl:portType name="pt1">
     <wsdl:operation name="getInfo">
       <wsdl:input message="tns:m1"/>
@@ -307,6 +311,9 @@
     <wsdl:operation name="postText">
 	  <wsdl:input message="tns:m6"/>
 	</wsdl:operation>
+    <wsdl:operation name="postImg">
+	  <wsdl:input message="tns:m7"/>
+	</wsdl:operation>
   </wsdl:portType>
 
   <wsdl:binding name="b2" type="tns:pt2">
@@ -343,6 +350,12 @@
 	  <http:operation location="posttext"/>
 	  <input>
 	    <mime:content type="text/plain"/>
+	  </input>
+	</wsdl:operation>
+    <wsdl:operation name="postImg">
+	  <http:operation location="postimg"/>
+	  <input>
+	    <mime:content type="image/png"/>
 	  </input>
 	</wsdl:operation>
   </wsdl:binding>
