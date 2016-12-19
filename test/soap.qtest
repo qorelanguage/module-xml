@@ -280,7 +280,7 @@ class SoapTest inherits QUnit::Test {
         const UrlReplVal1 = (
             "country": "CZ",
             "city": "Prague 2",
-            "zip": "12000",
+            "zip": 12000,
         );
     }
 
@@ -289,6 +289,16 @@ class SoapTest inherits QUnit::Test {
         addTestCase("Test1", \test1());
         addTestCase("globalweather", \globalWeather());
         set_return_value(main());
+    }
+
+    *hash parseMessage(hash msg, WSOperation op, bool request) {
+        msg."content-type" = msg.hdr."Content-Type";
+        *hash pdata = WSDLLib::parseSOAPMessage(msg);
+        if (request) {
+            return op.deserializeRequest(pdata);
+        } else {
+            return op.deserializeResponse(pdata);
+        }
     }
 
     soapTestCase() {
@@ -429,10 +439,18 @@ class SoapTest inherits QUnit::Test {
         xh = parse_xml(h.body);
         compareSoapMsgs("header-val", HeaderValReq1, xh);
 
+        *hash h2 = op.deserializeRequest(xh);
+
+        hash headerDeser = ("m1": ("body": ("tickerSymbol" : "EET1")), "m2": ("docs": "DOCS-M2"), "m3": ("body": ("name": "NAME-M3", "id": 457, "^attributes^": ("infoType": "ATW", "code": 58))));
+        assertEq(headerDeser, h2."^header^");
+
         op = ws.getOperation("headerVal-doc");
         h = op.serializeRequest(NOTHING, NOTHING, HeaderVal1);
         xh = parse_xml(h.body);
         compareSoapMsgs("header-val", HeaderValReq1, xh);
+
+        h2 = op.deserializeRequest(xh);
+        assertEq(headerDeser, h2."^header^");
 
         op = ws.getOperation("pt2", "urlRepl");
         h = op.serializeRequest(UrlReplVal1, NOTHING);
@@ -443,6 +461,7 @@ class SoapTest inherits QUnit::Test {
         h = op.serializeRequest(UrlReplVal1, NOTHING);
         assertEq("get?country=CZ&city=Prague%202&zip=12000", h.path);
         assertEq("GET", h.method);
+        assertThrows("SOAP-DESERIALIZATION-ERROR", \parseMessage(), (h, op, True));
 
         op = ws.getOperation("pt2", "urlEncoded2");
         h = op.serializeRequest(UrlReplVal1, NOTHING);
@@ -454,17 +473,28 @@ class SoapTest inherits QUnit::Test {
         assertEq("country=CZ&city=Prague%202&zip=12000", h.body);
         assertEq("POST", h.method);
 
+        h2 = parseMessage(h, op, True);
+        assertEq(UrlReplVal1, h2, h.path);
+
         op = ws.getOperation("pt2", "postText");
         h = op.serializeRequest(("info": "important info &"), NOTHING);
         assertEq("important info &", h.body);
         assertTrue(h.hdr."Content-Type".regex("^text/"), "Content type");
         assertEq("POST", h.method);
 
+        h2 = parseMessage(h, op, True);
+        assertEq("important info &", get_xml_value(h2.info));
+        assertEq("text/plain", h2.info."^attributes^"."^content-type^");
+
         op = ws.getOperation("pt2", "postImg");
         h = op.serializeRequest(("img": <ABCDEF>), NOTHING);
         assertEq(h.hdr."Content-Type", "image/png");
         assertEq(<ABCDEF>, h.body);
         assertEq("POST", h.method);
+
+        h2 = parseMessage(h, op, True);
+        assertEq(<ABCDEF>, get_xml_value(h2.img));
+        assertEq(h2.img."^attributes^"."^content-type^", "image/png");
 
         op = ws.getOperation("pt2", "postImg");
         assertThrows("SOAP-MESSAGE-ERROR", \op.serializeRequest(), ("img": ("^value^": "xxx", "^attributes^": ("^content-type^": "text/plain"))), "post img wrong content type");
@@ -474,13 +504,17 @@ class SoapTest inherits QUnit::Test {
 
         op = ws.getOperation("pt2", "postImg2");
         h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))), NOTHING);
-        assertEq(h.hdr."Content-Type", "image/jpeg");
+        assertEq("image/jpeg", h.hdr."Content-Type");
         assertEq(<ABCDEF>, h.body);
 
         op = ws.getOperation("pt2", "postImg3");
         h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))), NOTHING);
-        assertEq(h.hdr."Content-Type", "image/jpeg");
+        assertEq("image/jpeg", h.hdr."Content-Type");
         assertEq(<ABCDEF>, h.body);
+
+        h2 = parseMessage(h, op, True);
+        assertEq(<ABCDEF>, get_xml_value(h2.img));
+        assertEq("image/jpeg", h2.img."^attributes^"."^content-type^");
 
         op = ws.getOperation("pt2", "postImg3");
         assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), ("img": <ABCDEF>), "post img no content type");

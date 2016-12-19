@@ -389,25 +389,50 @@ public class WSDL::WSDLLib {
     }
 
     #! takes a hash representation returned by parseMultiPartSOAPMessage and parses it to a Qore data structure, checks the content-type, and handles hrefs in the message
-    static hash parseSOAPMessage(hash msg) {
-        # check content-type
-        WSDLLib::checkContentType(msg."content-type", SoapMimeTypes);
-        hash xmldata = parse_xml(msg.body);
-        if (msg.parts) {
-            # parse entire data structure to find "href"s or href attributes
-            WSDLLib::substHref(\xmldata, msg.parts);
+    static *hash parseSOAPMessage(hash msg) {
+        if (WSDLLib::isContentType(msg."content-type", SoapMimeTypes)) {
+            hash xmldata;
+            if (msg.body) {
+                xmldata = parse_xml(msg.body);
+            }
+            if (msg.parts) {
+                # parse entire data structure to find "href"s or href attributes
+                WSDLLib::substHref(\xmldata, msg.parts);
+            }
+            if (!exists xmldata) {
+                # fake data, e.g. when URLEncoded
+                xmldata."content-type" = msg."content-type";
+                xmldata.body = NOTHING;
+            }
+            return xmldata;
+        } else {
+            string ct = msg."content-type";
+            hash h."content-type" = (ct =~ x/^([^;]+)/)[0];
+            if (ct =~ /charset=/) {
+                string c = (ct =~ x/charset=([^;]+)/)[0];
+                h.body = force_encoding(msg.body, c);
+            } else {
+                h.body = binary(msg.body);  # needed or is it already ?
+            }
+            return h;
         }
-        return xmldata;
     }
 
-    /*private in module*/ static checkContentType(string ct, list MimeTypes) {
+    /*private in module*/ static bool isContentType(string ct, list MimeTypes) {
         ct = ltrim(ct);
         foreach string sct in (MimeTypes) {
             # Content-Type := type "/" subtype *[";" parameter] ... so we can test if string is starting at index 0
             if (bindex(ct, sct) == 0)
-                return;
+                return True;
         }
-        throw "SOAP-MESSAGE-ERROR", sprintf("don't know how to handle content-type %y (expecting one of: %y)", ct, MimeTypes);
+        return False;
+    }
+
+
+    /*private in module*/ static checkContentType(string ct, list MimeTypes) {
+        if (!WSDLLib::isContentType(ct, MimeTypes)) {
+            throw "SOAP-MESSAGE-ERROR", sprintf("don't know how to handle content-type %y (expecting one of: %y)", ct, MimeTypes);
+        }
     }
 
     private static processHref(reference xmldata, string hr, hash parts) {
@@ -890,10 +915,18 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
                 return float(val);
 
             case "base64Binary":
-                return val.empty() ? binary() : parse_base64_string(val);
+                if (val.typeCode() == NT_BINARY) {
+                    return val;
+                } else {
+                    return val.empty() ? binary() : parse_base64_string(val);
+                }
 
             case "hexBinary":
-                return val.empty() ? binary() : parse_hex_string(val);
+                if (val.typeCode() == NT_BINARY) {
+                    return val;
+                } else {
+                    return val.empty() ? binary() : parse_hex_string(val);
+                }
 
             default: {
                 if (name == "anyType")  {
@@ -2014,7 +2047,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
                             throw SOAP_SERIALIZATION_ERROR, sprintf("url replacement requested for operation %s with no message (%y)", name, h);
                         }
                         hash v = input.getNameValue(binding.input.urlReplacement{k}, h);
-                        path += encode_url(v.firstValue(), True);
+                        path += encode_url(string(v.firstValue()), True);
                     }
                 }
             } else if (binding.input.urlEncoded) {
@@ -2083,7 +2116,6 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         if (exists enc) {
             ct += sprintf(";charset=%s", enc);
         }
-
         rv.hdr."Content-Type" = ct;
 
         if (req_soapaction)
@@ -2211,129 +2243,161 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return (mrh, body);
     }
 
-    hash parseSOAPMessage(hash msg, *string bname, bool request) {
-        string io = request ? "input": "output";
-        hash binding = getBinding(bname);
-        if (binding.httpMethod) {
-            string ct = (msg."content-type" =~ x/^([^;]+)/)[0];
-            if (!binding{io}.acceptAllContentTypes)
-                WSDLLib::checkContentType(ct, binding{io}.content.acceptedContentTypeSubtypes + binding{io}.content.acceptedContentTypes);
-            if (msg."content-type" =~ /charset=/) {
-                string c = (msg."content-type" =~ x/charset=([^;]+)/)[0];
-                msg.body = force_encoding(msg.body, c);
-            } else {
-                msg.body = binary(msg.body);  # needed or is it already ?
-            }
-        } else {
-            return WSDLLib::parseSOAPMessage(msg);
-        }
-    }
+    private any deserializeSoapMessage(hash o, hash binding, bool request) {
+        #printf("DEBUG: deserializeSoapMessage(%N, %y)\n", o, request);
+        string io = request ? "input" : "output";
+        WSDL::XsdBase::removeNS2(\o);
+        WSDL::XsdBase::removeNS2(\o.Envelope);
+        hash rv;
+        if (binding{io}.header) {
+            *hash header = o.Envelope.Header;
+            WSDL::XsdBase::removeNS2(\header);
 
-    #! parses a hash representing a parsed XML request (parsed with parseXMLAsData()) for the operation and returns the corresponding Qore data structure
-    /** @param o the parsed XML request (parsed with parseXMLAsData()) for the operation
-        @param bname SOAP binding name, leave empty to use the first assigned binding
-        @return the Qore data structure corresponding to the request data
-    */
-    any deserializeRequest(hash o, *string bname) {
-        WSDL::XsdBase::removeNS(\o);
-        WSDL::XsdBase::removeNS(\o.Envelope);
+            #printf("DEBUG: Deserialize SOAP headers: %N\n", header);
+            hash hrv;
+            foreach hash hdr in (binding{io}.header) {
+                if (header.hasKey(hdr.msgpart)) {
+                    # seems it may appear part name conflict between messages when namespace is stripped
+                    hash v;
+                    if (binding.docstyle) {
+                        hrv{hdr.msg.name} += hdr.msg.deserializeDocument(NOTHING, header, hdr.msgpart, True);
+                    } else {
+                        hrv{hdr.msg.name} += hdr.msg.deserialize(NOTHING, header, hdr.msgpart, True);
+                    }
+                }
+            }
+            #printf("DEBUG: Deserialized SOAP headers: %N\n", hrv);
+            if (exists hrv) {
+                rv."^header^" = hrv;
+            }
+        }
 
         *hash body = o.Envelope.Body;
-        hash binding = getBinding(bname);
 
-        if (!input) {
+        if (!self{io}) {
             if (exists body)
-                throw SOAP_DESERIALIZATION_ERROR, sprintf("request body value given for operation %y with no input message: %y", name, body);
-            return;
+                throw SOAP_DESERIALIZATION_ERROR, sprintf("%s value given for operation %y with no %s message: %y", request ? "request" : "response", name, io, body);
+            return rv;
         }
         else if (!exists body)
-            throw SOAP_DESERIALIZATION_ERROR, sprintf("no request body value given for operation %y", name);
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("no %s body value given for operation %y", request ? "request" : "response", name);
 
         (*hash mrh, hash msg) = processMultiRef(body);
+
+        if (!request) {
+            # check for Soap Fault, if so raise an exception immediately with the fault info
+            WSDL::XsdBase::removeNS2(\body);
+
+            if (body.Fault) {
+                WSDL::XsdBase::removeNS(\body.Fault);
+                delete body.Fault.".ns";
+                if (nsc.hasSoap12()) {
+                    WSDL::XsdBase::removeNS(\body.Fault.Code);
+                    WSDL::XsdBase::removeNS(\body.Fault.Reason);
+                    string desc = sprintf("The following fault response was received from the server: code: %y", body.Fault.Code.Value);
+                    any sc = body.Fault.Code.Subcode;
+                    while (exists sc) {
+                        WSDL::XsdBase::removeNS(\sc);
+                        desc += sprintf(", subcode: %y", sc.Value);
+                        sc = sc.Subcode;
+                    }
+                    foreach any rn in (body.Fault.Reason.Text) {
+                        desc += sprintf(", text: %y", rn);
+                    }
+
+                    throw "SOAP-SERVER-FAULT-RESPONSE", desc, body.Fault;
+                }
+                else {
+                    string desc = sprintf("The following fault response was received from the server: code: %y", body.Fault.faultcode);
+                    if (exists body.Fault.faultstring)
+                        desc += sprintf(", faultstring: %y", body.Fault.faultstring);
+                    if (exists body.Fault.desc)
+                        desc += sprintf(", desc: %y", body.Fault.desc);
+
+                    throw "SOAP-SERVER-FAULT-RESPONSE", desc, body.Fault;
+                }
+            }
+        }
 
         #any ns = msg.".ns";
         msg -= ("ns", ".ns");
-
-        if (binding.docstyle)
-            return input.deserializeDocument(mrh, msg);
-
-        string mname = input_name ? input_name : name;
-        if (!msg{mname})
-            throw SOAP_DESERIALIZATION_ERROR, sprintf("missing input message name %y as top-level element; got elements: %y", mname, keys msg);
-        msg = remove msg{mname};
-        XsdBase::removeNS2(\msg);
-        remove msg.".ns";
-
-        return input.deserialize(mrh, msg);
-    }
-
-    #! parses a hash representing a parsed XML response (parsed with parse_xml()) for the operation and returns the corresponding Qore data structure
-    /** @param o the parsed XML response (parsed with parse_xml()) for the operation
-        @param bname SOAP binding name, leave empty to use the first assigned binding
-        @return the Qore data structure corresponding to the response data
-    */
-    any deserializeResponse(hash o, *string bname) {
-        WSDL::XsdBase::removeNS2(\o);
-        WSDL::XsdBase::removeNS2(\o.Envelope);
-
-        *hash body = o.Envelope.Body;
-
-        if (!output) {
-            if (exists body)
-                throw SOAP_DESERIALIZATION_ERROR, sprintf("response value given for operation %y with no output message: %y", name, body);
-            return;
-        }
-        else if (!exists body)
-            throw SOAP_DESERIALIZATION_ERROR, sprintf("no response body value given for operation %y", name);
-
-        (*hash mrh, hash msg) = processMultiRef(body);
-
-        # check for Soap Fault, if so raise an exception immediately with the fault info
-        WSDL::XsdBase::removeNS2(\body);
-
-        if (body.Fault) {
-            WSDL::XsdBase::removeNS(\body.Fault);
-            delete body.Fault.".ns";
-            if (nsc.hasSoap12()) {
-                WSDL::XsdBase::removeNS(\body.Fault.Code);
-                WSDL::XsdBase::removeNS(\body.Fault.Reason);
-                string desc = sprintf("The following fault response was received from the server: code: %y", body.Fault.Code.Value);
-                any sc = body.Fault.Code.Subcode;
-                while (exists sc) {
-                    WSDL::XsdBase::removeNS(\sc);
-                    desc += sprintf(", subcode: %y", sc.Value);
-                    sc = sc.Subcode;
-                }
-                foreach any rn in (body.Fault.Reason.Text) {
-                    desc += sprintf(", text: %y", rn);
-                }
-
-                throw "SOAP-SERVER-FAULT-RESPONSE", desc, body.Fault;
-            }
-            else {
-                string desc = sprintf("The following fault response was received from the server: code: %y", body.Fault.faultcode);
-                if (exists body.Fault.faultstring)
-                    desc += sprintf(", faultstring: %y", body.Fault.faultstring);
-                if (exists body.Fault.desc)
-                    desc += sprintf(", desc: %y", body.Fault.desc);
-
-                throw "SOAP-SERVER-FAULT-RESPONSE", desc, body.Fault;
+        if (binding.docstyle) {
+            if (exists rv) {
+                return rv + self{io}.deserializeDocument(mrh, msg, NOTHING, True);
+            } else {
+                return self{io}.deserializeDocument(mrh, msg);
             }
         }
 
-        hash binding = getBinding(bname);
-
-        if (binding.docstyle)
-            return output.deserializeDocument(mrh, msg);
-
-        string mname = input_name ? input_name : name + "Response";
+        string mname = input_name ? input_name : name + (request ? "" : "Response");
         if (!msg{mname})
-            throw SOAP_DESERIALIZATION_ERROR, sprintf("missing output message name %y as top-level element; got elements: %y", mname, keys msg);
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("missing %s message name %y as top-level element; got elements: %y", io, mname, keys msg);
         msg = remove msg{mname};
         XsdBase::removeNS2(\msg);
         msg -= (".ns", "ns");
 
-        return output.deserialize(mrh, msg);
+        if (exists rv) {
+            return rv + self{io}.deserialize(mrh, msg, NOTHING, True);
+        } else {
+            return self{io}.deserialize(mrh, msg);
+        }
+    }
+
+    private *hash deserializeHttpMessage(hash v, hash binding, bool request) {
+        string io = request ? "input" : "output";
+        *string ct = v."content-type";
+        if (!exists ct) {
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("missing content-type in input hash: %y", v);
+        }
+        if (binding{io}.urlEncoded) {
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("urlencoded message deserialization is not supported in binding: %y", binding.name);
+        }
+        if (binding{io}.content.formUrlEncoded) {
+            WSDLLib::checkContentType(ct, list(MimeTypeFormUrlEncoded));
+            v.body = binary_to_string(v.body);
+            hash h = mime_parse_form_urlencoded_string(v.body); # TODO: data have no encoding
+            return self{io}.deserialize(NOTHING, h, NOTHING, True);
+        } else if (binding{io}.content) {
+
+            if (!binding{io}.content.acceptAllContentTypes) {
+                WSDLLib::checkContentType(ct, binding{io}.content.acceptedContentTypeSubtypes + binding{io}.content.acceptedContentTypes);
+            }
+            hash v2;
+            v2{binding{io}.content.part} = v.body;
+            hash h = self{io}.deserialize(NOTHING, v2, binding{io}.content.part, True);
+            string k = h.firstKey();
+            h{k}."^value^" = remove h{k};
+            h{k}."^attributes^"."^content-type^" = ct;
+            return h;
+        }
+    }
+
+    #! parses a hash representing a parsed XML request (parsed with parseXMLAsData()) for the operation and returns the corresponding Qore data structure
+    /** @param o the parsed SOAP or HTTP request with @ref WSDLLib::parseSOAPMessage() for the operation
+        @param bname SOAP binding name, leave empty to use the first assigned binding
+        @return the Qore data structure corresponding to the request data
+    */
+    any deserializeRequest(hash o, *string bname) {
+        hash binding = getBinding(bname);
+        if (binding.httpMethod) {
+            return deserializeHttpMessage(o, binding, True);
+        } else {
+            return deserializeSoapMessage(o, binding, True);
+        }
+    }
+
+    #! parses a hash representing a parsed XML response (parsed with parse_xml()) for the operation and returns the corresponding Qore data structure
+    /** @param o the parsed SOAP or HTTP request with @ref WSDLLib::parseSOAPMessage() for the operation
+        @param bname SOAP binding name, leave empty to use the first assigned binding
+        @return the Qore data structure corresponding to the response data
+    */
+    any deserializeResponse(hash o, *string bname) {
+        hash binding = getBinding(bname);
+        if (binding.httpMethod) {
+            return deserializeHttpMessage(o, binding, False);
+        } else {
+            return deserializeSoapMessage(o, binding, False);
+        }
     }
 
     private hash processNSValue(hash h) {
@@ -2508,67 +2572,68 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         return rh;
     }
 
-    any deserialize(*hash mrh, hash val) {
-        #printf("DBG WSMessage::deserialize() args: %y pmap: %y val: %y\n", args.keys(), pmap, val);
+    any deserialize(*hash mrh, hash val, *string key, bool keepHash = False) {
+        #printf("DBG WSMessage::deserialize() args: %y pmap: %y val: %y\n", args.keys(), pmap, val); #XXX
         hash ro;
 
-        foreach string key in (args.keyIterator()) {
-            bool present = val.hasKey(key);
-            any v = remove val{key};
+        foreach string k in (exists key ? key : args.keyIterator()) {
+
+            bool present = val.hasKey(k);
+            any v = remove val{k};
             if (v.typeCode() == NT_HASH)
                 XsdBase::removeNS2(\v);
 
-            string rk = key;
-            if (pmap{key} && !args.(pmap{key}))
-                rk = pmap{key};
+            string rk = k;
+            if (pmap{k} && !args.(pmap{k}))
+                rk = pmap{k};
 
-            ro{rk} = args{key}.element
-                ? args{key}.element.deserialize(tmap, mrh, getValue(mrh, v), present)
-                : args{key}.type.deserialize(name, tmap, mrh, getValue(mrh, v));
+            ro{rk} = args{k}.element
+                ? args{k}.element.deserialize(tmap, mrh, getValue(mrh, v), present)
+                : args{k}.type.deserialize(name, tmap, mrh, getValue(mrh, v));
         }
 
-        if (val)
+        if (val && !exists key)
             throw SOAP_DESERIALIZATION_ERROR, sprintf("additional keys %y included in %y message hash", val.keys(), name);
 
         # if there is only one argument, return it directly
-        return ro.size() == 1 ? ro.firstValue() : ro;
+        return (ro.size() == 1 && !keepHash) ? ro.firstValue() : ro;
     }
 
-    any deserializeDocument(*hash mrh, any val) {
-        any rh;
+    any deserializeDocument(*hash mrh, any val, *string key, bool keepHash = False) {
+        hash rh;
 
         *hash attr = remove val."^attributes^";
 
         #printf("DBG WSMessage::deserializeDocument() args: %y val: %y\n", args.keys(), val);
+
         if (args.size() == 1) {
-            string key = args.firstKey();
-            bool present;
-            any v;
-            if (val.typeCode() == NT_HASH && val.hasKey(key)) {
-                present = True;
-                v = remove val{key};
-            }
-            else {
-                present = exists val;
-                v = remove val;
-            }
-            XsdBase::removeNS2(\v);
-            rh = args.firstValue().element.deserialize(tmap, mrh, v, present);
-        }
-        else {
-            foreach string key in (args.keyIterator()) {
-                bool present = val.hasKey(key);
-                any v = remove val{key};
-                XsdBase::removeNS2(\v);
-                rh{key} = args{key}.element.deserialize(tmap, mrh, v, present);
+            string k = args.firstKey();
+            if (val.typeCode() != NT_HASH || !val.hasKey(k)) {
+                any v = val;
+                val = hash();
+                val{k} = v;
             }
         }
 
-        if (val)
+        foreach string k in (exists key ? key : args.keyIterator()) {
+            bool present = val.hasKey(k);
+            any v = remove val{k};
+            XsdBase::removeNS2(\v);
+
+            string rk = k;
+            if (pmap{k} && !args.(pmap{k}))
+                rk = pmap{k};
+
+            rh{rk} = args{k}.element ?
+                args{k}.element.deserialize(tmap, mrh, v, present) :
+                args{k}.type.deserialize(name, tmap, mrh, getValue(mrh, v));
+        }
+
+        if (val && !exists key)
             throw SOAP_DESERIALIZATION_ERROR, sprintf("additional keys %y included in %y message hash", val.keys(), name);
 
         #printf("DBG WSMessage::deserializeDocument() args: %y val: %y\nRH: %y\n", args.keys(), val, rh);
-        return rh;
+        return (rh.size() == 1 && !keepHash) ? rh.firstValue() : rh;
     }
 
     hash getNameValue(*string key, any h, *softbool keepBinary) {
@@ -2596,7 +2661,6 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         }
         return rv;
     }
-
 }
 
 # private helper class for lazy name resolution
