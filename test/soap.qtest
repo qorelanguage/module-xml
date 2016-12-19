@@ -466,6 +466,37 @@ class SoapTest inherits QUnit::Test {
         assertEq(<ABCDEF>, h.body);
         assertEq("POST", h.method);
 
+        op = ws.getOperation("pt2", "postImg");
+        assertThrows("SOAP-MESSAGE-ERROR", \op.serializeRequest(), ("img": ("^value^": "xxx", "^attributes^": ("^content-type^": "text/plain"))), "post img wrong content type");
+
+        op = ws.getOperation("pt2", "postImg2");
+        assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), ("img": <ABCDEF>), "post img no content type");
+
+        op = ws.getOperation("pt2", "postImg2");
+        h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))), NOTHING);
+        assertEq(h.hdr."Content-Type", "image/jpeg");
+        assertEq(<ABCDEF>, h.body);
+
+        op = ws.getOperation("pt2", "postImg3");
+        h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))), NOTHING);
+        assertEq(h.hdr."Content-Type", "image/jpeg");
+        assertEq(<ABCDEF>, h.body);
+
+        op = ws.getOperation("pt2", "postImg3");
+        assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), ("img": <ABCDEF>), "post img no content type");
+
+        op = ws.getOperation("pt2", "postImg3");
+        assertThrows("SOAP-MESSAGE-ERROR", \op.serializeRequest(), ("img": ("^value^": "xxx", "^attributes^": ("^content-type^": "text/plain"))), "post img wrong content type");
+
+        op = ws.getOperation("pt2", "postData");
+        h = op.serializeRequest(("payload": ("^value^": "012", "^attributes^": ("^content-type^": "application/x-data"))), NOTHING);
+        assertTrue(h.hdr."Content-Type".regex("^application/x-data"), "Content type");
+        assertEq(<303132>, h.body);
+
+        op = ws.getOperation("pt2", "postData");
+        assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), ("payload": "xxx"), "post img no content type");
+
+
     }
 
     test1() {

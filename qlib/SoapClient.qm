@@ -356,7 +356,8 @@ public namespace SoapClient {
 
         #! makes a server call with the given operation and arguments and returns the deserialized result
         /** @param operation the operation name for the SOAP call
-            @param binding SOAP binding name, if not provided use the first binding assigned to operation
+            @param binding SOAP binding name, if not provi
+            ed us he first binding assigned to operation
             @param args the arguments to the SOAP operation
             @param header optional soap headers (if required by the operation)
             @param nsh a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
@@ -484,9 +485,9 @@ public namespace SoapClient {
 
             hash rmsg = WSDLLib::parseMultiPartSOAPMessage(rh);
             msglog(('reason': 'response', 'header': rmsg.header, 'body': rmsg.body));
-            hash xmldata = WSDLLib::parseSOAPMessage(rmsg);
+            hash pdata = op.parseSOAPMessage(rmsg, binding);
             #printf("DEBUG ans: %s\n", rh);
-            return op.deserializeResponse(xmldata, binding);
+            return op.deserializeResponse(pdata, binding);
         }
 
         #! uses SoapClient::call() to transparently serialize the argument and make a call to the given operation and return the deserialized results

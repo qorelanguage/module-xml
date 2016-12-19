@@ -224,6 +224,10 @@
     <wsdl:part name="img" type="s:base64Binary"/>
   </wsdl:message>
 
+  <wsdl:message name="m8">
+    <wsdl:part name="payload" type="s:base64Binary"/>
+  </wsdl:message>
+
   <wsdl:portType name="pt1">
     <wsdl:operation name="getInfo">
       <wsdl:input message="tns:m1"/>
@@ -314,6 +318,15 @@
     <wsdl:operation name="postImg">
 	  <wsdl:input message="tns:m7"/>
 	</wsdl:operation>
+    <wsdl:operation name="postImg2">
+	  <wsdl:input message="tns:m7"/>
+	</wsdl:operation>
+    <wsdl:operation name="postImg3">
+	  <wsdl:input message="tns:m7"/>
+	</wsdl:operation>
+    <wsdl:operation name="postData">
+	  <wsdl:input message="tns:m8"/>
+	</wsdl:operation>
   </wsdl:portType>
 
   <wsdl:binding name="b2" type="tns:pt2">
@@ -356,6 +369,25 @@
 	  <http:operation location="postimg"/>
 	  <input>
 	    <mime:content type="image/png"/>
+	  </input>
+	</wsdl:operation>
+    <wsdl:operation name="postImg2">
+	  <http:operation location="postimg2"/>
+	  <input>
+	    <mime:content type="image/jpeg"/>
+	    <mime:content type="image/png"/>
+	  </input>
+	</wsdl:operation>
+    <wsdl:operation name="postImg3">
+	  <http:operation location="postimg3"/>
+	  <input>
+	    <mime:content type="image/*"/>
+	  </input>
+	</wsdl:operation>
+    <wsdl:operation name="postData">
+	  <http:operation location="postdata"/>
+	  <input>
+	    <mime:content type="*/*"/>
 	  </input>
 	</wsdl:operation>
   </wsdl:binding>

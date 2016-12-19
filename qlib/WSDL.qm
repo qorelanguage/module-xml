@@ -304,7 +304,7 @@ public class WSDL::WSDLLib {
         return WSDLLib::getFileFromURL(wsdl, "file", http_client, http_headers, NOTHING, NOTHING, \new_def_path);
     }
 
-    #! takes a hash representation of a SOAP message and  handles multipart messages, checks the content-type, and handles hrefs in the message
+    #! takes a hash representation of a SOAP message and handles multipart messages, checks the content-type, and handles hrefs in the message
     static hash parseMultiPartSOAPMessage(hash msg) {
         if (exists msg."_qore_multipart") {
             if (msg."_qore_multipart" != "related")
@@ -400,12 +400,13 @@ public class WSDL::WSDLLib {
         return xmldata;
     }
 
-    private static checkContentType(string ct, list MimeTypes) {
+    /*private in module*/ static checkContentType(string ct, list MimeTypes) {
+        ct = ltrim(ct);
         foreach string sct in (MimeTypes) {
-            if (bindex(ct, sct) != -1)
+            # Content-Type := type "/" subtype *[";" parameter] ... so we can test if string is starting at index 0
+            if (bindex(ct, sct) == 0)
                 return;
         }
-
         throw "SOAP-MESSAGE-ERROR", sprintf("don't know how to handle content-type %y (expecting one of: %y)", ct, MimeTypes);
     }
 
@@ -2032,24 +2033,31 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
             "method": binding.httpMethod ?? "POST",
         );
 
-        if (binding.input.content) {
-            ct = binding.input.content.type;
-            if (ct == MimeTypeFormUrlEncoded) {
+        if (binding.httpMethod) {
+            if (binding.input.content.formUrlEncoded) {
+                ct = MimeTypeFormUrlEncoded;
                 # TODO: throws exception when character is > 127, discussed e.g. https://www.w3.org/TR/html5/forms.html#application/x-www-form-urlencoded-encoding-algorithm
                 rv.body = mime_get_form_urlencoded_string(input.getNameValue(NOTHING, h));
                 # application/x-www-form-urlencoded Content-Type does not have any parameters
                 delete enc;
-            } else {
-                if (input.args.size() > 1) {
-                    throw SOAP_SERIALIZATION_ERROR, sprintf("message %y related to input operation %y has more arguments so it's not possible assign to body", input.name, name);
+            } else if (binding.input.content) {
+                hash v = input.resolveValue(binding.input.content.part, h, True);
+                if (v."content-type") {
+                    if (!binding.input.content.acceptAllContentTypes) {
+                        WSDLLib::checkContentType(v."content-type", binding.input.content.acceptedContentTypeSubtypes + binding.input.content.acceptedContentTypes);
+                    }
+                    ct = v."content-type";
+                } else {
+                    if (binding.input.content.acceptAllContentTypes || binding.input.content.acceptedContentTypes || binding.input.content.acceptedContentTypeSubtypes.size() != 1) {
+                        throw SOAP_SERIALIZATION_ERROR, sprintf("ambiguous content type in message %y related to input operation %y", input.name, name);
+                    }
+                    ct = binding.input.content.acceptedContentTypeSubtypes[0];
                 }
-                hash v = input.getNameValue(binding.input.content.part, h, True);
-                data d = v.firstValue();
-                if (d.typeCode() == NT_BINARY) {
-                    rv.body = d;
+                if (v.value.typeCode() == NT_BINARY) {
+                    rv.body = v.value;
                     delete enc;
                 } else {
-                    rv.body = convert_encoding(d, enc);
+                    rv.body = convert_encoding(v.value, enc);
                 }
             }
         } else {
@@ -2188,6 +2196,23 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         remove body.".ns";
 
         return (mrh, body);
+    }
+
+    hash parseSOAPMessage(hash msg, *string bname) {
+        hash binding = getBinding(bname);
+        if (binding.httpMethod) {
+            string ct = (msg."content-type" =~ x/^([^;]+)/)[0];
+            if (!binding.output.content.acceptAllContentTypes)
+                WSDLLib::checkContentType(ct, binding.output.content.acceptedContentTypeSubtypes + binding.output.content.acceptedContentTypes);
+            if (msg."content-type" =~ /charset=/) {
+                string c = (msg."content-type" =~ x/charset=([^;]+)/)[0];
+                msg.body = force_encoding(msg.body, c);
+            } else {
+                msg.body = binary(msg.body);  # needed or is it already ?
+            }
+        } else {
+            return WSDLLib::parseSOAPMessage(msg);
+        }
     }
 
     #! parses a hash representing a parsed XML request (parsed with parseXMLAsData()) for the operation and returns the corresponding Qore data structure
@@ -2535,15 +2560,25 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
     hash getNameValue(*string key, any h, *softbool keepBinary) {
         hash rv;
         foreach string k in (key ? key : args.keyIterator()) {
-            if (args{k}.element) {
-                throw SOAP_SERIALIZATION_ERROR, sprintf("cannot get element value %y in message %y. Type part is needed", k, name);
-            }
-            any v;
-            if (h.hasKey(k))
-                v = h{k};
-            else if (pmap{k} && !exists h{k})
-                v = h.(pmap{k});
-            rv{k} = args{k}.type.serialize(v, False, keepBinary){"^value^"};
+            hash v = resolveValue(k, h, keepBinary);
+            rv{k} = v.value;
+        }
+        return rv;
+    }
+
+    hash resolveValue(string key, any h, *softbool keepBinary) {
+        if (args{key}.element) {
+            throw SOAP_SERIALIZATION_ERROR, sprintf("cannot get element value %y in message %y. Type part is needed", key, name);
+        }
+        hash rv;
+        any v;
+        if (h.hasKey(key))
+            v = h{key};
+        else if (pmap{key} && !exists h{key})
+            v = h.(pmap{key});
+        rv.value = args{key}.type.serialize(v, False, keepBinary){"^value^"};
+        if (v.typeCode() == NT_HASH) {
+            rv."content-type" = v."^attributes^"."^content-type^";
         }
         return rv;
     }
@@ -2800,14 +2835,65 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                     }
 
                     if (exists ophash{io}.content) {
-                        op{io}.contents = ();
+                        op{io}.content.acceptedContentTypes = ();  # type / *
+                        op{io}.content.acceptedContentTypeSubtypes = ();  # type / subtype
+                        *string p;
                         foreach any cnt in (ophash{io}.content) {
                             WSDL::XsdBase::removeNS(\cnt);
                             cnt = remove cnt."^attributes^";
-                            if (!cnt.type) {
-                                cnt.type = "*/*";
+                            bool isFormUrlEncoded = cnt.type == MimeTypeFormUrlEncoded;
+                            if ((isFormUrlEncoded && op{io}.content.type) ||
+                                (!isFormUrlEncoded && op{io}.content.formUrlEncoded)) {
+                                throw WSDL_ERROR, sprintf("%y content type must be single in message %y", MimeTypeFormUrlEncoded, ophash{io}.content);
                             }
-                            push op{io}.contents, cnt;
+                            if (isFormUrlEncoded) {
+                                op{io}.content.formUrlEncoded = True;
+                                continue;
+                            }
+
+                            if (!cnt.type || cnt.type == "*/*") {
+                                op{io}.content.acceptAllContentTypes = True;
+                            } else {
+                                hash act;
+                                list st = cnt.type.split("/");
+                                if (st.size() != 2) {
+                                    throw WSDL_ERROR, sprintf("Content type %y does not match 'type/subtype' pattern", cnt.type);
+                                }
+                                if (bindex(st[0], "*") != -1) {
+                                    throw WSDL_ERROR, sprintf("Content type %y contains unexpected asterisk in type part", cnt.type);
+                                }
+                                act.type = st[0];
+                                if (st[1] == "*") {
+                                    push op{io}.content.acceptedContentTypes, st[0]+"/";
+                                } else {
+                                    if (bindex(st[1], "*") != -1) {
+                                        throw WSDL_ERROR, sprintf("Content type %y contains unexpected asterisk in subtype part", cnt.type);
+                                    }
+                                    push op{io}.content.acceptedContentTypeSubtypes, st[0]+"/"+st[1];
+                                }
+                            }
+
+                            if (!exists cnt.part) {
+                                cnt.part = "";
+                            }
+                            if (exists p && p != cnt.part) {
+                                throw WSDL_ERROR, sprintf("ambiguous part %y in message %y in binding %y for %s operation %y", cnt.part, portTypes{port}.operations{opname}{io}.name, name, io, opname);
+                            }
+                            p = cnt.part;
+                        }
+
+                        if (exists p) {
+                            if (p == "") {
+                                if (portTypes{port}.operations{opname}{io}.args.size() != 1) {
+                                    throw WSDL_ERROR, sprintf("multiple parts %y in message %y in binding %y for %s operation %y", keys portTypes{port}.operations{opname}{io}.args, portTypes{port}.operations{opname}{io}.name, name, io, opname);
+                                }
+                                p = portTypes{port}.operations{opname}{io}.args.firstKey();
+                            } else {
+                                if (!exists portTypes{port}.operations{opname}{io}.args{p}) {
+                                    throw WSDL_ERROR, sprintf("missing part %y in message %y in binding %y for %s operation %y", p, portTypes{port}.operations{opname}{io}.name, name, io, opname);
+                                }
+                            }
+                            op{io}.content.part = p;
                         }
                         delete ophash{io}.content;
                     }
@@ -2820,28 +2906,10 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                 }
             }
 
-            if (op.input.contents) {
-                if (op.input.contents.size() > 1) {
-                    throw WSDL_ERROR, sprintf("multiple content types in binding %y for input operation %y", name, opname);
-                }
-                op.input.content = op.input.contents[0];
-                remove op.input.contents;
-                if (op.input.content.type != MimeTypeFormUrlEncoded) {
-                    if (exists op.input.content.part) {
-                        if (!exists portTypes{port}.operations{opname}.input.args{op.input.content.part}) {
-                            throw WSDL_ERROR, sprintf("missing part %y in message %y in binding %y for input operation %y", op.input.content.part, portTypes{port}.operations{opname}.input.name, name, opname);
-                        }
-                    } else {
-                        if (portTypes{port}.operations{opname}.input.args.size() != 1) {
-                            throw WSDL_ERROR, sprintf("multiple parts %y in message %y in binding %y for input operation %y", keys portTypes{port}.operations{opname}.input.args, portTypes{port}.operations{opname}.input.name, name, opname);
-                        }
-                        op.input.content.part = portTypes{port}.operations{opname}.input.args.firstKey();
-                    }
-                }
+            if (op.output.content.formUrlEncoded) {
+                throw WSDL_ERROR, sprintf("%y type is not supported as output type in binding %y for output operation %y", MimeTypeFormUrlEncoded, name, opname);
             }
-            if (op.output.contents) {
-                throw WSDL_ERROR, sprintf("content types in binding %y for output operation %y is not yet supported", name, opname);
-            }
+
             portTypes{port}.operations{opname}.addBinding(name,
                 (
                 "httpMethod": httpMethod,
