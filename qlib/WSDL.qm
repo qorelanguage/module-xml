@@ -75,6 +75,8 @@ module WSDL {
 
     @subsection wsdl_0_3_6 WSDL v0.3.6
     - reimplmented operation to support multi binding, operation can be assigned to more bindings
+    - support for HTTP binding and content-types, "^content-type^" attribute can identify content type to be used
+    - extended SOAP binding serialization and deserialization with "^header^" key
 
     @subsection wsdl_0_3_5_1 WSDL v0.3.5.1
     - supress emitting a SOAPAction header in requests if the binding gives an empty string (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
@@ -2032,7 +2034,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         }
     }
 
-    #! serializes path part of URL.
+    #! serializes path part of URL when urlEncoded WSDL is defined
     *string serializePath(any h, hash binding) {
         string path;
         if (binding.location) {
@@ -2061,19 +2063,20 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return path;
     }
 
-    #! serializes a request to an XML string for the operation
+    #! serializes a request to an XML string or HTTP payload for the operation.
     /** @param h the request to serialize
         @param bname SOAP binding name or empty to get the first assigned binding
-        @param header optional soap header info to serialize if required (ex: authorization info)
+        @param header optional soap header info to serialize if required (ex: authorization info). In the first step headers are matched to binding/input/header WSDL definition, remaining headers are passed as-is
         @param enc the optional encoding to use; if this argument is not present, then the default encoding will be used
         @param nsh an optional namespace hash for the output message
         @param xml_opts optional XML generation options
         @param req_soapaction if present will override any SOAPAction value for the request
 
         @return a hash with keys:
-        - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary)
+        - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary). Target content type is evaluated from WSDL or in case of ambiguity
+        using "^attributes^"."^content-type^". Provided content type must match allowed types in WSDL. Also "application/x-www-form-urlencoded" or any general type are supported.
         - \c hdr: hash of HTTP headers
-        - \c path: the path part of URL
+        - \c path: the path part of URL. Used when urlEncoded is defined
         - \c method: the HTTP request method
         */
     hash serializeRequest(any h, *string bname, *hash header, *string enc, *hash nsh, *int xml_opts, *string req_soapaction) {
@@ -2131,14 +2134,15 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     #! serializes a SOAP response to an XML string for the operation
     /** @param h the response to serialize
         @param bname SOAP binding name, leave empty to get the first assigned binding
-        @param header SOAP header hash
+        @param header SOAP header hash. In the first step headers are matched to binding/input/header WSDL definition, remaining headers are passed as-is
         @param enc the optional encoding to use; if this argument is not present, then the default encoding will be used
         @param nsh namespace hash
         @param soap12 set to True if the response should use SOAP 1.2 encoding
         @param xml_opts optional XML generation options
 
         @return a hash with keys:
-        - \c body: XML string in the SOAP request format
+        - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary). Target content type is evaluated from WSDL or in case of ambiguity
+        using "^attributes^"."^content-type^". Provided content type must match allowed types in WSDL.
         - \c hdr: hash of HTTP headers
     */
     hash serializeResponse(any h, *string bname, *hash header, *string enc, *hash nsh, *bool soap12, *int xml_opts) {
@@ -2375,7 +2379,8 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     #! parses a hash representing a parsed XML request (parsed with parseXMLAsData()) for the operation and returns the corresponding Qore data structure
     /** @param o the parsed SOAP or HTTP request with @ref WSDLLib::parseSOAPMessage() for the operation
         @param bname SOAP binding name, leave empty to use the first assigned binding
-        @return the Qore data structure corresponding to the request data
+        @return the Qore data structure corresponding to the request data. When SOAP header is deserialized according binding/input WSDL then data are passed under "^header^" key.
+        In case of HTTP binding the content type is matched against WSDL binding when wildcards are supported and current content type value is applied to "^attributes^"."^content-type^".
     */
     any deserializeRequest(hash o, *string bname) {
         hash binding = getBinding(bname);
@@ -2389,7 +2394,8 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     #! parses a hash representing a parsed XML response (parsed with parse_xml()) for the operation and returns the corresponding Qore data structure
     /** @param o the parsed SOAP or HTTP request with @ref WSDLLib::parseSOAPMessage() for the operation
         @param bname SOAP binding name, leave empty to use the first assigned binding
-        @return the Qore data structure corresponding to the response data
+        @return the Qore data structure corresponding to the response data. When SOAP header is deserialized according binding/output WSDL then data are passed under "^header^" key.
+        In case of HTTP binding the content type is matched against WSDL binding when wildcards are supported and current content type value is applied to "^attributes^"."^content-type^".
     */
     any deserializeResponse(hash o, *string bname) {
         hash binding = getBinding(bname);
