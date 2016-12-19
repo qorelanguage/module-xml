@@ -485,7 +485,7 @@ public namespace SoapClient {
 
             hash rmsg = WSDLLib::parseMultiPartSOAPMessage(rh);
             msglog(('reason': 'response', 'header': rmsg.header, 'body': rmsg.body));
-            hash pdata = op.parseSOAPMessage(rmsg, binding);
+            hash pdata = op.parseSOAPMessage(rmsg, binding, True);
             #printf("DEBUG ans: %s\n", rh);
             return op.deserializeResponse(pdata, binding);
         }

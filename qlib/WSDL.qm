@@ -1968,6 +1968,37 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return rh;
     }
 
+
+    private *data serializeHttpMessage(any h, hash binding, bool request, reference ct, reference enc) {
+        string io = request ? "input" : "output";
+        if (binding{io}.content.formUrlEncoded) {
+            ct = MimeTypeFormUrlEncoded;
+            # application/x-www-form-urlencoded Content-Type does not have any parameters
+            delete enc;
+            # TODO: throws exception when character is > 127, discussed e.g. https://www.w3.org/TR/html5/forms.html#application/x-www-form-urlencoded-encoding-algorithm
+            return mime_get_form_urlencoded_string(self{io}.getNameValue(NOTHING, h));
+        } else if (binding{io}.content) {
+            hash v = self{io}.resolveValue(binding{io}.content.part, h, True);
+            if (v."content-type") {
+                if (!binding{io}.content.acceptAllContentTypes) {
+                    WSDLLib::checkContentType(v."content-type", binding{io}.content.acceptedContentTypeSubtypes + binding{io}.content.acceptedContentTypes);
+                }
+                ct = v."content-type";
+            } else {
+                if (binding{io}.content.acceptAllContentTypes || binding{io}.content.acceptedContentTypes || binding{io}.content.acceptedContentTypeSubtypes.size() != 1) {
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("ambiguous content type in message %y related to %s operation %y", self{io}.name, io, name);
+                }
+                ct = binding{io}.content.acceptedContentTypeSubtypes[0];
+            }
+            if (v.value.typeCode() == NT_BINARY) {
+                delete enc;
+                return v.value;
+            } else {
+                return convert_encoding(v.value, enc);
+            }
+        }
+    }
+
     #! serializes path part of URL.
     *string serializePath(any h, hash binding) {
         string path;
@@ -2034,32 +2065,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         );
 
         if (binding.httpMethod) {
-            if (binding.input.content.formUrlEncoded) {
-                ct = MimeTypeFormUrlEncoded;
-                # TODO: throws exception when character is > 127, discussed e.g. https://www.w3.org/TR/html5/forms.html#application/x-www-form-urlencoded-encoding-algorithm
-                rv.body = mime_get_form_urlencoded_string(input.getNameValue(NOTHING, h));
-                # application/x-www-form-urlencoded Content-Type does not have any parameters
-                delete enc;
-            } else if (binding.input.content) {
-                hash v = input.resolveValue(binding.input.content.part, h, True);
-                if (v."content-type") {
-                    if (!binding.input.content.acceptAllContentTypes) {
-                        WSDLLib::checkContentType(v."content-type", binding.input.content.acceptedContentTypeSubtypes + binding.input.content.acceptedContentTypes);
-                    }
-                    ct = v."content-type";
-                } else {
-                    if (binding.input.content.acceptAllContentTypes || binding.input.content.acceptedContentTypes || binding.input.content.acceptedContentTypeSubtypes.size() != 1) {
-                        throw SOAP_SERIALIZATION_ERROR, sprintf("ambiguous content type in message %y related to input operation %y", input.name, name);
-                    }
-                    ct = binding.input.content.acceptedContentTypeSubtypes[0];
-                }
-                if (v.value.typeCode() == NT_BINARY) {
-                    rv.body = v.value;
-                    delete enc;
-                } else {
-                    rv.body = convert_encoding(v.value, enc);
-                }
-            }
+            rv.body = serializeHttpMessage(h, binding, True, \ct, \enc);
         } else {
             MultiPartRelatedMessage mpm;
             rv.body = make_xml(serializeSoapMessage(h, binding, header, nsh, True, nsc.hasSoap12(), \mpm), xml_opts, enc);
@@ -2118,26 +2124,33 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         else
             soap12 = nsc.hasSoap12();
 
+        enc = enc ?? get_default_encoding();
+        hash rv;
+        string ct;
 
-        MultiPartRelatedMessage mpm;
-        # do we have mime/multipart output format?
-        if (exists binding.output.multipart)
-            mpm = new MultiPartRelatedMessage();
+        if (binding.httpMethod) {
+            rv.body = serializeHttpMessage(h, binding, False, \ct, \enc);
+        } else {
+            MultiPartRelatedMessage mpm;
+            # do we have mime/multipart output format?
+            if (exists binding.output.multipart)
+                mpm = new MultiPartRelatedMessage();
 
-        string body = make_xml(serializeSoapMessage(h, binding, header, nsh, False, soap12, \mpm), xml_opts, enc);
+            rv.body = make_xml(serializeSoapMessage(h, binding, header, nsh, False, soap12, \mpm), xml_opts, enc);
 
-        string ct = soap12 ? MimeTypeSoapXml : MimeTypeXml;
-        if (exists mpm) {
-            mpm.splicePart(body, sprintf("<%s>", binding.output.body.parts), ct);
-            return mpm.getMsgAndHeaders();
+            ct = soap12 ? MimeTypeSoapXml : MimeTypeXml;
+            if (exists mpm) {
+                mpm.splicePart(rv.body, sprintf("<%s>", binding.output.body.parts), ct);
+                return mpm.getMsgAndHeaders();
+            }
         }
 
-        ct += sprintf(";charset=%s", exists enc ? enc : get_default_encoding());
+        if (exists enc) {
+            ct += sprintf(";charset=%s", enc);
+        }
 
-        return (
-            "hdr": ("Content-Type": ct),
-            "body": body,
-            );
+        rv.hdr = ("Content-Type": ct);
+        return rv;
     }
 
     hash serializeResponse(any h, *hash header, *string enc, *hash nsh, *bool soap12, *int xml_opts) {
@@ -2198,12 +2211,13 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return (mrh, body);
     }
 
-    hash parseSOAPMessage(hash msg, *string bname) {
+    hash parseSOAPMessage(hash msg, *string bname, bool request) {
+        string io = request ? "input": "output";
         hash binding = getBinding(bname);
         if (binding.httpMethod) {
             string ct = (msg."content-type" =~ x/^([^;]+)/)[0];
-            if (!binding.output.content.acceptAllContentTypes)
-                WSDLLib::checkContentType(ct, binding.output.content.acceptedContentTypeSubtypes + binding.output.content.acceptedContentTypes);
+            if (!binding{io}.acceptAllContentTypes)
+                WSDLLib::checkContentType(ct, binding{io}.content.acceptedContentTypeSubtypes + binding{io}.content.acceptedContentTypes);
             if (msg."content-type" =~ /charset=/) {
                 string c = (msg."content-type" =~ x/charset=([^;]+)/)[0];
                 msg.body = force_encoding(msg.body, c);
