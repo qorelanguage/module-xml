@@ -461,6 +461,7 @@ class SoapTest inherits QUnit::Test {
         h = op.serializeRequest(UrlReplVal1, NOTHING);
         assertEq("get?country=CZ&city=Prague%202&zip=12000", h.path);
         assertEq("GET", h.method);
+        assertFalse(exists h.hdr."Content-Type");
         assertThrows("SOAP-DESERIALIZATION-ERROR", \parseMessage(), (h, op, True));
 
         op = ws.getOperation("pt2", "urlEncoded2");

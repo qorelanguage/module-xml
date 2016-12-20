@@ -392,7 +392,11 @@ public class WSDL::WSDLLib {
 
     #! takes a hash representation returned by parseMultiPartSOAPMessage and parses it to a Qore data structure, checks the content-type, and handles hrefs in the message
     static *hash parseSOAPMessage(hash msg) {
-        if (WSDLLib::isContentType(msg."content-type", SoapMimeTypes)) {
+        if (!msg.body) {
+            hash h."content-type" = msg."content-type" ?? "text/plain";
+            h.body = NOTHING;
+            return h;
+        } else if (WSDLLib::isContentType(msg."content-type", SoapMimeTypes)) {
             hash xmldata;
             if (msg.body) {
                 xmldata = parse_xml(msg.body);
@@ -400,11 +404,6 @@ public class WSDL::WSDLLib {
             if (msg.parts) {
                 # parse entire data structure to find "href"s or href attributes
                 WSDLLib::substHref(\xmldata, msg.parts);
-            }
-            if (!exists xmldata) {
-                # fake data, e.g. when URLEncoded
-                xmldata."content-type" = msg."content-type";
-                xmldata.body = NOTHING;
             }
             return xmldata;
         } else {
@@ -2119,7 +2118,10 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         if (exists enc) {
             ct += sprintf(";charset=%s", enc);
         }
-        rv.hdr."Content-Type" = ct;
+
+        if (exists rv.body) {
+            rv.hdr."Content-Type" = ct;
+        }
 
         if (req_soapaction)
             rv.hdr += ("SOAPAction": req_soapaction);
@@ -2185,7 +2187,10 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
             ct += sprintf(";charset=%s", enc);
         }
 
-        rv.hdr = ("Content-Type": ct);
+        if (exists rv.body) {
+            rv.hdr = ("Content-Type": ct);
+        }
+
         return rv;
     }
 
