@@ -237,6 +237,8 @@
     </wsdl:operation>
     <wsdl:operation name="headerVal">
     </wsdl:operation>
+    <wsdl:operation name="headerVal-doc">
+    </wsdl:operation>
   </wsdl:portType>
 
   <wsdl:binding name="b1" type="tns:pt1">
@@ -275,7 +277,15 @@
       <soap12:operation soapAction="http://qore.org/headerVal"/>
       <wsdl:input>
         <soap12:header message="m1" part="body" use="literal"/>
-        <soap12:header message="m2" part="docs" use="literal"/>
+        <soap12:header message="m2" part="docs" use="encoded"/>
+        <soap12:header message="m3" part="body" use="literal"/>
+      </wsdl:input>
+    </wsdl:operation>
+    <wsdl:operation name="headerVal-doc">
+      <soap12:operation soapAction="http://qore.org/headerVal" style="document"/>
+      <wsdl:input>
+        <soap12:header message="m1" part="body" use="literal"/>
+        <soap12:header message="m2" part="docs" use="encoded"/>
         <soap12:header message="m3" part="body" use="literal"/>
       </wsdl:input>
     </wsdl:operation>

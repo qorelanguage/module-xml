@@ -266,7 +266,12 @@ class SoapTest inherits QUnit::Test {
             "soap:Envelope": SoapEnvAttr + (
                 "soap:Header": (
                     "st:GetInfo": ("st:tickerSymbol": "EET1"),
-                    "st:docs": HeaderVal1.docs,
+                    "st:docs": (
+                        "^attributes^": (
+                            "xsi:type" : "xsd:string",
+                        ),
+                        "^value^": HeaderVal1.docs,
+                    ),
                     "st:SetInfo": ("st:name": "NAME-M3", "st:id": "457", "^attributes^": ("infoType": "ATW", "code": "58" )),
                     "unknown": "??",
                 ),
@@ -421,6 +426,13 @@ class SoapTest inherits QUnit::Test {
 
         op = ws.getOperation("headerVal");
         h = op.serializeRequest(NOTHING, NOTHING, HeaderVal1);
+printf("HEADERVAL:%N\n", h.body);
+        xh = parse_xml(h.body);
+        compareSoapMsgs("header-val", HeaderValReq1, xh);
+
+        op = ws.getOperation("headerVal-doc");
+        h = op.serializeRequest(NOTHING, NOTHING, HeaderVal1);
+printf("HEADERVAL_DOC:%N\n", h.body);
         xh = parse_xml(h.body);
         compareSoapMsgs("header-val", HeaderValReq1, xh);
 

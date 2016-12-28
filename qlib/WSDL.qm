@@ -1905,21 +1905,26 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
                 if (hh) {
                     hash hh2.(hdr.msgpart) = hh;
                     #printf("DEBUG: serialize(%y,%y)\n", hdr.msgpart, hh2);
-                    # outh += hdr.msg.serializeDocument(hdr.msgpart, NOTHING, NOTHING, hh2); # does not work at least for non-elements
-                    hash h = hdr.msg.serialize(hdr.msgpart, NOTHING, NOTHING, hdr.msgpart, hh2); # TODO: it does no add types
-                    #printf("DEBUG: result: %y\n", h);
-                    # tricky part, flatten hash, TODO: make it more transparently
-                    string fk = h.firstKey();
-                    h{fk} = h.firstValue().firstValue();   # "ns1:name" : ("ns1: name" | "name": val) -> "ns1:name": val
-                    #printf("DEBUG: flatten result: %y\n", h);
-                    if (exists outh{fk}) {
-                        # it could in theory happoen when two message parts are equal
-                        if (outh{fk}.typeCode() != NT_LIST) {
-                            outh{fk} = () + outh{fk};
-                        }
-                        outh{fk} += h{fk};
-                    } else {
+                    if (binding.docstyle) {
+                        hash h = hdr.msg.serializeDocument(hdr.msgpart, NOTHING, NOTHING, hh2); # does not work at least for non-elements
+                        remove h."^attributes^".("soapenv:encodingStyle", "xmlns:soapenc");
                         outh += h;
+                    } else {
+                        hash h = hdr.msg.serialize(hdr.msgpart, NOTHING, NOTHING, hdr.msgpart, hh2); # TODO: it does no add types
+                        #printf("DEBUG: result: %y\n", h);
+                        # tricky part, flatten hash, TODO: make it more transparently
+                        string fk = h.firstKey();
+                        h{fk} = h.firstValue().firstValue();   # "ns1:name" : ("ns1: name" | "name": val) -> "ns1:name": val
+                        #printf("DEBUG: flatten result: %y\n", h);
+                        if (exists outh{fk}) {
+                            # it could in theory happoen when two message parts are equal
+                            if (outh{fk}.typeCode() != NT_LIST) {
+                                outh{fk} = () + outh{fk};
+                            }
+                            outh{fk} += h{fk};
+                        } else {
+                            outh += h;
+                        }
                     }
                 }
             }
@@ -1973,7 +1978,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
                     }
                 }
             } else if (binding.input.urlEncoded) {
-                string s = input.serializeAsUrlEncodedString(h);
+                string s = mime_get_form_urlencoded_string(input.getNameValue(NOTHING, h));
                 if (s) {
                     path += binding.location =~ /\?/ ? "&" : "?";
                     path += s;
@@ -2018,7 +2023,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         if (binding.input.content) {
             ct = binding.input.content.type;
             if (ct == MimeTypeFormUrlEncoded) {
-                body = input.serializeAsUrlEncodedString(h);
+                body = mime_get_form_urlencoded_string(input.getNameValue(NOTHING, h));
             } else {
                 if (input.args.size() > 1) {
                     throw SOAP_SERIALIZATION_ERROR, sprintf("messege %y related to input operation %y has more arguments so it's not possible assign to body", input.name, name);
@@ -2067,7 +2072,6 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
 
     hash serializeRequest(any h, *hash header, *string enc, *hash nsh, *int xml_opts, *string req_soapaction) {
         return serializeRequest(h, NOTHING, header, enc, nsh, xml_opts, req_soapaction);
-
     }
 
     #! serializes a SOAP response to an XML string for the operation
@@ -2415,39 +2419,42 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         return rvh;
     }
 
-    hash serializeDocument(*string k, any msginfo, any mpm, any h) {
+    hash serializeDocument(*string key, any msginfo, any mpm, any h) {
         hash rh;
+
+        if (!key && args.size() == 1) {
+            string key = args.firstKey();
+            if (h.typeCode() != NT_HASH || !h.hasKey(key)) {
+                hash nh;
+                nh{key} = h;
+                h = nh;
+            }
+        }
+        foreach string k in (key ? key : args.keyIterator()) {
+            any val = remove h{k};
+            if (val.typeCode() == NT_HASH)
+                XsdBase::removeNS2(\val);
+            string ons;
+            any th;
+            if (args{k}.element) {
+                th = args{k}.element.serialize(val, !encoded, k, name);
+                ons = nsc.getOutputNamespacePrefix(args{k}.element.ns);
+                rh.(ons + ":" + args{k}.element.name) = th;
+            } else {
+                th = args{k}.type.serialize(val, !encoded);
+                #ons = args{k}.type.getOutputNamespacePrefix();
+                rh.("ns1:" + args{k}.name) = th;
+            }
+        }
+
+        if (h.typeCode() == NT_HASH && h)
+            throw SOAP_SERIALIZATION_ERROR, sprintf("additional keys %y included in %y message hash", h.keys(), name);
 
         if (encoded)
             rh."^attributes^" += (
                 "soapenv:encodingStyle": SOAP_ENCODING,
                 "xmlns:soapenc": SOAP_ENCODING,
             );
-
-        if (!k && args.size() == 1) {
-            string key = args.firstKey();
-            any v = (h.typeCode() == NT_HASH && h.hasKey(key)) ? remove h{key} : remove h;
-            XsdBase::removeNS2(\v);
-            string ons;
-            any th = args{key}.element.serialize(v, !encoded, key, name);
-            ons = nsc.getOutputNamespacePrefix(args{key}.element.ns);
-            rh.(ons + ":" + args{key}.element.name) = th;
-        }
-        else {
-            foreach string key in (k ? k : args.keyIterator()) {
-                any val = remove h{key};
-                if (val.typeCode() == NT_HASH)
-                    XsdBase::removeNS2(\val);
-
-                string ons;
-                any th = args{key}.element.serialize(val, !encoded, key, name);
-                ons = nsc.getOutputNamespacePrefix(args{key}.element.ns);
-                rh.(ons + ":" + args{key}.element.name) = th;
-            }
-        }
-
-        if (h.typeCode() == NT_HASH && h)
-            throw SOAP_SERIALIZATION_ERROR, sprintf("additional keys %y included in %y message hash", h.keys(), name);
 
         #printf("DEBUG: message %s: force_ns: %y args: %y h: %y\n", name, force_ns, keys args, h);
 
@@ -2533,14 +2540,6 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         return rv;
     }
 
-    string serializeAsUrlEncodedString(any h) {
-        hash nv = getNameValue(NOTHING, h);
-        list l;
-        foreach string k in (keys nv) {
-            push l, encode_url(k, True) + "=" + encode_url(nv{k}, True);
-        }
-        return l.join("&");
-    }
 }
 
 # private helper class for lazy name resolution
@@ -2733,12 +2732,17 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                             if (!exists msg)
                                 throw WSDL_ERROR, sprintf("%s binding %y for operation %y references unknown message %y in the soap header element", io, name, opname, h.val);
 
-                            ma.msg = msg;
+                            bool enc  = ma.use == "encoded";
+                            if (enc != msg.encoded) {
+                                ma.msg = msg.copy();
+                                ma.msg.encoded = enc;
+                            } else {
+                                ma.msg = msg;
+                            }
                             hash pmap2;
                             map pmap2{$1.value}=$1.key, msg.pmap.pairIterator();
                             ma.msgpart = pmap2{ma.part} ?? ma.part;
                             #printf("DEBUG: match part to message: part: %y, msg.pmap: %y->%y, ma.msgpart: %y\n", ma.part, msg.pmap, pmap2, ma.msgpart);
-                            ma.encoded = ma.use == "encoded";   # TODO: move to WSOperation ???
                             if (op{io}.header) {
                                 if (op{io}.header.typeCode() != NT_LIST) {
                                     op{io}.header = () + op{io}.header;
