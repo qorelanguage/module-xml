@@ -73,7 +73,7 @@ class SalesforceTest inherits QUnit::Test {
 
     setupConnection() {
         date now = now_us();
-        doInfo("creating WSDL: ");
+        doInfo(sprintf("creating WSDL %y: ", getOption("wsdl")));
         WebService wsdl(WSDLLib::getFileFromURL(getOption("wsdl")));
         doInfo("done: %y\n", now_us() - now);
         opts = (

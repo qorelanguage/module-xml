@@ -280,7 +280,7 @@ public namespace SalesforceSoapClient {
         private any callIntern(string operation, any args, *hash opts, *reference info) {
             # add session ID to SOAP call header
             if (sessionid)
-                opts.soap_header.sessionId = sessionid;
+                opts.soap_header.Header.SessionHeader.sessionId = sessionid;
             opts.soapaction = soapaction;
 
             return SoapClient::callOperation(operation, args, opts, \info);
