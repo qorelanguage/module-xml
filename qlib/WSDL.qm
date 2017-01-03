@@ -335,7 +335,7 @@ public class WSDL::WSDLLib {
                     hh{hi} = ha;
                 }
                 if (!exists hh."content-id")
-                    throw "SOAP-MCESSAGE-ERROR", sprintf("expecting part header Content-ID in part %d; headers: %y", i, hh);
+                    throw "SOAP-MESSAGE-ERROR", sprintf("expecting part header Content-ID in part %d; headers: %y", i, hh);
 
                 any b;
                 if (hh."content-transfer-encoding" == "binary") {
