@@ -394,7 +394,7 @@ public namespace SalesforceSoapClient {
     #! class for SOAP connections to the Salesforce.com SOAP API; returns an object of class @ref SalesforceSoapClient
     /** supports the following static initialization options:
         - \c "connect_timeout": connection timeout to use in milliseconds
-        - \c "content_encoding": this sets the send encoding (if the \c "send_encoding" option is not set) and the requested response encoding; for possible values, see @ref SoapClient::EncodingSupport "EncodingSupport"
+        - \c "content_encoding": this sets the send encoding (if the \c "send_encoding" option is not set) and the requested response encoding; for possible values, see @ref SoapClient::SoapClient::EncodingSupport "EncodingSupport"
         - \c "force_logout": forces a logout when the SalesforceSoapClient object is destroyed; this should normally be @ref Qore::False "False" to allow for the session to remain valid
         - \c "http_version": HTTP version to use (\c "1.0" or \c "1.1", defaults to \c "1.1")
         - \c "max_redirects": maximum redirects to support
@@ -402,8 +402,8 @@ public namespace SalesforceSoapClient {
         - \c "port": in case multiple port entries are found in the WSDL, give the one to be used here
         - \c "portType": in case multiple portType entries are found in the WSDL, give the one to be used here
         - \c "proxy": proxy URL to use
-        - \c "send_encoding": a @ref SoapClient::EncodingSupport "send data encoding option" or the value \c "auto" which means to use automatic encoding; if not present defaults to no content-encoding on sent message bodies
-        - \c "target_url": overrides the URL in the WSDL (mapped to \c "url" in the @ref SoapClient::constructor(hash) "SoapClient::constructor()" argument)
+        - \c "send_encoding": a @ref SoapClient::SoapClient::EncodingSupport "send data encoding option" or the value \c "auto" which means to use automatic encoding; if not present defaults to no content-encoding on sent message bodies
+        - \c "target_url": overrides the URL in the WSDL (mapped to \c "url" in the @ref SoapClient::SoapClient::constructor(hash) "SoapClient::constructor()" argument)
         - \c "token": Salesforce.com user API token
         - \c "timeout": transfer timeout to use in milliseconds
         - \c "username": Salesforce.com username

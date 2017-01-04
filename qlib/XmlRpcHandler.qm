@@ -152,7 +152,6 @@ ash), the method definition as passed in the methods argument to this constructo
             @param dbg this parameter is set to @ref Qore::True "True", then additional information will be logged when errors occur
             @param n_get_prefix prefix to add to derived methods with GET requests if no "." characters are in the path
             @param log an optional closure or call reference to be called when logging
-            @param cx an optional closure or call reference to set the call context before calling APIs
 
             @throw XML-RPC-CONSTRUCTOR-ERROR missing \c "name", \c "function", or \"text" key in method hash, \c "function" key not assigned to a callable value
          */
