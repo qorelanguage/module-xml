@@ -2286,7 +2286,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         else if (!exists body)
             throw SOAP_DESERIALIZATION_ERROR, sprintf("no %s body value given for operation %y", request ? "request" : "response", name);
 
-        *hash rv;
+        any rv;
         if (exists body) {
             (*hash mrh, hash msg) = processMultiRef(body);
 
@@ -2343,13 +2343,15 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         }
 
         if (exists rv) {
-            # for backward compatibility flat hash when there was only argument
-            # but we must be care of when the argument is type (not element) and header is present
-            if (rv.size() == 1 && (rv.firstValue().typeCode() == NT_HASH || !exists hrv)) {
+            # for backwards compatibility with a flat hash when there was only argument
+            # but we must be care of when the argument is a type (not element)
+            if (rv.size() == 1 && rv.typeCode() == NT_HASH) {
                 rv = rv.firstValue();
             }
         }
         if (exists hrv) {
+            if (rv.typeCode() != NT_HASH)
+                rv = ("^value^": rv);
             rv."^header^" = hrv;
         }
 
