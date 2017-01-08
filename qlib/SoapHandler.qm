@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file SoapHandler.qm SOAP handler module providing the SoapHandler class to be registered as a handler with the Qore HttpServer module
 
-/*  SoapHandler.qm Copyright (C) 2012 - 2016 David Nichols
+/*  SoapHandler.qm Copyright (C) 2012 - 2017 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -157,7 +157,6 @@ public namespace SoapHandler {
         #! adds a method to the handler dynamically
         /** @param ws the WebService object for the method
             @param op the WSOperation object for the web service operation the method corresponds to
-            @param binding SOAP binding name, leave empty to use the first assigned binding
             @param func a call reference, a closure, or a string function name to call with the deserialized arguments to the method; the return value will be serialized to SOAP according to the WSDL and sent back to the caller
             @param help optional help text for the method
             @param logopt log options which can be used by a custom logger (see the \a getLogMessage parameter in the constructor)
@@ -165,8 +164,9 @@ public namespace SoapHandler {
             @param path an optional path for the method (assumed to be the name of the service)
             @param err_func a call reference, a closure, or a string function name to call with error information if an exception is thrown with SOAP data
             @param altpath an alternate path for the service / WSDL
+            @param binding SOAP binding name, leave empty to use the first assigned binding
          */
-        addMethod(WebService ws, WSOperation op, *string binding, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath) {
+        addMethod(WebService ws, WSOperation op, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath, *string binding) {
             if (!func)
                 throw "SOAP-SERVER-ADDMETHOD-PARAMETER-ERROR", sprintf("second argument is not a function name or callable value type (got: %y)", func);
 
@@ -184,11 +184,6 @@ public namespace SoapHandler {
                                 ));
             #printf("methods=%N\n", methods);
         }
-
-        addMethod(WebService ws, WSOperation op, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath) {
-            addMethod(ws, op, NOTHING, func, help, logopt, cmark, path, err_func, altpath);
-        }
-
 
         #! turns on or off debugging; when debugging is enabled more verbose error messages are reported
         setDebug(bool dbg = True) {
@@ -250,7 +245,7 @@ public namespace SoapHandler {
                     throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
             }
 
-            #printf("DEBUG: SoapHandler::addMethodIntern() method: %N\n", method);
+            #printf("DEBUG: SoapHandler::addMethodInternal() method: %N\n", method);
 
             # map top-level element to method
             if (method.path) {
@@ -317,7 +312,7 @@ public namespace SoapHandler {
             @par cx context passed from @ref HttpServer::HttpServer "HttpServer"
             @par msg information about message to be logged. There are keys 'reason' with value 'request', 'response' or 'error',
                  'header' (HTTP header, in casew ) and 'body' containing XML data in readable form, i.e. uncompressed and in case of
-                 multipart message only the related part is passed. Method is executed before message is sent or after 
+                 multipart message only the related part is passed. Method is executed before message is sent or after
                  has been received. Do not allow exception raising in method not to interrupt handler function.
 
             @par Example:
