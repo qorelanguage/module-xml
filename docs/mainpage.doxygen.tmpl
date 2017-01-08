@@ -339,6 +339,7 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     - <a href="../../SoapClient/html/index.html">SoapClient</a> module changes:
       - added support for logging messages
       - added the \c SoapConnection class
+      - added API support for specifying the SOAP bindings in the WSDL to use (a href="https://github.com/qorelanguage/qore/issues/1116">issue 1116</a>)
     - <a href="../../SoapHandler/html/index.html">SoapHandler</a> module changes:
       - added support for logging messages
     - <a href="../../WSDL/html/index.html">WSDL</a> module changes:
@@ -349,9 +350,7 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
       - fixed a bug where \c xsi:type information was serialized when not necessary (<a href="https://github.com/qorelanguage/qore/issues/1120">issue 1120</a>)
       - added a more user-friendly exception when WSDLs are encountered with unsupported bindings (ex: HTTP verb-based bindings, issue <a href="https://github.com/qorelanguage/qore/issues/1116">issue 1116</a>)
       - added \c WSDL::WSMessageHelper to generate sample messages
-      - added multiple binding support
-      - added HTTP binding support and extended SOAP binding support
-
+      - added support for multiple SOAP bindings in the WSDL including HTTP \c GET/POST bindings (a href="https://github.com/qorelanguage/qore/issues/1116">issue 1116</a>)
 
     @subsection xml131 xml Module Version 1.3.1
     <b>Changes and Bug Fixes in This Release</b>

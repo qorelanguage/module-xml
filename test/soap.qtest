@@ -423,7 +423,7 @@ class SoapTest inherits QUnit::Test {
         assertEq(NOTHING, eh);
 
         op = ws.getOperation("noInput");
-        h = op.serializeRequest(NOTHING, NOTHING, ForcedHeaderValues);
+        h = op.serializeRequest(NOTHING, ForcedHeaderValues);
         xh = parse_xml(h.body);
         compareSoapMsgs("header-input-no-binding", ForcedHeaderReq, xh);
 
@@ -435,7 +435,7 @@ class SoapTest inherits QUnit::Test {
         assertEq(NOTHING, eh);
 
         op = ws.getOperation("headerVal");
-        h = op.serializeRequest(NOTHING, NOTHING, HeaderVal1);
+        h = op.serializeRequest(NOTHING, HeaderVal1);
         xh = parse_xml(h.body);
         compareSoapMsgs("header-val", HeaderValReq1, xh);
 
@@ -445,7 +445,7 @@ class SoapTest inherits QUnit::Test {
         assertEq(headerDeser, h2."^header^");
 
         op = ws.getOperation("headerVal-doc");
-        h = op.serializeRequest(NOTHING, NOTHING, HeaderVal1);
+        h = op.serializeRequest(NOTHING, HeaderVal1);
         xh = parse_xml(h.body);
         compareSoapMsgs("header-val", HeaderValReq1, xh);
 
@@ -453,24 +453,24 @@ class SoapTest inherits QUnit::Test {
         assertEq(headerDeser, h2."^header^");
 
         op = ws.getOperation("pt2", "urlRepl");
-        h = op.serializeRequest(UrlReplVal1, NOTHING);
+        h = op.serializeRequest(UrlReplVal1);
         assertEq("get/CZ/12000-Prague%202", h.path);
         assertEq("GET", h.method);
 
         op = ws.getOperation("pt2", "urlEncoded1");
-        h = op.serializeRequest(UrlReplVal1, NOTHING);
+        h = op.serializeRequest(UrlReplVal1);
         assertEq("get?country=CZ&city=Prague%202&zip=12000", h.path);
         assertEq("GET", h.method);
         assertFalse(exists h.hdr."Content-Type");
         assertThrows("SOAP-DESERIALIZATION-ERROR", \parseMessage(), (h, op, True));
 
         op = ws.getOperation("pt2", "urlEncoded2");
-        h = op.serializeRequest(UrlReplVal1, NOTHING);
+        h = op.serializeRequest(UrlReplVal1);
         assertEq("get?test&country=CZ&city=Prague%202&zip=12000", h.path);
         assertEq("GET", h.method);
 
         op = ws.getOperation("pt2", "postForm");
-        h = op.serializeRequest(UrlReplVal1, NOTHING);
+        h = op.serializeRequest(UrlReplVal1);
         assertEq("country=CZ&city=Prague%202&zip=12000", h.body);
         assertEq("POST", h.method);
 
@@ -478,7 +478,7 @@ class SoapTest inherits QUnit::Test {
         assertEq(UrlReplVal1, h2, h.path);
 
         op = ws.getOperation("pt2", "postText");
-        h = op.serializeRequest(("info": "important info &"), NOTHING);
+        h = op.serializeRequest(("info": "important info &"));
         assertEq("important info &", h.body);
         assertTrue(h.hdr."Content-Type".regex("^text/"), "Content type");
         assertEq("POST", h.method);
@@ -488,7 +488,7 @@ class SoapTest inherits QUnit::Test {
         assertEq("text/plain", h2.info."^attributes^"."^content-type^");
 
         op = ws.getOperation("pt2", "postImg");
-        h = op.serializeRequest(("img": <ABCDEF>), NOTHING);
+        h = op.serializeRequest(("img": <ABCDEF>));
         assertEq(h.hdr."Content-Type", "image/png");
         assertEq(<ABCDEF>, h.body);
         assertEq("POST", h.method);
@@ -504,12 +504,12 @@ class SoapTest inherits QUnit::Test {
         assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), ("img": <ABCDEF>), "post img no content type");
 
         op = ws.getOperation("pt2", "postImg2");
-        h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))), NOTHING);
+        h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))));
         assertEq("image/jpeg", h.hdr."Content-Type");
         assertEq(<ABCDEF>, h.body);
 
         op = ws.getOperation("pt2", "postImg3");
-        h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))), NOTHING);
+        h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))));
         assertEq("image/jpeg", h.hdr."Content-Type");
         assertEq(<ABCDEF>, h.body);
 
@@ -524,7 +524,7 @@ class SoapTest inherits QUnit::Test {
         assertThrows("SOAP-MESSAGE-ERROR", \op.serializeRequest(), ("img": ("^value^": "xxx", "^attributes^": ("^content-type^": "text/plain"))), "post img wrong content type");
 
         op = ws.getOperation("pt2", "postData");
-        h = op.serializeRequest(("payload": ("^value^": "012", "^attributes^": ("^content-type^": "application/x-data"))), NOTHING);
+        h = op.serializeRequest(("payload": ("^value^": "012", "^attributes^": ("^content-type^": "application/x-data"))));
         assertTrue(h.hdr."Content-Type".regex("^application/x-data"), "Content type");
         assertEq(<303132>, h.body);
 
