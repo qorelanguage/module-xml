@@ -1914,7 +1914,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         bindings{bname} = opparams;
     }
 
-    private hash serializeSoapMessage(any h, hash binding, *hash header, *hash nsh, bool request, bool soap12, reference mpm) {
+    private:internal hash serializeSoapMessage(any h, hash binding, *hash header, *hash nsh, bool request, bool soap12, reference mpm) {
         string io = request ? "input" : "output";
         # setup namespaces for SOAP envelope
         hash rh = nsc.hasSoap12() ? WSDL::ENVELOPE_12_NS : WSDL::ENVELOPE_11_NS;
@@ -2008,7 +2008,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 
 
-    private *data serializeHttpMessage(any h, hash binding, bool request, reference ct, reference enc) {
+    private:internal *data serializeHttpMessage(any h, hash binding, bool request, reference ct, reference enc) {
         string io = request ? "input" : "output";
         if (binding{io}.content.formUrlEncoded) {
             ct = MimeTypeFormUrlEncoded;
@@ -2249,7 +2249,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return (mrh, body);
     }
 
-    private any deserializeSoapMessage(hash o, hash binding, bool request) {
+    private:internal any deserializeSoapMessage(hash o, hash binding, bool request) {
         #printf("DEBUG: deserializeSoapMessage(%N, %y)\n", o, request);
         string io = request ? "input" : "output";
         WSDL::XsdBase::removeNS2(\o);
@@ -2355,7 +2355,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return rv;
     }
 
-    private *hash deserializeHttpMessage(hash v, hash binding, bool request) {
+    private:internal *hash deserializeHttpMessage(hash v, hash binding, bool request) {
         string io = request ? "input" : "output";
         *string ct = v."content-type";
         if (!exists ct) {
