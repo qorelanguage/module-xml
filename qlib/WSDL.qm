@@ -2035,6 +2035,9 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
             } else {
                 return convert_encoding(v.value, enc);
             }
+        } else if (binding{io}.mimeXml) {
+            ct = MimeTypeXml;
+            return make_xml(self{io}.serialize(binding{io}.mimeXml.msgpart, NOTHING, NOTHING, binding{io}.mimeXml.msgpart, h));
         }
     }
 
@@ -2358,7 +2361,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     private:internal *hash deserializeHttpMessage(hash v, hash binding, bool request) {
         string io = request ? "input" : "output";
         *string ct = v."content-type";
-        if (!exists ct) {
+        if (!exists ct && !binding{io}.mimeXml) {
             throw SOAP_DESERIALIZATION_ERROR, sprintf("missing content-type in input hash: %y", v);
         }
         if (binding{io}.urlEncoded) {
@@ -2375,11 +2378,14 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
                 WSDLLib::checkContentType(ct, binding{io}.content.acceptedContentTypeSubtypes + binding{io}.content.acceptedContentTypes);
             }
             hash v2;
-            v2{binding{io}.content.part} = v.body;
-            hash h = self{io}.deserialize(NOTHING, v2, binding{io}.content.part);
+            v2{binding{io}.content.msgpart} = v.body;
+            hash h = self{io}.deserialize(NOTHING, v2, binding{io}.content.msgpart);
             string k = h.firstKey();
             h{k}."^value^" = remove h{k};
             h{k}."^attributes^"."^content-type^" = ct;
+            return h;
+        } else if (binding{io}.mimeXml) {
+            *hash h = self{io}.deserialize(NOTHING, v, binding{io}.mimeXml.msgpart);
             return h;
         }
     }
@@ -2483,25 +2489,22 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         }
     }
 
+    #! serializes data into hash with SOAP soup as namespaces etc
+    /**
+     * @param if present then serializes only particular element or part, if NOTHING then serializes all message elements
+     * @param n_name name of output key
+     * @param h data to be serialized
+     */
     hash serialize(*string key, any msginfo, any mpm, string n_name, any h) {
         hash rh;
-        #printf("DEBUG: message %s: h: %y\n", name ,h);
+        #printf("DEBUG: message %s: key: %y, h: %y\n", name , key, h);
 
         foreach string k in (key ? key : args.keyIterator()) {
             any v;
             if (h.hasKey(k))
                 v = remove h{k};
-            else if (pmap{k} && !exists h{k})
+            else if (pmap{k})
                 v = remove h.(pmap{k});
-
-            /*
-            if (!exists h{k}) {
-                if (pmap{k} && !exists h{k})
-                    h{k} = remove h.(pmap{k});
-                else
-                    throw SOAP_SERIALIZATION_ERROR, sprintf("missing message argument %y (got %y instead)", k, h.keys());
-            }
-            */
 
             any hv;
             #printf("DEBUG: arg %y with %y\n", k, args{k});
@@ -2586,8 +2589,9 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         return rh;
     }
 
+    #! deserialize message with keys equal to element names and returns hash with root keys according part name
     *hash deserialize(*hash mrh, hash val, *string key) {
-        #printf("DBG WSMessage::deserialize() args: %y pmap: %y val: %y\n", args.keys(), pmap, val); #XXX
+        #printf("DBG WSMessage::deserialize() args: %y pmap: %y key: %y val: %y\n", args.keys(), pmap, key, val);
         hash ro;
 
         foreach string k in (exists key ? key : args.keyIterator()) {
@@ -2597,11 +2601,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
             if (v.typeCode() == NT_HASH)
                 XsdBase::removeNS2(\v);
 
-            string rk = k;
-            if (pmap{k} && !args.(pmap{k}))
-                rk = pmap{k};
-
-            ro{rk} = args{k}.element
+            ro{getPartFromElement(k)} = args{k}.element
                 ? args{k}.element.deserialize(tmap, mrh, getValue(mrh, v), present)
                 : args{k}.type.deserialize(name, tmap, mrh, getValue(mrh, v));
         }
@@ -2634,11 +2634,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
             any v = remove val{k};
             XsdBase::removeNS2(\v);
 
-            string rk = k;
-            if (pmap{k} && !args.(pmap{k}))
-                rk = pmap{k};
-
-            rh{rk} = args{k}.element ?
+            rh{getPartFromElement(k)} = args{k}.element ?
                 args{k}.element.deserialize(tmap, mrh, v, present) :
                 args{k}.type.deserialize(name, tmap, mrh, getValue(mrh, v));
         }
@@ -2667,13 +2663,32 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         any v;
         if (h.hasKey(key))
             v = h{key};
-        else if (pmap{key} && !exists h{key})
+        else if (pmap{key})
             v = h.(pmap{key});
         rv.value = args{key}.type.serialize(v, False, keepBinary){"^value^"};
         if (v.typeCode() == NT_HASH) {
             rv."content-type" = v."^attributes^"."^content-type^";
         }
         return rv;
+    }
+
+    #! return element name corresponding to partname, if not exists then try return element name otherwise raise exception 
+    /*private in module*/string getElementFromPart(string partname) {
+        hash pmap2;
+        map pmap2{$1.value}=$1.key, pmap.pairIterator();
+        if (pmap2{partname}) {
+            return pmap2{partname};
+        } else if (exists args{partname}) {
+            return partname;
+        } else
+            throw WSDL_ERROR, sprintf("cannot resolve partname %y in message %y", partname, name);
+    }
+    #! return part name corresponding to element name, if not exists then return element name
+    /*private in module*/string getPartFromElement(string ename) {
+        string rk = ename;
+        if (pmap{ename} && !args.(pmap{ename}))
+            rk = pmap{ename};
+        return rk;
     }
 }
 
@@ -2792,6 +2807,13 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
             foreach string io in (("input", "output")) {
                 if (ophash{io}) {
                     WSDL::XsdBase::removeNS(\ophash{io});
+                    if (!exists portTypes{port}.operations{opname}{io}) {
+                        hash hk;
+                        map hk{$1}=True, keys ophash{io};
+                        remove hk.("header", "ns");
+                        if (hk)
+                            throw WSDL_ERROR, sprintf("binding %y for operation %y does not reference %s message in porttype %y",  name, opname, io, port);
+                    }
                     if (exists ophash{io}.body) {
                         # any pa = ophash{io}.body."^attributes^";
                         op{io}.body = ophash{io}.body."^attributes^";
@@ -2799,9 +2821,6 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
 
                         delete ophash{io}.body;
                     }
-
-                    if (ophash{io}.("body", "content", "part") && !exists portTypes{port}.operations{opname}{io})
-                        throw WSDL_ERROR, sprintf("cannot assign %s message definition in binding %y for operation %y with no %s: %y", io, name, opname, io, ophash);
 
                     if (exists ophash{io}.multipartRelated) {
                         if (exists op{io}.body)
@@ -2811,7 +2830,7 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                         op{io}.parts = {};
                         WSDL::XsdBase::removeNS(\ophash{io}.multipartRelated);
 
-                        if (!exists ophash{io}.multipartRelated.part)  # TODO: do I need explicite check or is is handled by validator ?
+                        if (!exists ophash{io}.multipartRelated.part)  # TODO: do I need explicite check or is handled by validator ?
                             throw WSDL_ERROR, sprintf("binding %y is missing part definition(s) in %s message definition for operation %y: %y", name, io, opname, ophash);
 
                         foreach any part in (ophash{io}.multipartRelated.part) {
@@ -2859,24 +2878,21 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                             if (!ma.message)
                                 throw WSDL_ERROR, sprintf("%s binding %y for operation %y specifies a soap header element without a 'message' attribute (attr: %y)", io, name, opname, ma);
 
-                            if (!ma.part)
-                                throw WSDL_ERROR, sprintf("%s binding %y for operation %y specifies a soap header element without a 'part' attribute (attr: %y)", io, name, opname, ma);
-
                             hash h = nsc.doType(ma.message);
                             *WSMessage msg = messages.(h.val);
                             if (!exists msg)
                                 throw WSDL_ERROR, sprintf("%s binding %y for operation %y references unknown message %y in the soap header element", io, name, opname, h.val);
 
-                            bool enc  = ma.use == "encoded";
+                            ma.part = checkMessagePart(msg, ma.part, sprintf("header %s operation %y", io, opname));
+                            ma.msgpart = msg.getElementFromPart(ma.part);
+
+                            bool enc = ma.use == "encoded";
                             if (enc != msg.encoded) {
                                 ma.msg = msg.copy();
                                 ma.msg.encoded = enc;
                             } else {
                                 ma.msg = msg;
                             }
-                            hash pmap2;
-                            map pmap2{$1.value}=$1.key, msg.pmap.pairIterator();
-                            ma.msgpart = pmap2{ma.part} ?? ma.part;
                             #printf("DEBUG: match part to message: part: %y, msg.pmap: %y->%y, ma.msgpart: %y\n", ma.part, msg.pmap, pmap2, ma.msgpart);
                             if (op{io}.header) {
                                 if (op{io}.header.typeCode() != NT_LIST) {
@@ -2965,29 +2981,25 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                                 }
                             }
 
-                            if (!exists cnt.part) {
-                                cnt.part = "";
+                            cnt.part = checkMessagePart(portTypes{port}.operations{opname}{io}, cnt.part, sprintf("content %s operation %y", io, opname));
+                            if (exists p) {
+                                if (p != cnt.part) {
+                                    throw WSDL_ERROR, sprintf("ambiguous part %y in message %y in binding %y for %s operation %y", cnt.part, portTypes{port}.operations{opname}{io}.name, name, io, opname);
+                                }
+                            } else {
+                                op{io}.content.part = cnt.part;
+                                op{io}.content.msgpart = portTypes{port}.operations{opname}{io}.getElementFromPart(cnt.part);
+                                p = cnt.part;
                             }
-                            if (exists p && p != cnt.part) {
-                                throw WSDL_ERROR, sprintf("ambiguous part %y in message %y in binding %y for %s operation %y", cnt.part, portTypes{port}.operations{opname}{io}.name, name, io, opname);
-                            }
-                            p = cnt.part;
                         }
 
-                        if (exists p) {
-                            if (p == "") {
-                                if (portTypes{port}.operations{opname}{io}.args.size() != 1) {
-                                    throw WSDL_ERROR, sprintf("multiple parts %y in message %y in binding %y for %s operation %y", keys portTypes{port}.operations{opname}{io}.args, portTypes{port}.operations{opname}{io}.name, name, io, opname);
-                                }
-                                p = portTypes{port}.operations{opname}{io}.args.firstKey();
-                            } else {
-                                if (!exists portTypes{port}.operations{opname}{io}.args{p}) {
-                                    throw WSDL_ERROR, sprintf("missing part %y in message %y in binding %y for %s operation %y", p, portTypes{port}.operations{opname}{io}.name, name, io, opname);
-                                }
-                            }
-                            op{io}.content.part = p;
-                        }
                         delete ophash{io}.content;
+                    }
+
+                    if (ophash{io}.hasKey("mimeXml")) {
+                        op{io}.mimeXml.part = checkMessagePart(portTypes{port}.operations{opname}{io}, ophash{io}.mimeXml."^attributes^".part, sprintf("%s operation %y", io, opname));
+                        op{io}.mimeXml.msgpart = portTypes{port}.operations{opname}{io}.getElementFromPart(op{io}.mimeXml.part);
+                        delete ophash{io}.mimeXml;
                     }
 
                     delete ophash{io}.("^attributes^", "ns");
@@ -3013,6 +3025,19 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
         #binding = data;
     }
 
+    #! check if part exists in massage, if part is empty and message contains single part then return it otherwise raise exceptio
+    private:internal string checkMessagePart(WSMessage msg, *string partname, string errs) {
+        if (!msg.args)
+            throw WSDL_ERROR, sprintf("message %y has no part, binding %y, %s", msg.name, name, errs);
+        if (!exists partname) {
+            if (msg.args.size() == 1) {
+                partname = msg.getPartFromElement(msg.args.firstKey());
+            } else {
+                throw WSDL_ERROR, sprintf("message %y is multiparted so the part must be defined, binding %y, %s", msg.name, name, errs);
+            }
+        }
+        return partname;
+    }
 
     string getPort() {
         return port;
@@ -3504,14 +3529,24 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         throw "WSDL-OPERATION-ERROR", sprintf("cannot retrieve operation %y; known operations: %y", opname, l);
     }
 
-    #! returns the given operation or throws an exception if it cannot be found
-    WSOperation getOperation(string port, string opname) {
-        *WSOperation op = portType{port}.operations{opname};
+    #! returns the given operation for particular porttype or throws an exception if it cannot be found
+    WSOperation getPortTypeOperation(string ptname, string opname) {
+        *WSOperation op = portType{ptname}.operations{opname};
         if (op)
             return op;
-        if (!portType{port})
-            throw "WSDL-OPERATION-ERROR", sprintf("port %y is not a defined port; known ports: %y", port, portType.keys());
-        throw "WSDL-OPERATION-ERROR", sprintf("operation %y is not known in port %y; known operations: %y", opname, port, portType{port}.operations.keys());
+        if (!portType{ptname})
+            throw "WSDL-OPERATION-ERROR", sprintf("port %y is not a defined port; known ports: %y", ptname, portType.keys());
+        throw "WSDL-OPERATION-ERROR", sprintf("operation %y is not known in port %y; known operations: %y", opname, ptname, portType{ptname}.operations.keys());
+    }
+
+    #! returns the given operation for particular binding or throws an exception if it cannot be found
+    WSOperation getBindingOperation(*string bname, string opname) {
+        if (!exists bname) {
+            return getOperation(opname);
+        } else {
+            WSDL::Binding b = getBinding(bname);
+            return getPortTypeOperation(b.getPort(), opname);
+        }
     }
 
     #! returns a list of hashes giving supported operation names for each port in the WSDL

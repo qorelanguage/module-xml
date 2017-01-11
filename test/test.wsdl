@@ -1,401 +1,397 @@
-<?xml version="1.0" encoding="utf-8"?>
-<wsdl:definitions xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:tns="http://qore.org/simpletest" xmlns:s="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:test="http://initial-value" targetNamespace="http://qore.org/simpletest" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:s="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:test="http://initial-value" xmlns:tns="http://qore.org/simpletest" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://qore.org/simpletest">
   <wsdl:types>
-    <s:schema xmlns:tns1="http://qore.org/simpletest1" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:test="http://other-value" elementFormDefault="qualified" targetNamespace="http://qore.org/simpletest" xmlns="http://www.w3.org/2001/XMLSchema">
-      <s:import namespace="http://qore.org/simpletest1"/>
+    <s:schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:test="http://other-value" xmlns:tns1="http://qore.org/simpletest1" elementFormDefault="qualified" targetNamespace="http://qore.org/simpletest">
+      <s:import namespace="http://qore.org/simpletest1" />
       <s:element name="SetInfo">
-	<s:complexType>
-	  <s:all>
-	    <s:element name="name" type="string"/>
-	    <s:element name="id" type="s:int"/>
-	  </s:all>
-	  <s:attribute name="infoType" type="xsd:string" use="required"/>
-	  <s:attribute name="code" type="s:int" use="required"/>
-	</s:complexType>
+        <s:complexType>
+          <s:all>
+            <s:element name="name" type="string" />
+            <s:element name="id" type="s:int" />
+          </s:all>
+          <s:attribute name="infoType" type="xsd:string" use="required" />
+          <s:attribute name="code" type="s:int" use="required" />
+        </s:complexType>
       </s:element>
       <s:element name="Test">
-	<s:complexType>
-	  <s:simpleContent>
+        <s:complexType>
+          <s:simpleContent>
             <s:extension base="tns:testEnum">
-              <s:attribute name="info" type="s:string" use="required"/>
+              <s:attribute name="info" type="s:string" use="required" />
             </s:extension>
           </s:simpleContent>
-	</s:complexType>
+        </s:complexType>
       </s:element>
       <s:simpleType name="testEnum">
-	<restriction base="xsd:string">
-	  <enumeration value="test"/>
-	  <enumeration value="other"/>
+        <restriction base="xsd:string">
+          <enumeration value="test" />
+          <enumeration value="other" />
         </restriction>
       </s:simpleType>
       <s:complexType name="issue86">
-	<s:sequence>
-	  <s:element maxOccurs="1" minOccurs="1" ref="tns:issue86"/>
-	  <!-- add data element here in interface specific wsdl, can be any type -->
-	</s:sequence>
+        <s:sequence>
+          <s:element maxOccurs="1" minOccurs="1" ref="tns:issue86" />
+          <!-- add data element here in interface specific wsdl, can be any type -->
+        </s:sequence>
       </s:complexType>
-      <s:element name="issue86" type="tns:issue86_2"/>
+      <s:element name="issue86" type="tns:issue86_2" />
       <s:complexType name="issue86_2">
-	<s:complexContent>
-	  <s:extension base="tns1:issue86_1">
-	    <s:sequence>
-	      <s:element name="issue86_1_2" nillable="false" type="s:string"/>
-	    </s:sequence>
-	  </s:extension>
-	</s:complexContent>
+        <s:complexContent>
+          <s:extension base="tns1:issue86_1">
+            <s:sequence>
+              <s:element name="issue86_1_2" nillable="false" type="s:string" />
+            </s:sequence>
+          </s:extension>
+        </s:complexContent>
       </s:complexType>
       <s:element name="issue87">
-	<s:complexType>
-	  <s:sequence>
-	    <s:element name="issue87e1" type="s:string"/>
-	    <s:choice minOccurs="1">
-	      <s:element name="choice11" type="s:string"/>
-	      <s:element name="choice12" type="s:string"/>
-	    </s:choice>
-	    <s:choice minOccurs="0">
-	      <s:element name="choice21" type="s:int"/>
-	      <s:element name="choice22" type="s:int"/>
-	    </s:choice>
-	  </s:sequence>
-	</s:complexType>
+        <s:complexType>
+          <s:sequence>
+            <s:element name="issue87e1" type="s:string" />
+            <s:choice minOccurs="1">
+              <s:element name="choice11" type="s:string" />
+              <s:element name="choice12" type="s:string" />
+            </s:choice>
+            <s:choice minOccurs="0">
+              <s:element name="choice21" type="s:int" />
+              <s:element name="choice22" type="s:int" />
+            </s:choice>
+          </s:sequence>
+        </s:complexType>
       </s:element>
-      <s:element name="issue97" type="tns:issue97"/>
+      <s:element name="issue97" type="tns:issue97" />
       <s:complexType name="issue97">
         <s:sequence>
-          <s:element name="i97list" type="tns:i97list"/>
+          <s:element name="i97list" type="tns:i97list" />
         </s:sequence>
       </s:complexType>
       <s:complexType name="i97list">
         <s:sequence>
-          <s:element maxOccurs="unbounded" minOccurs="0" name="i97element" type="s:string"/>
+          <s:element maxOccurs="unbounded" minOccurs="0" name="i97element" type="s:string" />
         </s:sequence>
       </s:complexType>
-      <s:element name="SetInfoResult" type="s:string"/>
+      <s:element name="SetInfoResult" type="s:string" />
       <s:element name="GetInfo">
-	<s:complexType>
-	  <s:all>
-	    <s:element name="tickerSymbol" type="s:string"/>
-	  </s:all>
-	</s:complexType>
+        <s:complexType>
+          <s:all>
+            <s:element name="tickerSymbol" type="s:string" />
+          </s:all>
+        </s:complexType>
       </s:element>
       <s:element name="GetInfoResult">
-	<s:complexType>
-	  <s:all>
-	    <s:element name="result" type="s:decimal"/>
-	  </s:all>
-	</s:complexType>
+        <s:complexType>
+          <s:all>
+            <s:element name="result" type="s:decimal" />
+          </s:all>
+        </s:complexType>
       </s:element>
       <s:element name="issue468">
-	<s:complexType>
-	  <s:sequence>
-	    <s:element name="issue468_1" nillable="true" type="s:string"/>
-	  </s:sequence>
-	</s:complexType>
+        <s:complexType>
+          <s:sequence>
+            <s:element name="issue468_1" nillable="true" type="s:string" />
+          </s:sequence>
+        </s:complexType>
       </s:element>
       <s:complexType name="issue560_1">
-	<s:complexContent>
-	  <s:extension base="tns:issue560_2">
-	    <s:sequence>
-	      <s:element name="issue560_1" nillable="false" type="s:string"/>
-	    </s:sequence>
-	  </s:extension>
-	</s:complexContent>
+        <s:complexContent>
+          <s:extension base="tns:issue560_2">
+            <s:sequence>
+              <s:element name="issue560_1" nillable="false" type="s:string" />
+            </s:sequence>
+          </s:extension>
+        </s:complexContent>
       </s:complexType>
       <s:complexType name="issue560_2">
-	<s:complexContent>
-	  <s:extension base="tns:issue560_3">
-	    <s:sequence>
-	      <s:element name="issue560_2" nillable="false" type="s:string"/>
-	    </s:sequence>
-	  </s:extension>
-	</s:complexContent>
+        <s:complexContent>
+          <s:extension base="tns:issue560_3">
+            <s:sequence>
+              <s:element name="issue560_2" nillable="false" type="s:string" />
+            </s:sequence>
+          </s:extension>
+        </s:complexContent>
       </s:complexType>
       <s:complexType name="issue560_3">
-	<s:sequence>
-	  <s:element name="issue560_3" nillable="false" type="s:string"/>
-	</s:sequence>
+        <s:sequence>
+          <s:element name="issue560_3" nillable="false" type="s:string" />
+        </s:sequence>
       </s:complexType>
-      <s:element name="issue560" type="tns:issue560_1"/>
-      <s:element name="issue663" type="tns:issue663"/>
+      <s:element name="issue560" type="tns:issue560_1" />
+      <s:element name="issue663" type="tns:issue663" />
       <s:complexType name="issue663">
         <s:sequence>
-          <s:element name="i663list" type="tns:i663list" maxOccurs="1" minOccurs="1"/>
+          <s:element name="i663list" type="tns:i663list" maxOccurs="1" minOccurs="1" />
         </s:sequence>
       </s:complexType>
       <s:complexType name="i663list">
         <s:sequence>
-          <s:element maxOccurs="unbounded" minOccurs="0" name="i663element" type="tns:i663element"/>
+          <s:element maxOccurs="unbounded" minOccurs="0" name="i663element" type="tns:i663element" />
         </s:sequence>
       </s:complexType>
       <s:complexType name="i663element">
         <s:sequence>
-          <s:element maxOccurs="1" minOccurs="1" name="i663element_2" type="s:string"/>
-          <s:element maxOccurs="1" minOccurs="1" name="i663element_3" type="s:string"/>
+          <s:element maxOccurs="1" minOccurs="1" name="i663element_2" type="s:string" />
+          <s:element maxOccurs="1" minOccurs="1" name="i663element_3" type="s:string" />
         </s:sequence>
       </s:complexType>
       <s:complexType name="i975">
-	<s:simpleContent>
+        <s:simpleContent>
           <s:extension base="tns:i975_1">
-            <s:attribute name="info" type="s:string" use="required"/>
+            <s:attribute name="info" type="s:string" use="required" />
           </s:extension>
         </s:simpleContent>
       </s:complexType>
       <s:simpleType name="i975_1">
-	<restriction base="xsd:string">
-	  <!-- "length" and "pattern" restrictions not yet supported -->
-          <length value="18"/>
-          <pattern value='[a-zA-Z0-9]{18}'/>
+        <restriction base="xsd:string">
+          <!-- "length" and "pattern" restrictions not yet supported -->
+          <length value="18" />
+          <pattern value="[a-zA-Z0-9]{18}" />
         </restriction>
       </s:simpleType>
       <s:complexType name="i984">
         <s:sequence>
           <s:element name="i984_empty">
-	    <s:complexType>
-	    </s:complexType>
-	  </s:element>
+            <s:complexType />
+          </s:element>
         </s:sequence>
       </s:complexType>
-      <s:element name="issue984" type="tns:i984"/>
+      <s:element name="issue984" type="tns:i984" />
       <s:complexType name="i985_2">
-	<s:complexContent>
+        <s:complexContent>
           <s:extension base="tns:i985_1">
             <s:sequence>
-              <s:element maxOccurs="1" minOccurs="1" name="i985_e2" type="s:string"/>
+              <s:element maxOccurs="1" minOccurs="1" name="i985_e2" type="s:string" />
             </s:sequence>
-	  </s:extension>
-	</s:complexContent>
+          </s:extension>
+        </s:complexContent>
       </s:complexType>
       <s:complexType name="i985_1">
-	<s:sequence>
-	  <s:element name="i985_e1" nillable="true" type="s:string"/>
-	</s:sequence>
+        <s:sequence>
+          <s:element name="i985_e1" nillable="true" type="s:string" />
+        </s:sequence>
       </s:complexType>
-      <s:element name="issue985" type="tns:i985_1"/>
+      <s:element name="issue985" type="tns:i985_1" />
+      <s:element name="string" nillable="true" type="s:string" />
     </s:schema>
     <s:schema xmlns:tns1="http://qore.org/simpletest1" elementFormDefault="qualified" targetNamespace="http://qore.org/simpletest1">
-      <s:element name="issue86" type="tns1:issue86_1"/>
+      <s:element name="issue86" type="tns1:issue86_1" />
       <s:complexType name="issue86_1">
-	<s:sequence>
-	  <s:element name="issue86_1_1" nillable="false" type="s:string"/>
-	</s:sequence>
+        <s:sequence>
+          <s:element name="issue86_1_1" nillable="false" type="s:string" />
+        </s:sequence>
       </s:complexType>
     </s:schema>
   </wsdl:types>
-
   <wsdl:message name="m1">
-    <wsdl:part name="body" element="tns:GetInfo"/>
+    <wsdl:part name="body" element="tns:GetInfo" />
   </wsdl:message>
-
   <wsdl:message name="m2">
-    <wsdl:part name="body" element="tns:GetInfoResult"/>
-    <wsdl:part name="docs" type="s:string"/>
-    <wsdl:part name="logo" type="s:base64Binary"/>
+    <wsdl:part name="body" element="tns:GetInfoResult" />
+    <wsdl:part name="docs" type="s:string" />
+    <wsdl:part name="logo" type="s:base64Binary" />
   </wsdl:message>
-
   <wsdl:message name="m3">
-    <wsdl:part name="body" element="tns:SetInfo"/>
-    <wsdl:part name="test" element="tns:Test"/>
-    <wsdl:part name="issue86" element="tns:issue86"/>
-    <wsdl:part name="issue87" element="tns:issue87"/>
-    <wsdl:part name="issue97" element="tns:issue97"/>
-    <wsdl:part name="issue468" element="tns:issue468"/>
-    <wsdl:part name="issue560" element="tns:issue560"/>
-    <wsdl:part name="issue984" element="tns:issue984"/>
-    <wsdl:part name="issue985" element="tns:issue985"/>
-    <wsdl:part name="logo" type="s:base64Binary"/>
+    <wsdl:part name="body" element="tns:SetInfo" />
+    <wsdl:part name="test" element="tns:Test" />
+    <wsdl:part name="issue86" element="tns:issue86" />
+    <wsdl:part name="issue87" element="tns:issue87" />
+    <wsdl:part name="issue97" element="tns:issue97" />
+    <wsdl:part name="issue468" element="tns:issue468" />
+    <wsdl:part name="issue560" element="tns:issue560" />
+    <wsdl:part name="issue984" element="tns:issue984" />
+    <wsdl:part name="issue985" element="tns:issue985" />
+    <wsdl:part name="logo" type="s:base64Binary" />
   </wsdl:message>
-
   <wsdl:message name="m4">
-    <wsdl:part name="body" element="tns:SetInfoResult"/>
-    <wsdl:part name="issue663" element="tns:issue663"/>
+    <wsdl:part name="body" element="tns:SetInfoResult" />
+    <wsdl:part name="issue663" element="tns:issue663" />
   </wsdl:message>
-
   <wsdl:message name="m5">
-    <wsdl:part name="country" type="s:string"/>
-    <wsdl:part name="city" type="s:string"/>
-    <wsdl:part name="zip" type="s:integer"/>
+    <wsdl:part name="country" type="s:string" />
+    <wsdl:part name="city" type="s:string" />
+    <wsdl:part name="zip" type="s:integer" />
   </wsdl:message>
-
   <wsdl:message name="m6">
-    <wsdl:part name="info" type="s:string"/>
+    <wsdl:part name="info" type="s:string" />
   </wsdl:message>
-
   <wsdl:message name="m7">
-    <wsdl:part name="img" type="s:base64Binary"/>
+    <wsdl:part name="img" type="s:base64Binary" />
   </wsdl:message>
-
   <wsdl:message name="m8">
-    <wsdl:part name="payload" type="s:base64Binary"/>
+    <wsdl:part name="payload" type="s:base64Binary" />
   </wsdl:message>
-
+  <wsdl:message name="m9">
+    <wsdl:part name="STR" element="tns:string" />
+  </wsdl:message>
   <wsdl:portType name="pt1">
     <wsdl:operation name="getInfo">
-      <wsdl:input message="tns:m1"/>
-      <wsdl:output message="tns:m2"/>
+      <wsdl:input message="tns:m1" />
+      <wsdl:output message="tns:m2" />
     </wsdl:operation>
     <wsdl:operation name="setInfo">
-      <wsdl:input message="tns:m3"/>
-      <wsdl:output message="tns:m4"/>
+      <wsdl:input message="tns:m3" />
+      <wsdl:output message="tns:m4" />
     </wsdl:operation>
     <wsdl:operation name="noInput">
-      <wsdl:output message="tns:m4"/>
+      <wsdl:output message="tns:m4" />
     </wsdl:operation>
     <wsdl:operation name="noOutput">
-      <wsdl:input message="tns:m3"/>
+      <wsdl:input message="tns:m3" />
     </wsdl:operation>
-    <wsdl:operation name="headerVal">
-    </wsdl:operation>
-    <wsdl:operation name="headerVal-doc">
-    </wsdl:operation>
+    <wsdl:operation name="headerVal" />
+    <wsdl:operation name="headerVal-doc" />
   </wsdl:portType>
-
   <wsdl:binding name="b1" type="tns:pt1">
-    <soap12:binding transport="http://schemas.xmlsoap.org/soap/http" style="rpc"/>
+    <soap12:binding transport="http://schemas.xmlsoap.org/soap/http" style="rpc" />
     <wsdl:operation name="getInfo">
-      <soap12:operation soapAction="http://qore.org/getInfo"/>
+      <soap12:operation soapAction="http://qore.org/getInfo" />
       <wsdl:input>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal" />
       </wsdl:input>
       <wsdl:output>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal" />
       </wsdl:output>
     </wsdl:operation>
     <wsdl:operation name="setInfo">
-      <soap12:operation soapAction="http://qore.org/setInfo"/>
+      <soap12:operation soapAction="http://qore.org/setInfo" />
       <wsdl:input>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal" />
       </wsdl:input>
       <wsdl:output>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal" />
       </wsdl:output>
     </wsdl:operation>
     <wsdl:operation name="noInput">
-      <soap12:operation soapAction="http://qore.org/noInput"/>
+      <soap12:operation soapAction="http://qore.org/noInput" />
       <wsdl:output>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal" />
       </wsdl:output>
     </wsdl:operation>
     <wsdl:operation name="noOutput">
-      <soap12:operation soapAction="http://qore.org/noOutput"/>
+      <soap12:operation soapAction="http://qore.org/noOutput" />
       <wsdl:input>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal" />
       </wsdl:input>
     </wsdl:operation>
     <wsdl:operation name="headerVal">
-      <soap12:operation soapAction="http://qore.org/headerVal"/>
+      <soap12:operation soapAction="http://qore.org/headerVal" />
       <wsdl:input>
-        <soap12:header message="m1" part="body" use="literal"/>
-        <soap12:header message="m2" part="docs" use="encoded"/>
-        <soap12:header message="m3" part="body" use="literal"/>
+        <soap12:header message="m1" part="body" use="literal" />
+        <soap12:header message="m2" part="docs" use="encoded" />
+        <soap12:header message="m3" part="body" use="literal" />
       </wsdl:input>
     </wsdl:operation>
     <wsdl:operation name="headerVal-doc">
-      <soap12:operation soapAction="http://qore.org/headerVal" style="document"/>
+      <soap12:operation soapAction="http://qore.org/headerVal" style="document" />
       <wsdl:input>
-        <soap12:header message="m1" part="body" use="literal"/>
-        <soap12:header message="m2" part="docs" use="encoded"/>
-        <soap12:header message="m3" part="body" use="literal"/>
+        <soap12:header message="m1" part="body" use="literal" />
+        <soap12:header message="m2" part="docs" use="encoded" />
+        <soap12:header message="m3" part="body" use="literal" />
       </wsdl:input>
     </wsdl:operation>
   </wsdl:binding>
-
   <wsdl:portType name="pt2">
     <wsdl:operation name="urlRepl">
-	  <wsdl:input message="tns:m5"/>
-	</wsdl:operation>
+      <wsdl:input message="tns:m5" />
+    </wsdl:operation>
     <wsdl:operation name="urlEncoded1">
-	  <wsdl:input message="tns:m5"/>
-	</wsdl:operation>
+      <wsdl:input message="tns:m5" />
+    </wsdl:operation>
     <wsdl:operation name="urlEncoded2">
-	  <wsdl:input message="tns:m5"/>
-	</wsdl:operation>
+      <wsdl:input message="tns:m5" />
+    </wsdl:operation>
     <wsdl:operation name="postForm">
-	  <wsdl:input message="tns:m5"/>
-	</wsdl:operation>
+      <wsdl:input message="tns:m5" />
+    </wsdl:operation>
     <wsdl:operation name="postText">
-	  <wsdl:input message="tns:m6"/>
-	</wsdl:operation>
+      <wsdl:input message="tns:m6" />
+    </wsdl:operation>
     <wsdl:operation name="postImg">
-	  <wsdl:input message="tns:m7"/>
-	</wsdl:operation>
+      <wsdl:input message="tns:m7" />
+    </wsdl:operation>
     <wsdl:operation name="postImg2">
-	  <wsdl:input message="tns:m7"/>
-	</wsdl:operation>
+      <wsdl:input message="tns:m7" />
+    </wsdl:operation>
     <wsdl:operation name="postImg3">
-	  <wsdl:input message="tns:m7"/>
-	</wsdl:operation>
+      <wsdl:input message="tns:m7" />
+    </wsdl:operation>
     <wsdl:operation name="postData">
-	  <wsdl:input message="tns:m8"/>
-	</wsdl:operation>
+      <wsdl:input message="tns:m8" />
+    </wsdl:operation>
+    <wsdl:operation name="getMimeXml">
+      <wsdl:output message="tns:m9" />
+    </wsdl:operation>
   </wsdl:portType>
-
   <wsdl:binding name="b2" type="tns:pt2">
-    <http:binding verb="GET"/>
+    <http:binding verb="GET" />
     <wsdl:operation name="urlRepl">
-	  <http:operation location="get/(country)/(zip)-(city)"/>
-	  <input>
-	    <http:urlReplacement/>
-	  </input>
-	</wsdl:operation>
+      <http:operation location="get/(country)/(zip)-(city)" />
+      <input>
+        <http:urlReplacement />
+      </input>
+    </wsdl:operation>
     <wsdl:operation name="urlEncoded1">
-	  <http:operation location="get"/>
-	  <input>
-	    <http:urlEncoded/>
-	  </input>
-	</wsdl:operation>
+      <http:operation location="get" />
+      <input>
+        <http:urlEncoded />
+      </input>
+    </wsdl:operation>
     <wsdl:operation name="urlEncoded2">
-	  <http:operation location="get?test"/>
-	  <input>
-	    <http:urlEncoded/>
-	  </input>
-	</wsdl:operation>
+      <http:operation location="get?test" />
+      <input>
+        <http:urlEncoded />
+      </input>
+    </wsdl:operation>
+    <wsdl:operation name="getMimeXml">
+      <http:operation location="/getMimeXml" />
+      <wsdl:output>
+        <mime:mimeXml part="STR" />
+      </wsdl:output>
+    </wsdl:operation>
   </wsdl:binding>
-
   <wsdl:binding name="b3" type="tns:pt2">
-    <http:binding verb="POST"/>
+    <http:binding verb="POST" />
     <wsdl:operation name="postForm">
-	  <http:operation location="postform"/>
-	  <input>
-		<mime:content type="application/x-www-form-urlencoded"/>
-	  </input>
-	</wsdl:operation>
+      <http:operation location="postform" />
+      <input>
+        <mime:content type="application/x-www-form-urlencoded" />
+      </input>
+    </wsdl:operation>
     <wsdl:operation name="postText">
-	  <http:operation location="posttext"/>
-	  <input>
-	    <mime:content type="text/plain"/>
-	  </input>
-	</wsdl:operation>
+      <http:operation location="posttext" />
+      <input>
+        <mime:content type="text/plain" />
+      </input>
+    </wsdl:operation>
     <wsdl:operation name="postImg">
-	  <http:operation location="postimg"/>
-	  <input>
-	    <mime:content type="image/png"/>
-	  </input>
-	</wsdl:operation>
+      <http:operation location="postimg" />
+      <input>
+        <mime:content type="image/png" />
+      </input>
+    </wsdl:operation>
     <wsdl:operation name="postImg2">
-	  <http:operation location="postimg2"/>
-	  <input>
-	    <mime:content type="image/jpeg"/>
-	    <mime:content type="image/png"/>
-	  </input>
-	</wsdl:operation>
+      <http:operation location="postimg2" />
+      <input>
+        <mime:content type="image/jpeg" />
+        <mime:content type="image/png" />
+      </input>
+    </wsdl:operation>
     <wsdl:operation name="postImg3">
-	  <http:operation location="postimg3"/>
-	  <input>
-	    <mime:content type="image/*"/>
-	  </input>
-	</wsdl:operation>
+      <http:operation location="postimg3" />
+      <input>
+        <mime:content type="image/*" />
+      </input>
+    </wsdl:operation>
     <wsdl:operation name="postData">
-	  <http:operation location="postdata"/>
-	  <input>
-	    <mime:content type="*/*"/>
-	  </input>
-	</wsdl:operation>
+      <http:operation location="postdata" />
+      <input>
+        <mime:content type="*/*" />
+      </input>
+    </wsdl:operation>
   </wsdl:binding>
-
   <wsdl:service name="InfoService">
     <wsdl:port name="InfoPort" binding="tns:b1">
-      <soap12:address location="http://localhost:8001/SOAP/simple"/>
+      <soap12:address location="http://localhost:8001/SOAP/simple" />
     </wsdl:port>
   </wsdl:service>
-
 </wsdl:definitions>
+

@@ -152,6 +152,9 @@ public namespace SoapClient {
             WSDL::WebService wsdl;
             # service name
             string svc;
+            string port;
+            string binding;
+            *string url_path;
 
             *code logc;
             *code dbglogc;
@@ -205,7 +208,7 @@ public namespace SoapClient {
             - \c send_encoding: a @ref EncodingSupport "send data encoding option" or the value \c "auto" which means to use automatic encoding; if not present defaults to no content-encoding on sent message bodies
             - \c content_encoding: for possible values, see @ref EncodingSupport; this sets the send encoding (if the \c "send_encoding" option is not set) and the requested response encoding
             - [\c service]: in case multiple service entries are found in the WSDL, give the one to be used here
-            - [\c port]: in case multiple port entries are found in the WSDL, give the one to be used here
+            - [\c port]: in case multiple port entries are found in the WSDL, give the one to be used here. Binding is resolved from service+port.
             - [\c log]: a log closure or call reference taking a single string giving the log message
             - [\c dbglog]: a log closure or call reference taking a single string giving the debug log message
             - also all options from SoapClient::SoapClient::HTTPOptions, which are passed to the HTTPClient constructor
@@ -247,7 +250,14 @@ public namespace SoapClient {
 
             hash svch = wsdl.getService(svc);
 
-            url = h.url ?? svch.port.firstValue().address;
+            if (svch.port.size() > 1 && !h.port)
+                throw "SOAP-CLIENT-ERROR", sprintf("no 'port' key passed in the option hash argument to SoapClient::constructor() (WSDL defines the following ports: %y for service: %y)", keys svch.port, svc);
+            port = h.port ?? svch.port.firstKey();
+            binding = svch.port{port}.binding.name;
+
+            url = h.url ?? svch.port{port}.address;
+
+            url_path = parse_url(url).path;
 
             headers += h.headers;
             # setup default headers
@@ -280,14 +290,13 @@ public namespace SoapClient {
         }
 
         #! returns a hash representing the serialized SOAP request for a given @ref WSDL::WSOperation "WSOperation"
-        /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
+        /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class and port/binding, an exception will be thrown
             @param args the arguments to the SOAP operation
             @param header data structure for the SOAP header, if required by the message
             @param op a reference to return the @ref WSDL::WSOperation "WSOperation" object found
             @param nsh a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
             @param xml_opts an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
             @param soapaction an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
-            @param binding the SOAP binding name, if not provided, the first binding assigned to the operation will be used
 
             @return a hash with the following keys:
             - \c hdr: a hash of message headers
@@ -300,8 +309,8 @@ public namespace SoapClient {
 
             @note content encoding is not applied here but rather internally by the call() methods
         */
-        hash getMsg(string operation, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction, *string binding) {
-            op = wsdl.getOperation(operation);
+        hash getMsg(string operation, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction) {
+            op = wsdl.getBindingOperation(binding, operation);
             hash msg = op.serializeRequest(args, header, getEncoding(), nsh, xml_opts, soapaction, binding);
             if (msg.hdr."Content-Type" !~ /charset=/i && msg.body.typeCode != NT_BINARY)
                 msg.hdr."Content-Type" += ";charset=" + getEncoding();
@@ -412,7 +421,6 @@ public namespace SoapClient {
             - \c http_header: a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
             - \c xml_opts: an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
             - \c soapaction: an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
-            - \c binding: the SOAP binding name, if not provided the first binding assigned to the operation will be used
 
             @return the deserialized result of the SOAP call to the SOAP server
 
@@ -422,8 +430,8 @@ public namespace SoapClient {
 
             @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
         */
-        any call(reference info, string operation, any args, *hash header, *hash nsh, *string binding) {
-            return makeCallIntern(\info, operation, args, ("soap_header": header, "http_header": nsh, "binding": binding));
+        any call(reference info, string operation, any args, *hash header, *hash nsh) {
+            return makeCallIntern(\info, operation, args, ("soap_header": header, "http_header": nsh));
         }
 
         #! makes the call to the SOAP server and ensures that SOAP fault responses returned with a 500-series status code are processed as a SOAP fault so that error information is returned in the resulting exception
@@ -432,10 +440,9 @@ public namespace SoapClient {
             *hash nsh = opts.http_header;
             *int xml_opts = opts.xml_opts;
             *string soapaction = opts.soapaction;
-            *string binding = opts.binding;
 
             WSOperation op;
-            hash msg = getMsg(operation, args, header, \op, nsh, xml_opts, soapaction, binding);
+            hash msg = getMsg(operation, args, header, \op, nsh, xml_opts, soapaction);
             hash hdr = headers + msg.hdr;
 
             date now = now_us();
@@ -447,9 +454,17 @@ public namespace SoapClient {
             # we have to write the request key after the HTTPClient::post() call but before the log message above
             # (on_exit statements are executed in reverse order when the block is exited)
             on_exit info += ("request-body": msg.body, "request-soap-headers": header);
+            if (url_path) {
+                if (msg.path) {
+                    if (msg.path !~ /^[\/\?]/ ) {
+                        msg.path = "/" + msg.path;
+                    }
+                }
+                msg.path = url_path + msg.path;
+            }
             msglog(('reason': 'request', 'method': msg.method, 'path': msg.path, 'header': hdr, 'body': msg.body));
             # apply content encoding here
-            data body = msg.body;
+            data body = msg.body ?? "";
             if (seh.ce && body.size() > CompressionThreshold) {
                 hdr."Content-Encoding" = seh.ce;
                 body = seh.func(body);
@@ -501,6 +516,16 @@ public namespace SoapClient {
         #! returns the WSDL::WebService object associated with this object
         WSDL::WebService getWebService() {
             return wsdl;
+        }
+
+        #! returns current service, port, binding, url in hash
+        hash getInfo() {
+            return (
+                "service": svc,
+                "port": port,
+                "binding": binding,
+                "url": url,
+            );
         }
 
         #! change the data content encoding (compression) option for the object; see @ref EncodingSupport for valid options

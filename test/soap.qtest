@@ -287,7 +287,6 @@ class SoapTest inherits QUnit::Test {
     constructor() : QUnit::Test("SoapTest", "1.0") {
         addTestCase("SoapTestCase", \soapTestCase());
         addTestCase("Test1", \test1());
-        addTestCase("globalweather", \globalWeather());
         set_return_value(main());
     }
 
@@ -452,24 +451,24 @@ class SoapTest inherits QUnit::Test {
         h2 = op.deserializeRequest(xh);
         assertEq(headerDeser, h2."^header^");
 
-        op = ws.getOperation("pt2", "urlRepl");
+        op = ws.getPortTypeOperation("pt2", "urlRepl");
         h = op.serializeRequest(UrlReplVal1);
         assertEq("get/CZ/12000-Prague%202", h.path);
         assertEq("GET", h.method);
 
-        op = ws.getOperation("pt2", "urlEncoded1");
+        op = ws.getPortTypeOperation("pt2", "urlEncoded1");
         h = op.serializeRequest(UrlReplVal1);
         assertEq("get?country=CZ&city=Prague%202&zip=12000", h.path);
         assertEq("GET", h.method);
         assertFalse(exists h.hdr."Content-Type");
         assertThrows("SOAP-DESERIALIZATION-ERROR", \parseMessage(), (h, op, True));
 
-        op = ws.getOperation("pt2", "urlEncoded2");
+        op = ws.getBindingOperation("b2", "urlEncoded2");
         h = op.serializeRequest(UrlReplVal1);
         assertEq("get?test&country=CZ&city=Prague%202&zip=12000", h.path);
         assertEq("GET", h.method);
 
-        op = ws.getOperation("pt2", "postForm");
+        op = ws.getBindingOperation("b2", "postForm");
         h = op.serializeRequest(UrlReplVal1);
         assertEq("country=CZ&city=Prague%202&zip=12000", h.body);
         assertEq("POST", h.method);
@@ -477,7 +476,7 @@ class SoapTest inherits QUnit::Test {
         h2 = parseMessage(h, op, True);
         assertEq(UrlReplVal1, h2, h.path);
 
-        op = ws.getOperation("pt2", "postText");
+        op = ws.getPortTypeOperation("pt2", "postText");
         h = op.serializeRequest(("info": "important info &"));
         assertEq("important info &", h.body);
         assertTrue(h.hdr."Content-Type".regex("^text/"), "Content type");
@@ -487,7 +486,7 @@ class SoapTest inherits QUnit::Test {
         assertEq("important info &", get_xml_value(h2.info));
         assertEq("text/plain", h2.info."^attributes^"."^content-type^");
 
-        op = ws.getOperation("pt2", "postImg");
+        op = ws.getPortTypeOperation("pt2", "postImg");
         h = op.serializeRequest(("img": <ABCDEF>));
         assertEq(h.hdr."Content-Type", "image/png");
         assertEq(<ABCDEF>, h.body);
@@ -497,18 +496,18 @@ class SoapTest inherits QUnit::Test {
         assertEq(<ABCDEF>, get_xml_value(h2.img));
         assertEq(h2.img."^attributes^"."^content-type^", "image/png");
 
-        op = ws.getOperation("pt2", "postImg");
+        op = ws.getPortTypeOperation("pt2", "postImg");
         assertThrows("SOAP-MESSAGE-ERROR", \op.serializeRequest(), ("img": ("^value^": "xxx", "^attributes^": ("^content-type^": "text/plain"))), "post img wrong content type");
 
-        op = ws.getOperation("pt2", "postImg2");
+        op = ws.getPortTypeOperation("pt2", "postImg2");
         assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), ("img": <ABCDEF>), "post img no content type");
 
-        op = ws.getOperation("pt2", "postImg2");
+        op = ws.getPortTypeOperation("pt2", "postImg2");
         h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))));
         assertEq("image/jpeg", h.hdr."Content-Type");
         assertEq(<ABCDEF>, h.body);
 
-        op = ws.getOperation("pt2", "postImg3");
+        op = ws.getPortTypeOperation("pt2", "postImg3");
         h = op.serializeRequest(("img": ("^value^": <ABCDEF>, "^attributes^": ("^content-type^": "image/jpeg"))));
         assertEq("image/jpeg", h.hdr."Content-Type");
         assertEq(<ABCDEF>, h.body);
@@ -517,19 +516,27 @@ class SoapTest inherits QUnit::Test {
         assertEq(<ABCDEF>, get_xml_value(h2.img));
         assertEq("image/jpeg", h2.img."^attributes^"."^content-type^");
 
-        op = ws.getOperation("pt2", "postImg3");
+        op = ws.getPortTypeOperation("pt2", "postImg3");
         assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), ("img": <ABCDEF>), "post img no content type");
 
-        op = ws.getOperation("pt2", "postImg3");
+        op = ws.getPortTypeOperation("pt2", "postImg3");
         assertThrows("SOAP-MESSAGE-ERROR", \op.serializeRequest(), ("img": ("^value^": "xxx", "^attributes^": ("^content-type^": "text/plain"))), "post img wrong content type");
 
-        op = ws.getOperation("pt2", "postData");
+        op = ws.getPortTypeOperation("pt2", "postData");
         h = op.serializeRequest(("payload": ("^value^": "012", "^attributes^": ("^content-type^": "application/x-data"))));
         assertTrue(h.hdr."Content-Type".regex("^application/x-data"), "Content type");
         assertEq(<303132>, h.body);
 
-        op = ws.getOperation("pt2", "postData");
+        op = ws.getPortTypeOperation("pt2", "postData");
         assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), ("payload": "xxx"), "post img no content type");
+
+        op = ws.getPortTypeOperation("pt2", "getMimeXml");
+        h = op.deserializeResponse(("string": "xxx"));
+        assertEq("xxx", h.STR, "deserialize mimeXml");
+
+        h = op.serializeResponse(h);
+        assertTrue(h.hdr."Content-Type".regex("^text/xml"), "Content type");
+        assertTrue(h.body.regex("^\\<\\?xml version"), "serialize mimexml");
 
 
     }
@@ -555,10 +562,6 @@ class SoapTest inherits QUnit::Test {
         compareSoapMsgs("output", Test1Res, xh);
         *hash eh = op.deserializeResponse(xh);
         assertEq(Res1_1, eh, "deserialize response");
-    }
-
-    globalWeather() {
-        assertThrows("WSDL-ERROR", sub () { WebService ws(ReadOnlyFile::readTextFile(get_script_dir() + "/globalweather.wsdl")); }, NOTHING, "http binding");
     }
 
     compareSoapMsgs(string assert, hash h1, hash h2) {
