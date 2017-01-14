@@ -403,7 +403,7 @@ private nothing msglog(hash cx, hash msg) {
                     nex.desc = sprintf("error deserializing incoming SOAP request: %s", ex.desc);
                     call_function(method.err_func, cx, nex);
                 }
-		        string str = debug
+                string str = debug
                     ? get_exception_string(ex)
                     : sprintf("%s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
                 return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
@@ -478,7 +478,7 @@ private nothing msglog(hash cx, hash msg) {
         # don't reimplement this method; fix/enhance it in the module
         final hash handleRequest(hash cx, hash hdr, *data body) {
             #log(LL_DEBUG_1, "soap handler context=%y hdr=%y body=%y wsh=%y", cx, hdr, body, wsh.keys());
-            #printf("soap handler context=%y hdr=%y body=%y keys wsh=%y\n", cx, hdr, body, wsh.keys());
+            printf("soap handler context=%y hdr=%y body=%y keys wsh=%y\n", cx, hdr, body, wsh.keys()); #XXX
             cx.http_header = hdr;
             cx.http_body = body;
 

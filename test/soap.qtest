@@ -356,7 +356,7 @@ class SoapTest inherits QUnit::Test {
             "issue985": (
                 "i985_e1": "test", "i985_e2": "test",
             ),
-            );
+        );
 
         assertEq(req_r, h, "attr-deser-our");
 
@@ -536,7 +536,7 @@ class SoapTest inherits QUnit::Test {
 
         h = op.serializeResponse(h);
         assertTrue(h.hdr."Content-Type".regex("^text/xml"), "Content type");
-        assertTrue(h.body.regex("^\\<\\?xml version"), "serialize mimexml");
+        assertTrue(h.body.regex("^\\<\\?xml version.*string.*xxx"), "serialize mimexml");
 
 
     }

@@ -92,11 +92,15 @@ class SalesforceTest inherits QUnit::Test {
             );
 
         now = now_us();
+        doInfo("SalesforceSoapClient\n");
         sc = new SalesforceSoapClient(opts);
+        doInfo("login\n");
         sc.login();
+        doInfo("logged\n");
 
         # delete all objects in case of a previous test failure
         try {
+            doInfo("getAccountIds\n");
             *list ids = getAccountIds(AcctNo1);
             if (ids)
                 sc.delete(("ids": ids));

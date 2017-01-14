@@ -29,7 +29,7 @@ class GlobalWeatherTest inherits QUnit::Test {
         const WsdlUrl = "file://" + normalize_dir(get_script_dir()) + "/globalweather.wsdl";
 
 		WebService ws;
-		
+
 		const MyOpts = Opts + {};
 	}
 
@@ -38,9 +38,9 @@ class GlobalWeatherTest inherits QUnit::Test {
 
         my hash svc = ws.getService("GlobalWeather");
         #my string port = "GlobalWeatherHttpGet";
-    	foreach my string port in (keys svc.port) {
-        	# add test cases
-	        addTestCase(sprintf("clientTest-%s", port), \clientTest(), (port));
+        foreach my string port in (keys svc.port) {
+            # add test cases
+            addTestCase(sprintf("clientTest-%s", port), \clientTest(), (port));
 		}
         # execute tests
         set_return_value(main());
@@ -52,11 +52,11 @@ class GlobalWeatherTest inherits QUnit::Test {
 		printf("Info: %y\n", h);
 		assertEq("GlobalWeather", h.service);
 		assertEq(port, h.port);
-		
+
         h = sc.callOperation("GetCitiesByCountry", ("CountryName": "Austria"), ("soapaction": ""));
         hash data = parse_xml(h.firstValue());
         assertEq("NewDataSet", data.firstKey());
-		#printf("Result: %N\n", data);        		
-    	
+		#printf("Result: %N\n", data);
+
     }
 }

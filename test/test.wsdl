@@ -389,7 +389,13 @@
     </wsdl:operation>
   </wsdl:binding>
   <wsdl:service name="InfoService">
-    <wsdl:port name="InfoPort" binding="tns:b1">
+    <wsdl:port name="SoapPort" binding="tns:b1">
+      <soap12:address location="http://localhost:8001/SOAP/simple" />
+    </wsdl:port>
+    <wsdl:port name="HttpGetPort" binding="tns:b2">
+      <soap12:address location="http://localhost:8001/SOAP/simple" />
+    </wsdl:port>
+    <wsdl:port name="HttpPostPort" binding="tns:b3">
       <soap12:address location="http://localhost:8001/SOAP/simple" />
     </wsdl:port>
   </wsdl:service>

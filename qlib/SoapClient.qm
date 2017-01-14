@@ -90,7 +90,8 @@ any result = sc.call("SubmitDocument", msg);
     - required keys: one of:
       - \c "wsdl" or \c "wsdl_file": a string defining the WSDL or the URL of the WSDL
     - optional keys:
-      - \c "service": the name of the "portType" to use (if more than 1 portType is defined in the WSDL then this key is mandatory
+      - \c "service": the name of the "service" to use (if more than 1 service is defined in the WSDL then this key is mandatory
+      - \c "port": in case multiple port entries are found in the WSDL, give the one to be used here
       - \c "url": to override the URL defined in the WSDL
       - \c "headers": to override any HTTP headers sent in outgoing messages
       - \c "event_queue": to set an I/O event queue on the HTTPClient
@@ -310,7 +311,9 @@ public namespace SoapClient {
             @note content encoding is not applied here but rather internally by the call() methods
         */
         hash getMsg(string operation, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction) {
+printf("getbinding\n");
             op = wsdl.getBindingOperation(binding, operation);
+printf("serreq\n");
             hash msg = op.serializeRequest(args, header, getEncoding(), nsh, xml_opts, soapaction, binding);
             if (msg.hdr."Content-Type" !~ /charset=/i && msg.body.typeCode != NT_BINARY)
                 msg.hdr."Content-Type" += ";charset=" + getEncoding();
@@ -440,9 +443,11 @@ public namespace SoapClient {
             *hash nsh = opts.http_header;
             *int xml_opts = opts.xml_opts;
             *string soapaction = opts.soapaction;
+printf("sc.makecall: %y, %y, %y\n", operation, header);
 
             WSOperation op;
             hash msg = getMsg(operation, args, header, \op, nsh, xml_opts, soapaction);
+printf("sc.getmsg: %y\n", msg);
             hash hdr = headers + msg.hdr;
 
             date now = now_us();
@@ -662,6 +667,7 @@ private nothing msglog(hash msg) {
         */
         private nothing msglog(hash msg) {
             # implement functionality in derived class
+    printf(sprintf("%N\n", msg));
         }
     }
 
@@ -671,8 +677,8 @@ private nothing msglog(hash msg) {
         - \c "content_encoding": this sets the send encoding (if the \c "send_encoding" option is not set) and the requested response encoding; for possible values, see @ref SoapClient::EncodingSupport  "EncodingSupport"
         - \c "http_version": HTTP version to use (\c "1.0" or \c "1.1", defaults to \c "1.1")
         - \c "max_redirects": maximum redirects to support
+        - \c "service": the name of the "service" to use (if more than 1 service is defined in the WSDL then this key is mandatory
         - \c "port": in case multiple port entries are found in the WSDL, give the one to be used here
-        - \c "portType": in case multiple portType entries are found in the WSDL, give the one to be used here
         - \c "proxy": proxy URL to use
         - \c "send_encoding": a @ref SoapClient::EncodingSupport "send data encoding option" or the value \c "auto" which means to use automatic encoding; if not present defaults to no content-encoding on sent message bodies
         - \c "target_url": overrides the URL in the WSDL (mapped to \c "url" in the @ref SoapClient::constructor(hash) "SoapClient::constructor()" argument)
@@ -693,8 +699,8 @@ private nothing msglog(hash msg) {
         public {
             const Options = HttpConnection::Options + (
                 "content_encoding": True,
+                "service": True,
                 "port": True,
-                "portType": True,
                 "send_encoding": True,
                 "target_url": True,
                 "wsdl": True,
