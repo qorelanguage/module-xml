@@ -717,11 +717,7 @@ private nothing msglog(hash msg) {
         */
         constructor(string name, string desc, string url, bool monitor, *hash n_opts, hash urlh) : HttpBasedConnection(name, desc, url, monitor, n_opts, urlh) {
             # do environment variable substitution in wsdl option if applicable
-            if (opts.wsdl) {
-                if (opts.wsdl.typeCode() == NT_STRING)
-                    doEnvOptions("wsdl");
-            }
-            else {
+            if (!opts.wsdl) {
                 # check if we have a local path to the WSDL
                 hash h = parse_url(real_url);
                 if (h.protocol == "http" && h.size() == 2 && h.path)
