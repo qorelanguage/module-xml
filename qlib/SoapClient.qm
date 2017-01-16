@@ -311,9 +311,7 @@ public namespace SoapClient {
             @note content encoding is not applied here but rather internally by the call() methods
         */
         hash getMsg(string operation, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction) {
-printf("getbinding\n");
             op = wsdl.getBindingOperation(binding, operation);
-printf("serreq\n");
             hash msg = op.serializeRequest(args, header, getEncoding(), nsh, xml_opts, soapaction, binding);
             if (msg.hdr."Content-Type" !~ /charset=/i && msg.body.typeCode != NT_BINARY)
                 msg.hdr."Content-Type" += ";charset=" + getEncoding();
@@ -443,11 +441,11 @@ printf("serreq\n");
             *hash nsh = opts.http_header;
             *int xml_opts = opts.xml_opts;
             *string soapaction = opts.soapaction;
-printf("sc.makecall: %y, %y, %y\n", operation, header);
+printf("sc.makecall: %y, %y, %y\n", operation, header, args);
 
             WSOperation op;
             hash msg = getMsg(operation, args, header, \op, nsh, xml_opts, soapaction);
-printf("sc.getmsg: %y\n", msg);
+#printf("sc.getmsg: %y\n", msg);
             hash hdr = headers + msg.hdr;
 
             date now = now_us();

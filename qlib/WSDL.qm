@@ -1121,7 +1121,7 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
     }
 
     private any serializeAsIntern(XsdAbstractType type, any h, *softbool omitType, string key, string typename) {
-        printf("DEBUG: XsdElement::serializeAsIntern() name: %y (with type: %y) h: %y key: %y typename: %y (%y) minOccurs: %y nillable: %y (%y %y)\n", name, ((!omitType || type != self.type) && type.hasRealName()), h, key, typename, type.getName(), minOccurs, nillable, !exists h, !minOccurs);  #XXX
+        #printf("DEBUG: XsdElement::serializeAsIntern() name: %y (with type: %y) h: %y key: %y typename: %y (%y) minOccurs: %y nillable: %y (%y %y)\n", name, ((!omitType || type != self.type) && type.hasRealName()), h, key, typename, type.getName(), minOccurs, nillable, !exists h, !minOccurs);
 
         int tc = h.typeCode();
         if (tc == NT_LIST && h.size() == 1)
@@ -1891,8 +1891,6 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         @throw WSDL-BINDING-ERROR unknown binding
      */
     hash getBinding(*string bname) {
-printf("getbinding: %y\n", bname);
-printf("bindings: %y\n", bindings);
         if (bindings && !exists bname)
             return bindings.firstValue();
         if (!exists bindings{bname})
@@ -1913,14 +1911,13 @@ printf("bindings: %y\n", bindings);
             throw "WSDL-BINDING-ERROR", sprintf("binding %y is already registered in operation %y", bname, name);
         }
         opparams.name = bname;
-printf("addBinding: %y, %y\n", bname, opparams);
         bindings{bname} = opparams;
     }
 
     private:internal hash serializeSoapMessage(any h, hash binding, *hash header, *hash nsh, bool request, bool soap12, reference mpm) {
         string io = request ? "input" : "output";
         # setup namespaces for SOAP envelope
-        printf("DEBUG: serializeSoapMessage: io:%s, h: %y, header: %y, binding: %y\n", io, h, header, binding);  #XXX
+        #printf("DEBUG: serializeSoapMessage: io:%s, h: %y, header: %y, binding: %y\n", io, h, header, binding);
         hash rh = nsc.hasSoap12() ? WSDL::ENVELOPE_12_NS : WSDL::ENVELOPE_11_NS;
         string soapenvEnvelope = rh.firstKey();
         rh{soapenvEnvelope}."^attributes^" += nsc.getOutputNamespaceHash(nsh);
@@ -1929,26 +1926,30 @@ printf("addBinding: %y, %y\n", bname, opparams);
             hash outh;
             *hash header2 = header;  # non processed values will be added to soap header
             foreach hash hdr in (binding{io}.header) {
-                printf("DEBUG: hdr: %y, hdr.msg.name/part: %y/%y\n", hdr, hdr.msg.name, hdr.part);
+                #printf("DEBUG: hdr: %y, hdr.msg.name/part: %y/%y\n", hdr, hdr.msg.name, hdr.part);
                 if (binding.docstyle) {
-                    hash h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, \header);
-                    remove h."^attributes^".("soapenv:encodingStyle", "xmlns:soapenc");
-                    outh += h;
-                } else {
-                    hash h = hdr.msg.serializeRpc(hdr.part, NOTHING, NOTHING, hdr.part, \header);
-                    #printf("DEBUG: result: %y\n", h);
-                    # tricky part, flatten hash, TODO: make it more transparently
-                    string fk = h.firstKey();
-                    h{fk} = h.firstValue().firstValue();   # "ns1:name" : ("ns1: name" | "name": val) -> "ns1:name": val
-                    #printf("DEBUG: flatten result: %y\n", h);
-                    if (exists outh{fk}) {
-                        # it could in theory happen when two message parts are equal
-                        if (outh{fk}.typeCode() != NT_LIST) {
-                            outh{fk} = () + outh{fk};
-                        }
-                        outh{fk} += h{fk};
-                    } else {
+                    *hash h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hdr.encoded, \header);
+                    if (h) {
+                        remove h."^attributes^".("soapenv:encodingStyle", "xmlns:soapenc");
                         outh += h;
+                    }
+                } else {
+                    *hash h = hdr.msg.serializeRpc(hdr.part, NOTHING, NOTHING, hdr.part, hdr.encoded, \header);
+                    if (h) {
+                        #printf("DEBUG: result: %y\n", h);
+                        # tricky part, flatten hash, TODO: make it more transparently
+                        string fk = h.firstKey();
+                        h{fk} = h.firstValue().firstValue();   # "ns1:name" : ("ns1: name" | "name": val) -> "ns1:name": val
+                        #printf("DEBUG: flatten result: %y\n", h);
+                        if (exists outh{fk}) {
+                            # it could in theory happen when two message parts are equal
+                            if (outh{fk}.typeCode() != NT_LIST) {
+                                outh{fk} = () + outh{fk};
+                            }
+                            outh{fk} += h{fk};
+                        } else {
+                            outh += h;
+                        }
                     }
                 }
             }
@@ -1968,11 +1969,11 @@ printf("addBinding: %y, %y\n", bname, opparams);
         if (self{io}) {
             *hash body;
             if (binding.docstyle)
-                body = self{io}.serializeDocument(binding{io}.body.parts, binding{io}, mpm, \h);
+                body = self{io}.serializeDocument(binding{io}.body.parts, binding{io}, mpm, binding{io}.body.encoded, \h);
             else {
                 string mname = input_name ? input_name : name + (request ? "":"Response");
                 if (binding{io})
-                    body = self{io}.serializeRpc(binding{io}.body.parts, binding{io}, mpm, mname, \h);
+                    body = self{io}.serializeRpc(binding{io}.body.parts, binding{io}, mpm, mname, binding{io}.body.encoded, \h);
             }
             if (h.typeCode() == NT_HASH && h)
                 throw SOAP_SERIALIZATION_ERROR, sprintf("some data remains unserialized: %y", h.keys());
@@ -2018,8 +2019,7 @@ printf("addBinding: %y, %y\n", bname, opparams);
         } else if (binding{io}.mimeXml) {
             ct = MimeTypeXml;
             # in case of mimeXml is body content, i.e. XML tag based on element/type name, not part
-printf("mimexml: part: %y, h:%N\n", binding{io}.mimeXml.part, h);
-            return make_xml(self{io}.serializeRpc(binding{io}.mimeXml.part, NOTHING, NOTHING, binding{io}.mimeXml.part, \h));
+            return make_xml(self{io}.serializeRpc(binding{io}.mimeXml.part, NOTHING, NOTHING, binding{io}.mimeXml.part, False, \h));
         }
     }
 
@@ -2069,9 +2069,7 @@ printf("mimexml: part: %y, h:%N\n", binding{io}.mimeXml.part, h);
         - \c method: the HTTP request method
         */
     hash serializeRequest(any h, *hash header, *string enc, *hash nsh, *int xml_opts, *string req_soapaction, *string bname) {
-printf("serializeRequest %y\n", bname);
         hash binding = getBinding(bname);
-printf("serializeRequest %y\n", binding);
 
         if (!exists req_soapaction)
             req_soapaction = bindings{name}.soapAction;
@@ -2095,7 +2093,6 @@ printf("serializeRequest %y\n", binding);
             rv.body = serializeHttpMessage(h, binding, True, \ct, \enc);
         } else {
             MultiPartRelatedMessage mpm;
-printf("serializeRequest SSM\n");
             rv.body = make_xml(serializeSoapMessage(h, binding, header, nsh, True, nsc.hasSoap12(), \mpm), xml_opts, enc);
             if (mpm) {
                 mpm.splicePart(rv.body, sprintf("<%s>", (binding.input.body.parts ? binding.input.body.parts : keys input.args).join(" ")), nsc.hasSoap12() ? MimeTypeSoapXml : MimeTypeXml);
@@ -2447,7 +2444,6 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         #! part map; maps element names to part names
         #! maps part names to args key, all parts are in hash
         hash pmap;
-        bool encoded = False;
 
         # keep a reference to Namespaces
         Namespaces nsc;
@@ -2460,8 +2456,6 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
     constructor(hash m, ElementMap emap, TypeMap n_tmap, Namespaces n_nsc) : XsdNamedData(\m) {
         nsc = n_nsc;
         tmap = n_tmap;
-printf("message constructor\n"); flush();
-printf("m:%N\n", self);flush();
 
         #printf("DEBUG: WSMessage::constructor() m: %y emap: %y\n", m, emap);
 
@@ -2503,11 +2497,21 @@ printf("m:%N\n", self);flush();
      * @param n_name name of output key
      * @param h data to be serialized, keys are wsdl element names (optionally part name is also possible) and part names for simple types
      */
-    hash serializeRpc(*softlist key, any msginfo, any mpm, string n_name, reference h) {
+    *hash serializeRpc(*softlist key, any msginfo, any mpm, string n_name, bool encoded, reference h) {
         hash rh;
         #printf("DEBUG: message %s: keys: %y, h: %y\n", name , keys, h);
         foreach string k in (key ? key : keys args) {
             any v = getValueFromHash(k, \h, True);
+            if (!exists v) {
+                if (key || args.size() == 1) {
+                    v = getValueFromHash(args{k}.element, \h, True);
+                }
+                if (v.typeCode() == NT_NULL) {
+                    v = NOTHING;
+                } else {
+                    if (!exists v) continue;
+                }
+            }
 
             any hv;
             #printf("DEBUG: arg %y with %y\n", k, args{k});
@@ -2536,7 +2540,7 @@ printf("m:%N\n", self);flush();
             rh{en} = hv;
         }
 
-        if (encoded)
+        if (encoded && rh)
             rh."^attributes^" += (
                 "soapenv:encodingStyle": SOAP_ENCODING,
                 "xmlns:soapenc": SOAP_ENCODING,
@@ -2547,7 +2551,7 @@ printf("m:%N\n", self);flush();
         return rvh;
     }
 
-    hash serializeDocument(*softlist key, any msginfo, any mpm, reference h) {
+    *hash serializeDocument(*softlist key, any msginfo, any mpm, bool encoded, reference h) {
         hash rh;
 
         if (!key && args.size() == 1) {
@@ -2559,9 +2563,18 @@ printf("m:%N\n", self);flush();
                 h = nh;
             }
         }
-printf("args: %N\n", args); #XXX
         foreach string k in (key ? key : keys args) {
             any val = getValueFromHash(k, \h, True);
+            if (!exists val) {
+                if (key || args.size() == 1) {
+                    val = getValueFromHash(args{k}.element, \h, True);
+                }
+                if (val.typeCode() == NT_NULL) {
+                    val = NOTHING;
+                } else {
+                    if (!exists val) continue;
+                }
+            }
             if (val.typeCode() == NT_HASH)
                 XsdBase::removeNS2(\val);
             string ons;
@@ -2577,7 +2590,7 @@ printf("args: %N\n", args); #XXX
             }
         }
 
-        if (encoded)
+        if (encoded && rh)
             rh."^attributes^" += (
                 "soapenv:encodingStyle": SOAP_ENCODING,
                 "xmlns:soapenc": SOAP_ENCODING,
@@ -2730,6 +2743,27 @@ printf("args: %N\n", args); #XXX
         return rv;
     }
 
+    #! when only one arg then try get values based on element keys
+    /* private in module*/any getValueFromHash(*WSDL::XsdElement element, reference v, bool removeFound) {
+#printf("getValueFromHash(%N, %y)\n\n", element, v);
+        if (!element) return;
+        if (element.type instanceof WSDL::XsdComplexType) {
+            hash rv;
+            if (!cast<WSDL::XsdComplexType>(element.type).elementmap) {
+                # special case, empty complex type
+                return NULL;
+            } else {
+                foreach my string ename in (keys cast<WSDL::XsdComplexType>(element.type).elementmap) {
+                    any val = getValueFromHash(ename, \v, removeFound);
+                    if (exists val) {
+                        rv{ename} = val;
+                    }
+                }
+            }
+            return rv;
+        }
+    }
+
     #! check if pname is defined as message part
     /** @return translated part name to element/type name */
     /*private in module*/string checkPart(string pname) {
@@ -2865,8 +2899,8 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                     if (exists ophash{io}.body) {
                         *hash pa = ophash{io}.body."^attributes^";
                         op{io}.body.encoded = pa.use == "encoded";
-                        #op{io}.body.namespace = pa.namespace;
-                        #op{io}.encodingStyle = pa.encodingStyle;
+                        op{io}.body.namespace = pa.namespace;
+                        op{io}.encodingStyle = pa.encodingStyle;
                         op{io}.body.parts = pa.parts;
 
                         delete ophash{io}.body;
@@ -2952,17 +2986,9 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                                 throw WSDL_ERROR, sprintf("%s binding %y for operation %y references unknown message %y in the soap header element", io, name, opname, h.val);
 
                             ma.part = checkMessagePart(msg, ma.part, sprintf("header %s operation %y", io, opname));
-                            ma.msg.name = h.val;
-                            bool enc = ma.use == "encoded";
-                            if (enc != msg.encoded) {
-                                #ma.msg = msg;
-#printf("COPY message\n");
-                                ma.msg = msg.copy();  # XXX
-                                ma.msg.encoded = enc;
-                            } else {
-#printf("ASSIGN REFERENCE message: %y\n", messages);flush();  #ma.msg = \messages.(h.val); #msg;  # XXX
-                                ma.msg = msg;
-                            }
+                            ma.encoded = ma.use == "encoded";
+                            ma.msg = msg;
+
                             #printf("DEBUG: match part to message: %y, part: %y\n", msg.name, ma.part);
                             if (op{io}.header) {
                                 if (op{io}.header.typeCode() != NT_LIST) {
@@ -3534,8 +3560,6 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         *code try_import;
         #! default path for retrieving XSD references
         *string def_path;
-
-        int parseTypeRecurse;  #XXX
     }
 
     private {
@@ -3569,28 +3593,21 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         nsc = new Namespaces(h.definitions."^attributes^");
         #getNSPrefixes(h.definitions."^attributes^");
         #printf("%y\n", h.definitions.types);
-printf("nsc\n"); flush();
-#printf("m:%N\n", nsc);flush();
 
         if (exists h.definitions.types)
             parseTypes(h.definitions.types, opts.http_client instanceof HTTPClient ? opts.http_client : NOTHING, opts.http_headers);
-printf("parsedtypes\n"); flush();
-printf("m:%N\n", tmap);flush();
 
         if (exists h.definitions.message)
             parseMessages(h.definitions.message);
 
         if (exists h.definitions.portType)
             parsePortType(h.definitions.portType);
-printf("DEBUG:parse binding\n");
 
         if (exists h.definitions.binding)
             parseBinding(h.definitions.binding);
-printf("DEBUG:parse service\n");
 
         if (exists h.definitions.service)
             parseService(h.definitions.service);
-printf("DEBUG:done\n"); #exit();
 
     }
 
@@ -3708,35 +3725,41 @@ printf("DEBUG:done\n"); #exit();
             XsdElement e = emap.get(nsc.getNamespaceUri(ns), name);
             if (e.type.typeCode() == NT_HASH)
                 resolveType(e);
-            #printf("resolved to e: %y type: %y\n", e.name, e.type.name);
+            #printf("resolveType(XsdElement), resolved to e: %y type: %y\n", e.name, e.type.name);
             xe.assimilate(e);
             #throw "OOPS", sprintf("e: %y", xe);
         }
-        else if (xe.type.typeCode() == NT_HASH)
+        else if (xe.type.typeCode() == NT_HASH) {
             xe.type = resolveType(xe.type);
+           # printf("resolveType(XsdElement), %y\n", xe.type.name);
+        }
     }
 
     private resolveType(XsdTypedData xd) {
         xd.type = resolveType(xd.type);
+     #   printf("resolveType(XsdTypedData), %y\n", xd.type.name);
     }
 
     private resolveType(XsdComplexType ct) {
         ct.simpleType = resolveType(ct.simpleType);
+     #   printf("resolveType(XsdComplexType), %y\n", ct.simpleType.name);
     }
 
     private XsdAbstractType resolveType(hash v) {
-        if (exists v.ns && nsc.isSchema(v.ns))
-            return getBaseType(v.val);
-
-        # find type
-        return tmap.get(v.val);
+        XsdAbstractType rv;
+        if (exists v.ns && nsc.isSchema(v.ns)) {
+            rv = getBaseType(v.val);
+        } else {
+            # find type
+            rv = tmap.get(v.val);
+        }
+        #printf("resolveType(hash), ns: %y, val: %y -> %y\n", v.ns, v.val, rv.name);
+        return rv;
     }
 
     # parse XSD schema types
     private parseTypes(*hash data, any http_client, any http_headers) {
-    parseTypeRecurse++;
-        printf("DEBUG: parseTypes %y\n", parseTypeRecurse); #XXX
-        #printf("DEBUG: parseTypes data: %y, http_client: %y, http_headers: %y\n", data, http_client, http_headers); #XXX
+        #printf("DEBUG: parseTypes data: %y, http_client: %y, http_headers: %y\n", data, http_client, http_headers);
         WSDL::XsdBase::removeNS(\data);
 
         XsdLateResolverHelper unresolved();
@@ -3749,7 +3772,7 @@ printf("DEBUG:done\n"); #exit();
 
             bool usedocns = sa.elementFormDefault == "qualified";
 
-            printf("DEBUG: schema tn: %y\n", schema."^attributes^"."targetNamespace");
+            #printf("DEBUG: schema tn: %y\n", schema."^attributes^"."targetNamespace");
             WSDL::XsdBase::removeNS(\schema);
             #printf("DEBUG: WebService::parseTypes() schema: %y\n", schema);
 
@@ -3775,7 +3798,7 @@ printf("DEBUG:done\n"); #exit();
                     # get schema member name
                     any sk = xh.firstKey();
 
-                    printf("*** DEBUG %y: sk: %y a: %y\n", a.schemaLocation, sk, xh{sk}."^attributes^");
+                    #printf("*** DEBUG %y: sk: %y a: %y\n", a.schemaLocation, sk, xh{sk}."^attributes^");
 
                     # use temporary Namespaces object for import
                     Namespaces n_nsc = nsc;
@@ -3797,12 +3820,12 @@ printf("DEBUG:done\n"); #exit();
             foreach hash st in (schema.simpleType) {
                 XsdSimpleType t(st, nsc, unresolved, usedocns);
                 tmap.add(t);
-                printf("DEBUG: st: %y\n", t.name);
+                #printf("DEBUG: st: %y\n", t.name);
             }
             foreach hash ct in (schema.complexType) {
-                XsdComplexType t(ct, nsc, unresolved, usedocns);     # DEBUG: tady se to toci!
+                XsdComplexType t(ct, nsc, unresolved, usedocns);
                 tmap.add(t);
-                printf("DEBUG: ct: %y\n", t.name);
+                #printf("DEBUG: ct: %y\n", t.name);
             }
             # make element map
             foreach any el in (schema.element) {
@@ -3817,39 +3840,25 @@ printf("DEBUG:done\n"); #exit();
                         if (!et)
                             eattr.type = t;
 
-                        printf("DEBUG: adding element %y type %y\n", attr.name, t);
+                        #printf("DEBUG: adding element %y type %y\n", attr.name, t);
                         element = new WSDL::XsdElement(("^attributes^": eattr), nsc, et, unresolved, usedocns);
                     }
                     else {
-                        printf("DEBUG: adding element %y type %y\n", attr.name, t);
+                        #printf("DEBUG: adding element %y type %y\n", attr.name, t);
                         element = new WSDL::XsdElement(("^attributes^":("name":attr.name)), nsc, t, unresolved, usedocns);
                     }
                 }
                 else {
-                    printf("DEBUG: adding element %y\n", attr.name);
+                    #printf("DEBUG: adding element %y\n", attr.name);
                     element = new WSDL::XsdElement(el, nsc, NOTHING, unresolved, usedocns);
                 }
 
                 emap.add(element);
             }
         }
-printf("tmap\n");flush();
-printf("%y\n", tmap); flush();
-printf("emap\n");flush();
-printf("%y\n", emap); flush();
         # resolve types
-printf("unresolved\n\n");flush();
-printf("%N\n", unresolved); flush();
         map resolveType($1), unresolved.getList();
-printf("unresolved.getlist2\n");flush();
-printf("%y\n", unresolved.getList()); flush();
-printf("emap\n");flush();
-printf("%y\n", emap); flush();
-printf("unresolved2\n");flush();
-printf("%y\n", unresolved); flush();
         unresolved.clearResolved();
-printf("unresolved3\n");flush();
-printf("%y\n", unresolved); flush();
 
         # finalize complex types
         foreach XsdAbstractType t in (tmap.iterator()) {
@@ -3868,18 +3877,14 @@ printf("%y\n", unresolved); flush();
                 ct.finalize(tmap, nsc);
             }
         }
-
-        # resolve types
+ 
         map resolveType($1), unresolved.getList();
-parseTypeRecurse--;
     }
 
     private parseMessages(*softlist message) {
         # parse messages
         foreach hash m in (message) {
             WSMessage msg(m, emap, tmap, nsc);
-printf("msg created\n"); flush();
-printf("m:%N\n", msg);flush();
             foreach string arg in (msg.args.keyIterator()) {
                 #printf("DEBUG: WebService::parseMessages(): %y: %y\n", arg, msg);
                 #printf("DEBUG: WebService::parseMessages(): %y: %y\n", arg, msg.args{arg}.type);
@@ -3888,8 +3893,6 @@ printf("m:%N\n", msg);flush();
             }
             messages.(msg.name) = msg;
         }
-printf("parsemessages done\n"); flush();
-printf("m:%N\n", messages); flush();
     }
 
     private parseService(*softlist svcs) {
@@ -3938,8 +3941,6 @@ printf("m:%N\n", messages); flush();
     private parseBinding(*softlist bindings) {
         foreach hash data in (bindings) {
             WSDL::Binding b(data, nsc, \portType, \idocmap, messages);
-printf("bindingdone\n"); flush();
-printf("m:%N\n", messages);flush();
             binding.(b.getName()) = b;
         }
     }
@@ -3988,7 +3989,6 @@ printf("m:%N\n", messages);flush();
         w.printf("wsdl: %s\n", wsdl_name);
         foreach hash svc in (listServices()) {
             w.printf("  service: %s\n", svc.name);
-            #hash svc = getService(svc_name);
             foreach string port in (keys svc.port) {
                 w.printf("    port: %s\n", port);
                 w.printf("      binding: %s\n", svc.port{port}.binding.name);

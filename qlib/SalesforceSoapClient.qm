@@ -280,9 +280,9 @@ public namespace SalesforceSoapClient {
         private any callIntern(string operation, any args, *hash opts, *reference info) {
             # add session ID to SOAP call header
             if (sessionid)
-                opts.soap_header.Header.SessionHeader.sessionId = sessionid;
+                opts.soap_header.sessionId = sessionid;
             opts.soapaction = soapaction;
-printf("callintern oper: %y, %y, %y\n", operation, args, opts);
+#printf("callintern oper: operation: %y, args: %y, opts: %y\n", operation, args, opts);
             return SoapClient::callOperation(operation, args, opts, \info);
         }
 
@@ -374,24 +374,21 @@ printf("callintern oper: %y, %y, %y\n", operation, args, opts);
 
         # must be called with the lock held
         private loginIntern() {
-            hash lh.login = self.("username", "password");
-            lh.login.password += token;
-printf("loginintern callintern. %y\n", lh);
+            hash lh = self.("username", "password");
+            lh.password += token;
 
             lh = callIntern("login", lh).result;
             serverurl = lh.serverUrl;
             sessionid = lh.sessionId;
-printf("loginintern 2, %y\n", lh);
+#printf("loginintern 2, %y\n", lh);
 
             log("logged in to %y: serverurl: %y sessionid: %y", url, serverurl, sessionid);
             logged_in = True;
-printf("loginintern disc\n");
 
             # disconnect and set new URL
             SoapClient::disconnect();
             url = serverurl;
             setURL(serverurl);
-printf("loginintern ret\n");
         }
     }
 
