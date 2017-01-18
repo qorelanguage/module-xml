@@ -76,7 +76,7 @@ module WSDL {
     @subsection wsdl_0_3_6 WSDL v0.3.6
     - reimplmented operation to support multi binding, operation can be assigned to more bindings
     - support for HTTP binding and content-types, "^content-type^" attribute can identify content type to be used
-    - extended SOAP binding serialization and deserialization with "^header^" key
+    - extended SOAP binding serialization and deserialization with support to both body and header
 
     @subsection wsdl_0_3_5_1 WSDL v0.3.5.1
     - supress emitting a SOAPAction header in requests if the binding gives an empty string (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
@@ -1943,7 +1943,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
             #printf("DEBUG: %s, header: %y\n", io, header);
             hash outh;
             foreach hash hdr in (binding{io}.header) {
-                #printf("DEBUG: hdr: %y, hdr.msg.name/part: %y/%y\n", hdr, hdr.msg.name, hdr.part);
+                #printf("DEBUG: hdr: %y, hdr.msg.name/part: %y/%y, val:%y\n", hdr, hdr.msg.name, hdr.part, val);
                 if (binding.docstyle) {
                     *hash h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hdr.encoded, \header);
                     if (!h && val) {
@@ -1958,6 +1958,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
                     *hash h = hdr.msg.serializeRpc(hdr.part, NOTHING, NOTHING, hdr.part, hdr.encoded, \header);
                     if (!h && val) {
                         # data provided in val ?
+                        #printf("DEBUG: testing val\n");
                         h = hdr.msg.serializeRpc(hdr.part, NOTHING, NOTHING, hdr.part, hdr.encoded, \val);
                     }
                     if (h) {
@@ -2334,17 +2335,21 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
             }
         }
 
-        if (exists rv) {
+        if (exists hrv) {
+            foreach my string k in (keys hrv) {
+                if (exists rv{k}) {
+                    # name conflict
+                    rv{self{io}.name} = rv;
+                    break;
+                }
+            }
+            rv += hrv;
+        } else if (exists rv ) {
             # for backwards compatibility with a flat hash when there was only argument
             # but we must be care of when the argument is a type (not element)
             if (rv.size() == 1 && rv.typeCode() == NT_HASH) {
                 rv = rv.firstValue();
             }
-        }
-        if (exists hrv) {
-            if (rv.typeCode() != NT_HASH)
-                rv = ("^value^": rv);
-            rv."^header^" = hrv;
         }
 
         return rv;
@@ -2385,7 +2390,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     #! parses a hash representing a parsed XML request (parsed with parseXMLAsData()) for the operation and returns the corresponding Qore data structure
     /** @param o the parsed SOAP or HTTP request with @ref WSDLLib::parseSOAPMessage() for the operation
         @param bname SOAP binding name, leave empty to use the first assigned binding
-        @return the Qore data structure corresponding to the request data. When SOAP header is deserialized according binding/input WSDL then data are passed under "^header^" key.
+        @return the Qore data structure corresponding to the request data. When SOAP header is deserialized according binding/input WSDL then all data are passed under sub hash values prefixed by message name
         In case of HTTP binding the content type is matched against WSDL binding when wildcards are supported and current content type value is applied to "^attributes^"."^content-type^".
     */
     any deserializeRequest(hash o, *string bname) {
@@ -2400,7 +2405,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     #! parses a hash representing a parsed XML response (parsed with parse_xml()) for the operation and returns the corresponding Qore data structure
     /** @param o the parsed SOAP or HTTP request with @ref WSDLLib::parseSOAPMessage() for the operation
         @param bname SOAP binding name, leave empty to use the first assigned binding
-        @return the Qore data structure corresponding to the response data. When SOAP header is deserialized according binding/output WSDL then data are passed under "^header^" key.
+        @return the Qore data structure corresponding to the response data. When SOAP header is deserialized according binding/output WSDL then all data are passed under sub hash values prefixed by message name
         In case of HTTP binding the content type is matched against WSDL binding when wildcards are supported and current content type value is applied to "^attributes^"."^content-type^".
     */
     any deserializeResponse(hash o, *string bname) {
@@ -2550,15 +2555,17 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
             rh{en} = hv;
         }
 
-        if (encoded && rh)
-            rh."^attributes^" += (
-                "soapenv:encodingStyle": SOAP_ENCODING,
-                "xmlns:soapenc": SOAP_ENCODING,
-            );
+        if (rh) {
+            if (encoded)
+                rh."^attributes^" += (
+                    "soapenv:encodingStyle": SOAP_ENCODING,
+                    "xmlns:soapenc": SOAP_ENCODING,
+                );
 
-        hash rvh.("ns1:" + n_name) = rh;
+            hash rvh.("ns1:" + n_name) = rh;
 
-        return rvh;
+            return rvh;
+        }
     }
 
     *hash serializeDocument(*softlist key, any msginfo, any mpm, bool encoded, reference h) {
@@ -2755,7 +2762,6 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
 
     #! when only one arg then try get values based on element keys
     /* private in module*/any getValueFromHash(*WSDL::XsdElement element, reference v, bool removeFound) {
-#printf("getValueFromHash(%N, %y)\n\n", element, v);
         if (!element) return;
         if (element.type instanceof WSDL::XsdComplexType) {
             hash rv;

@@ -249,15 +249,8 @@ class SoapTest inherits QUnit::Test {
             ),
         );
 
-        const ForcedHeaderValues = ("h1": "1", "h2": "a");
-        const ForcedHeaderReq = (
-            "soap:Envelope": SoapEnvAttr + (
-                "soap:Header": ForcedHeaderValues
-            ),
-        );
-
         const HeaderVal1 = (
-            "body": ("tickerSymbol": "EET1"),
+            "tickerSymbol": "EET1",
             "docs": "DOCS-M2",
             "m3": ("SetInfo": ("name": "NAME-M3", "id": 457, "^attributes^": ("infoType": "ATW", "code": 58 ) )),
         );
@@ -272,6 +265,27 @@ class SoapTest inherits QUnit::Test {
                         "^value^": HeaderVal1.docs,
                     ),
                     "st:SetInfo": ("st:name": "NAME-M3", "st:id": "457", "^attributes^": ("infoType": "ATW", "code": "58" )),
+                ),
+            ),
+        );
+        const HeaderValBody = (
+            "tickerSymbol": "EET1",
+            "docs": "DOCS-M2",
+        );
+        const HeaderValBodyReq = (
+            "soap:Envelope": SoapEnvAttr + (
+                "soap:Header": (
+                    "st:docs": (
+                        "^attributes^": (
+                            "xsi:type" : "xsd:string",
+                        ),
+                        "^value^": HeaderValBody.docs,
+                    ),
+                ),
+                "soap:Body": (
+                    "st:headerValBody": (
+                        "st:GetInfo": ("st:tickerSymbol": "EET1"),
+                    )
                 ),
             ),
         );
@@ -419,13 +433,6 @@ class SoapTest inherits QUnit::Test {
         eh = op.deserializeRequest(h);
         assertEq(NOTHING, eh);
 
-/*        op = ws.getOperation("noInput");
-        h = op.serializeRequest(NOTHING, ForcedHeaderValues);
-        xh = parse_xml(h.body);
-        compareSoapMsgs("header-input-no-binding", ForcedHeaderReq, xh);  */
-
-#TODO: header vals via normal vals, remaining header exception, ^header^ deserialize change
-
         op = ws.getOperation("noOutput");
         h = op.serializeResponse();
         xh = parse_xml(h.body);
@@ -441,15 +448,32 @@ class SoapTest inherits QUnit::Test {
         *hash h2 = op.deserializeRequest(xh);
 
         hash headerDeser = ("m1": ("body": ("tickerSymbol" : "EET1")), "m2": ("docs": "DOCS-M2"), "m3": ("body": ("name": "NAME-M3", "id": 457, "^attributes^": ("infoType": "ATW", "code": 58))));
-        assertEq(headerDeser, h2."^header^");
+        assertEq(headerDeser, h2);
 
         op = ws.getOperation("headerVal-doc");
         h = op.serializeRequest(NOTHING, HeaderVal1);
         xh = parse_xml(h.body);
         compareSoapMsgs("header-val", HeaderValReq1, xh);
 
+        op = ws.getOperation("headerVal-doc");
+        h = op.serializeRequest(HeaderVal1);
+        xh = parse_xml(h.body);
+        compareSoapMsgs("header-val", HeaderValReq1, xh);
+
+        assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), (HeaderVal1, ("unknown": "dummy") ) );
+        assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), (HeaderVal1 + ("unknown": "dummy") ) );
+
         h2 = op.deserializeRequest(xh);
-        assertEq(headerDeser, h2."^header^");
+        assertEq(headerDeser, h2);
+
+        op = ws.getOperation("headerValBody");
+        h = op.serializeRequest(HeaderValBody);
+        xh = parse_xml(h.body);
+        compareSoapMsgs("header-valBody", HeaderValBodyReq, xh);
+
+        h2 = op.deserializeRequest(xh);
+        headerDeser = ("body": ("tickerSymbol": "EET1"), "m2": ("docs": "DOCS-M2"));
+        assertEq(headerDeser, h2);
 
         op = ws.getPortTypeOperation("pt2", "urlRepl");
         h = op.serializeRequest(UrlReplVal1);
