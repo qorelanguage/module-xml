@@ -441,11 +441,11 @@ public namespace SoapClient {
             *hash nsh = opts.http_header;
             *int xml_opts = opts.xml_opts;
             *string soapaction = opts.soapaction;
-printf("sc.makecall: %y, %y, %y\n", operation, header, args);
+            #printf("DEBUG: makeCallIntern: info: %y, operation: %y, args: %y, opts: %y\n", operation, header, args, opts);
 
             WSOperation op;
             hash msg = getMsg(operation, args, header, \op, nsh, xml_opts, soapaction);
-#printf("sc.getmsg: %y\n", msg);
+            #printf("DEBUG: msg: %y\n", msg);
             hash hdr = headers + msg.hdr;
 
             date now = now_us();
@@ -665,7 +665,7 @@ private nothing msglog(hash msg) {
         */
         private nothing msglog(hash msg) {
             # implement functionality in derived class
-    printf(sprintf("%N\n", msg));
+            #printf(sprintf("%N\n", msg));
         }
     }
 

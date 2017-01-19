@@ -472,7 +472,7 @@ class SoapTest inherits QUnit::Test {
         compareSoapMsgs("header-valBody", HeaderValBodyReq, xh);
 
         h2 = op.deserializeRequest(xh);
-        headerDeser = ("body": ("tickerSymbol": "EET1"), "m2": ("docs": "DOCS-M2"));
+        headerDeser = ("tickerSymbol": "EET1", "m2": ("docs": "DOCS-M2"));
         assertEq(headerDeser, h2);
 
         op = ws.getPortTypeOperation("pt2", "urlRepl");

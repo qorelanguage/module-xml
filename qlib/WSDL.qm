@@ -1108,8 +1108,6 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
     */
 
     any serialize(any h, *softbool omitType, string key, string typename) {
-        if (type.typeCode() == NT_HASH)
-            printf("ERROR: %y\n", self);
 
         if (h."^type^" && h."^type^" instanceof XsdAbstractType && h.hasKey("^val^")) {
             XsdAbstractType ntype = cast<XsdAbstractType>(h."^type^");
@@ -2336,11 +2334,17 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         }
 
         if (exists hrv) {
-            foreach my string k in (keys hrv) {
-                if (exists rv{k}) {
-                    # name conflict
-                    rv{self{io}.name} = rv;
-                    break;
+            # for backwards compatibility with a flat hash when there was only argument
+            # but we must be care of when the argument is a type (not element)
+            if (rv.size() == 1 && rv.typeCode() == NT_HASH && !exists hrv{rv.firstKey()} ) {
+                rv = rv.firstValue();
+            } else {
+                foreach my string k in (keys hrv) {
+                    if (exists rv{k}) {
+                        # name conflict
+                        rv{self{io}.name} = rv;
+                        break;
+                    }
                 }
             }
             rv += hrv;
@@ -3747,18 +3751,18 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         }
         else if (xe.type.typeCode() == NT_HASH) {
             xe.type = resolveType(xe.type);
-           # printf("resolveType(XsdElement), %y\n", xe.type.name);
+            #printf("resolveType(XsdElement), %y\n", xe.type.name);
         }
     }
 
     private resolveType(XsdTypedData xd) {
         xd.type = resolveType(xd.type);
-     #   printf("resolveType(XsdTypedData), %y\n", xd.type.name);
+        #printf("resolveType(XsdTypedData), %y\n", xd.type.name);
     }
 
     private resolveType(XsdComplexType ct) {
         ct.simpleType = resolveType(ct.simpleType);
-     #   printf("resolveType(XsdComplexType), %y\n", ct.simpleType.name);
+        #printf("resolveType(XsdComplexType), %y\n", ct.simpleType.name);
     }
 
     private XsdAbstractType resolveType(hash v) {

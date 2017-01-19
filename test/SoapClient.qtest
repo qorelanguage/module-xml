@@ -186,7 +186,9 @@ class SoapClientTest inherits QUnit::Test {
         TestSoapClient sc(("wsdl": WsdlUrl, "port": "HttpGetPort", "url": url));
 
         server.soap.msglogs = ();
-        hash h;
+        hash *h;
+#        assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("urlRepl", ("country": "CZ", "city": "Prague 2", "zip": 12000), ("soapaction": "")));
+
         try {
         h = sc.callOperation("urlRepl", ("country": "CZ", "city": "Prague 2", "zip": 12000), ("soapaction": ""));
         } catch (ex) {

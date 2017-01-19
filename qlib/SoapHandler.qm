@@ -478,7 +478,7 @@ private nothing msglog(hash cx, hash msg) {
         # don't reimplement this method; fix/enhance it in the module
         final hash handleRequest(hash cx, hash hdr, *data body) {
             #log(LL_DEBUG_1, "soap handler context=%y hdr=%y body=%y wsh=%y", cx, hdr, body, wsh.keys());
-            printf("soap handler context=%y hdr=%y body=%y keys wsh=%y\n", cx, hdr, body, wsh.keys()); #XXX
+            #printf("soap handler context=%y hdr=%y body=%y keys wsh=%y\n", cx, hdr, body, wsh.keys()); #XXX
             cx.http_header = hdr;
             cx.http_body = body;
 
