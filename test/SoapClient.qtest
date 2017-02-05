@@ -45,6 +45,9 @@ class TestSoapServer inherits HttpServer {
 
     public {
         TestSoapHandler soap;
+        string opname;
+        any mdata;
+        any rdata;
     }
 
     private {
@@ -60,7 +63,20 @@ class TestSoapServer inherits HttpServer {
 
         # setup operation handler
         soap.addMethod(ws, ws.getOperation("getInfo"), \getInfo());
-        soap.addMethod(ws, ws.getOperation("urlRepl"), \urlRepl(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
+        # not yet supported
+        soap.addMethod(ws, ws.getOperation("urlRepl"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
+        soap.addMethod(ws, ws.getOperation("urlEncoded1"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
+#        soap.addMethod(ws, ws.getOperation("urlEncoded2"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
+        soap.addMethod(ws, ws.getOperation("getMimeXml"), \generalOutputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
+        soap.addMethod(ws, ws.getOperation("getBinary"), \generalOutputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
+
+        soap.addMethod(ws, ws.getOperation("postForm"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postText"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postImg"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postImg2"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postImg3"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postData"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
+
         addListener(port);
     }
 
@@ -74,8 +90,14 @@ class TestSoapServer inherits HttpServer {
             );
     }
 
-    hash urlRepl(hash cx, hash h) {
-printf("URLREPL\n");
+    *hash generalInputOnly(hash cx, hash h) {
+        opname = cx.operation.name;
+        mdata = h;
+    }
+
+    *hash generalOutputOnly(hash cx) {  # no input params
+        opname = cx.operation.name;
+        return rdata;
     }
 
     errlog(string fmt) {
@@ -103,6 +125,7 @@ class TestSoapClient inherits SoapClient {
 class SoapClientTest inherits QUnit::Test {
     public {
         TestSoapServer server;
+        TestSoapClient sc;
     }
 
     private {
@@ -133,17 +156,22 @@ class SoapClientTest inherits QUnit::Test {
         # add test cases
         addTestCase("SoapClientTest", \soapClientTest());
         addTestCase("HttpGetClientTest", \httpGetClientTest());
+        addTestCase("HttpPostClientTest", \httpPostClientTest());
         addTestCase("SoapConnectionTest", \soapConnectionTest());
 
         # execute tests
-        set_return_value(main());
+        set_return_value(main()); exit();
     }
 
+    cleanMsgLog() {
+        sc.msglogs = ();
+        server.soap.msglogs = ();
+    }
     soapClientTest() {
         #printf("url: %y\n", url);
-        TestSoapClient sc(("wsdl": WsdlUrl, "port": "SoapPort", "url": url));
+        sc= new TestSoapClient(("wsdl": WsdlUrl, "port": "SoapPort", "url": url));
 
-        server.soap.msglogs = ();
+        cleanMsgLog();
 
         hash h = sc.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": ""));
         assertEq(99.9, h.body.result);
@@ -156,21 +184,20 @@ class SoapClientTest inherits QUnit::Test {
         assertEq(server.soap.msglogs[0].('reason', 'code', 'body'), sc.msglogs[0].('reason', 'code', 'body'));
         assertEq(server.soap.msglogs[1].('reason', 'code', 'body'), sc.msglogs[1].('reason', 'code', 'body'));
 
-        sc.msglogs = ();
-        server.soap.msglogs = ();
+        cleanMsgLog();
 
         h = sc.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "QOR")), ("soapaction": "TestAction"));
         assertEq(99.9, h.body.result);
         assertEq("QOR", h.docs);
         assertEq(binary("TestAction"), h.logo);
 
-        sc.msglogs = ();
-        server.soap.msglogs = ();
+        cleanMsgLog();
 
         assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("getInfo", ("GetInfo": ("tickerSymbol": "ERR"))));
         assertEq("error", sc.msglogs[1].reason);
         assertEq(500, sc.msglogs[1].code);
         assertEq(True, sc.msglogs[1].body =~ /Fault/);
+        assertEq("application/soap+xml,text/xml,application/xml", sc.msglogs[0]."accept");
         assertEq(server.soap.msglogs[0].('reason', 'code', 'body'), sc.msglogs[0].('reason', 'code', 'body'));
         assertEq(server.soap.msglogs[1].('reason', 'code', 'body'), sc.msglogs[1].('reason', 'code', 'body'));
 
@@ -183,25 +210,106 @@ class SoapClientTest inherits QUnit::Test {
 
     httpGetClientTest() {
         #printf("url: %y\n", url);
-        TestSoapClient sc(("wsdl": WsdlUrl, "port": "HttpGetPort", "url": url));
+        sc = new TestSoapClient(("wsdl": WsdlUrl, "port": "HttpGetPort", "url": url));
 
-        server.soap.msglogs = ();
-        hash *h;
-#        assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("urlRepl", ("country": "CZ", "city": "Prague 2", "zip": 12000), ("soapaction": "")));
+        cleanMsgLog();
+        *hash h;
+        assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("urlRepl", ("country": "CZ", "city": "Prague 2", "zip": 12000)));
+        assertEq("get/CZ/12000-Prague%202", sc.msglogs[0].path);
+        assertEq(sc.msglogs[0].method, "GET");
 
         try {
-        h = sc.callOperation("urlRepl", ("country": "CZ", "city": "Prague 2", "zip": 12000), ("soapaction": ""));
+            cleanMsgLog();
+            hash hi = ("country": "CZ", "city": "Prague_2", "zip": 12000);
+            h = sc.callOperation("urlEncoded1", hi);
+            assertEq(server.opname, "urlEncoded1");
+            assertEq(server.mdata, hi);
+            assertEq(server.soap.msglogs[0].('reason', 'method', 'path'), sc.msglogs[0].('reason', 'method', 'path'));
+
+            cleanMsgLog();
+            server.rdata = ("STR": "AbCdEf");
+            h = sc.callOperation("getMimeXml", ());
+            assertEq(server.opname, "getMimeXml");
+            assertEq(server.soap.msglogs[0].('reason', 'method'), sc.msglogs[0].('reason', 'method'));
+            assertEq("text/xml;charset=UTF-8", sc.msglogs[1]."content-type");
+            assertEq("text/xml", sc.msglogs[0]."accept");
+            assertEq(server.rdata, h);
+
+            cleanMsgLog();
+            server.rdata = ("payload": ("^attributes^": ("^content-type^": "application/plain"), "^value^": "ADATA"));
+            h = sc.callOperation("getBinary", ());
+            assertEq(server.opname, "getBinary");
+            assertEq("text/plain,text/html,image/*,application/*", sc.msglogs[0]."accept");
+            assertEq(server.rdata.payload."^attributes^"."^content-type^", sc.msglogs[1]."content-type");
+            server.rdata.payload."^value^" = binary(server.rdata.payload."^value^");
+            assertEq(server.rdata, h);
+
+            cleanMsgLog();
+            server.rdata = ("payload": "xxx");
+            assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("getBinary", ()));
+
         } catch (ex) {
             printf("Exception: %N\n\n", ex);
+            rethrow;
         }
 
-printf("client: %N\n", sc.msglogs);
-printf("server: %N\n", server.soap.msglogs);
-printf("result: %N\n", h);
-        assertEq("get/CZ/12000-Prague%202", sc.msglogs[0].path);
+    }
 
-        sc.msglogs = ();
-        server.soap.msglogs = ();
+    httpPostClientTest() {
+        #printf("url: %y\n", url);
+        sc = new TestSoapClient(("wsdl": WsdlUrl, "port": "HttpPostPort", "url": url));
+        *hash h;
+        try {
+            cleanMsgLog();
+            hash hi = ("country": "CZ", "city": "Prague_2", "zip": 12000);
+            h = sc.callOperation("postForm", hi);
+            assertEq(server.opname, "postForm");
+            assertEq(hi, server.mdata);
+            assertEq(sc.msglogs[0].method, "POST");
+
+            cleanMsgLog();
+            hi = ("info": "very important text");
+            h = sc.callOperation("postText", hi);
+            assertEq(server.opname, "postText");
+            assertEq("text/plain", sc.msglogs[0]."content-type");
+            assertEq(("info": ("^attributes^": ("^content-type^": "text/plain"), "^value^": hi.info)), server.mdata);
+
+            cleanMsgLog();
+            hi = ("img": "nice image");
+
+            cleanMsgLog();
+            hi = ("img": ("^attributes^": ("^content-type^": "image/png"), "^value^": <1234567890ABCDEF> ));
+            h = sc.callOperation("postImg", hi);
+            assertEq(server.opname, "postImg");
+            assertEq(hi.img."^attributes^"."^content-type^", sc.msglogs[0]."content-type");
+            assertEq(hi, server.mdata);
+
+            hi.img."^attributes^"."^content-type^" = "image/jpeg";
+            assertThrows("SOAP-MESSAGE-ERROR", \sc.callOperation(), ("postImg", hi));
+
+            cleanMsgLog();
+            h = sc.callOperation("postImg2", hi);
+            assertEq(server.opname, "postImg2");
+            assertEq(hi.img."^attributes^"."^content-type^", sc.msglogs[0]."content-type");
+            assertEq(hi, server.mdata);
+
+            cleanMsgLog();
+            h = sc.callOperation("postImg3", hi);
+            assertEq(server.opname, "postImg3");
+            assertEq(hi.img."^attributes^"."^content-type^", sc.msglogs[0]."content-type");
+            assertEq(hi, server.mdata);
+
+            cleanMsgLog();
+            hi = ("payload": ("^attributes^": ("^content-type^": "application/qore"), "^value^": <0ABCDEF01234567890>));
+            h = sc.callOperation("postData", hi);
+            assertEq(server.opname, "postData");
+            assertEq(hi.payload."^attributes^"."^content-type^", sc.msglogs[0]."content-type");
+            assertEq(hi, server.mdata);
+
+        } catch (ex) {
+            printf("Exception: %N\n\n", ex);
+            rethrow;
+        }
 
     }
 
@@ -212,8 +320,8 @@ printf("result: %N\n", h);
         printf("conn_url: %y\n", conn_url);
 
         SoapConnection conn("test", "test", conn_url, False, ("target_url": url, "port": "SoapPort"), parse_url(conn_url));
-        SoapClient sc = conn.get();
-        hash h = sc.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": ""));
+        SoapClient sc2 = conn.get();
+        hash h = sc2.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": ""));
         assertEq(99.9, h.body.result);
         assertEq("ABC", h.docs);
         assertEq(binary(), h.logo);

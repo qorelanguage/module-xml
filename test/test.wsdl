@@ -214,10 +214,10 @@
     <wsdl:part name="info" type="s:string" />
   </wsdl:message>
   <wsdl:message name="m7">
-    <wsdl:part name="img" type="s:base64Binary" />
+    <wsdl:part name="img" type="s:binary" />
   </wsdl:message>
   <wsdl:message name="m8">
-    <wsdl:part name="payload" type="s:base64Binary" />
+    <wsdl:part name="payload" type="s:binary" />
   </wsdl:message>
   <wsdl:message name="m9">
     <wsdl:part name="STR" element="tns:string" />
@@ -330,6 +330,9 @@
     <wsdl:operation name="getMimeXml">
       <wsdl:output message="tns:m9" />
     </wsdl:operation>
+    <wsdl:operation name="getBinary">
+      <wsdl:output message="tns:m8" />
+    </wsdl:operation>
   </wsdl:portType>
   <wsdl:binding name="b2" type="tns:pt2">
     <http:binding verb="GET" />
@@ -356,6 +359,15 @@
       <wsdl:output>
         <mime:mimeXml part="STR" />
       </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="getBinary">
+      <http:operation location="getbinary" />
+      <output>
+        <mime:content type="image/*" />
+        <mime:content type="application/*" />
+        <mime:content type="text/plain" />
+        <mime:content type="text/html" />
+      </output>
     </wsdl:operation>
   </wsdl:binding>
   <wsdl:binding name="b3" type="tns:pt2">

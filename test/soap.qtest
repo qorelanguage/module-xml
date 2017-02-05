@@ -491,6 +491,8 @@ class SoapTest inherits QUnit::Test {
         h = op.serializeRequest(UrlReplVal1);
         assertEq("get?test&country=CZ&city=Prague%202&zip=12000", h.path);
         assertEq("GET", h.method);
+        h = op.deserializePath(h.path, "b2");
+        assertEq(UrlReplVal1, h);
 
         op = ws.getBindingOperation("b2", "postForm");
         h = op.serializeRequest(UrlReplVal1);

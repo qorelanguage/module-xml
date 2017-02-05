@@ -142,7 +142,7 @@ public namespace SoapClient {
         const Version = "0.2.5";
 
         #! default HTTP headers
-        const Headers = ("Accept": (MimeTypeSoapXml + "," + MimeTypeXml + "," + MimeTypeXmlApp), "User-Agent": ("Qore-Soap-Client/" + SoapClient::Version));
+        const Headers = ("User-Agent": ("Qore-Soap-Client/" + SoapClient::Version));
 
         #! option keys passed to the HTTPClient constructor
         const HTTPOptions = ("connect_timeout", "http_version", "max_redirects", "proxy", "timeout");
@@ -262,10 +262,6 @@ public namespace SoapClient {
 
             headers += h.headers;
             # setup default headers
-            if (wsdl.isSoap12())
-                headers += ("Content-Type": MimeTypeSoapXml);
-            else
-                headers += ("Content-Type": MimeTypeXml);
 
             if (h.send_encoding)
                 setSendEncoding(h.send_encoding);
@@ -275,7 +271,7 @@ public namespace SoapClient {
                     setSendEncoding(h.content_encoding);
                 else if (!EncodingSupport.(h.content_encoding))
                     throw "SOAPCLIENT-ERROR", sprintf("content encoding option %y is unknown; valid options: %y", h.content_encoding, EncodingSupport.keys());
-                h.headers."Accept-Encoding" = h.content_encoding;
+                headers."Accept-Encoding" = h.content_encoding;
             }
 
             # unconditionally set the encoding to utf-8
@@ -313,9 +309,6 @@ public namespace SoapClient {
         hash getMsg(string operation, any args, *hash header, reference op, *hash nsh, *int xml_opts, *string soapaction) {
             op = wsdl.getBindingOperation(binding, operation);
             hash msg = op.serializeRequest(args, header, getEncoding(), nsh, xml_opts, soapaction, binding);
-            if (msg.hdr."Content-Type" !~ /charset=/i && msg.body.typeCode != NT_BINARY)
-                msg.hdr."Content-Type" += ";charset=" + getEncoding();
-
             return msg;
         }
 
@@ -465,7 +458,7 @@ public namespace SoapClient {
                 }
                 msg.path = url_path + msg.path;
             }
-            msglog(('reason': 'request', 'method': msg.method, 'path': msg.path, 'header': hdr, 'body': msg.body));
+            msglog(('reason': 'request', 'method': msg.method, 'path': msg.path, 'header': hdr, 'content-type': msg."content-type", 'accept': msg.accept, 'body': msg.body));
             # apply content encoding here
             data body = msg.body ?? "";
             if (seh.ce && body.size() > CompressionThreshold) {
@@ -477,9 +470,11 @@ public namespace SoapClient {
             try {
                 rh = send(body, msg.method, msg.path, hdr, True, \info);
                 info."response-body" = rh.body;
+                #printf("response: %y\n", rh);
             }
             catch (hash ex) {
                 # allow fault responses returned with a 500-series status code to be processed as a SOAP fault so that error information is returned in the exception
+                #printf("response exception: %y\n", ex);
                 if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR") {
                     if (ex.arg.status_code >= 500 && ex.arg.status_code < 600 && ex.arg.body =~ /<\?xml.*Fault/) {
                         info."response-body" = ex.arg.body;
@@ -488,9 +483,8 @@ public namespace SoapClient {
                 }
                 rethrow;
             }
-
             hash rmsg = WSDLLib::parseMultiPartSOAPMessage(rh);
-            msglog(('reason': 'response', 'header': rmsg.header, 'body': rmsg.body));
+            msglog(('reason': 'response', 'header': rmsg.header, 'content-type': rmsg."content-type", 'body': rmsg.body));
             *hash pdata = WSDLLib::parseSOAPMessage(rmsg);
             #printf("DEBUG ans: %s\n", rh);
             return op.deserializeResponse(pdata, binding);

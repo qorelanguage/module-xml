@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.8.12
+%requires qore >= 0.8.13
 
 # requires XML functionality
 %requires xml
@@ -71,6 +71,7 @@ module SoapHandler {
 
     @subsection soaphandler_0_2_6 SoapHandler 0.2.6
     - reimplmented operation to support multi binding, operation can be assigned to more bindings
+    - HTTP binding support
 
     @subsection soaphandler_0_2_5 SoapHandler 0.2.5
     - added support for matching requests with soap action values
@@ -101,6 +102,7 @@ module SoapHandler {
 
 #! main SoapHandler namespace
 public namespace SoapHandler {
+
     #! SoapHandler implementation; to be registered as a request handler in the HttpServer class
     public class SoapHandler inherits public AbstractHttpRequestHandler {
         #! version of the SoapHandler implementation
@@ -122,10 +124,10 @@ public namespace SoapHandler {
             # lookup alt path -> WebService object
             hash wsph;
 
-            # soapaction map: action -> operation
+            # soapaction map: action -> binding -> operation
             hash sam;
 
-            # service -> soapaction
+            # service -> binding -> soapaction
             hash psam;
 
             int loglevel;
@@ -141,6 +143,11 @@ public namespace SoapHandler {
 
             # hash of methods by path
             hash th;
+
+            # path TreeMap for each HTTP method
+            hash mapMethodPathToOperation;
+
+            # soapaction -> method -> binding
         }
         #! @endcond
 
@@ -228,56 +235,78 @@ public namespace SoapHandler {
         #! @cond nodoc
         # don't reimplement this method; fix/enhance it in the module
         final private addMethodInternal(WebService ws, hash method) {
+            #printf("DEBUG: SoapHandler::addMethodInternal() method: %N\n", method);
             string rn = method.operation.getTopLevelRequestName();
 
             hash binding = method.operation.getBinding(method.binding);
-            *string sa = binding.soapAction;
-            if (sa)
-                method.soap_action = sa;
 
-            rwl.writeLock();
-            on_exit rwl.writeUnlock();
+            if (binding.soapTransport) {
+                # soap binding
+                *string sa = binding.soapAction;
+                if (sa)
+                    method.soap_action = sa;
 
-            if (sa) {
-                if (!sam{sa})
-                    sam{sa} = method;
-                else if (sam{sa}.operation != method.operation)
-                    throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
-            }
+                rwl.writeLock();
+                on_exit rwl.writeUnlock();
 
-            #printf("DEBUG: SoapHandler::addMethodInternal() method: %N\n", method);
-
-            # map top-level element to method
-            if (method.path) {
-                string path = method.path;
-
-                # add path / soapaction mapping for service removal
-                if (sa && !psam{path}{sa})
-                    psam{path}{sa} = True;
-
-                # add link to WebService object
-                if (!wsh{path})
-                    wsh{path} = ws;
-
-                if (method.altpath && !wsph{method.altpath}) {
-                    # add lookup for altpath
-                    plh{path}.(method.altpath) = True;
-                    wsph{method.altpath} = ws;
+                if (sa) {
+                    if (!sam{sa})
+                        sam{sa} = method;
+                    else if (sam{sa}.operation != method.operation)
+                        throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
                 }
 
-                # add a link for each operation as well
-                map owsh{$1.operation.name} = ws, ws.listOperations(), !owsh{$1.operation.name};
+                # map top-level element to method
+                if (method.path) {
+                    string path = method.path;
 
-                # add method link if it doesn't already exist
-                if (!methods{rn}) {
-                    methods{rn} = method;
-                    th{path}{rn} = True;
+                    # add path / soapaction mapping for service removal
+                    if (sa && !psam{path}{sa})
+                        psam{path}{sa} = True;
+
+                    # add link to WebService object
+                    if (!wsh{path})
+                        wsh{path} = ws;
+
+                    if (method.altpath && !wsph{method.altpath}) {
+                        # add lookup for altpath
+                        plh{path}.(method.altpath) = True;
+                        wsph{method.altpath} = ws;
+                    }
+
+                    # add a link for each operation as well
+                    map owsh{$1.operation.name} = ws, ws.listOperations(), !owsh{$1.operation.name};
+
+                    # add method link if it doesn't already exist
+                    if (!methods{rn}) {
+                        methods{rn} = method;
+                        th{path}{rn} = True;
+                    }
                 }
-            }
-            else {
-                # add method link if it doesn't already exist
-                if (!methods{rn})
-                    methods{rn} = method;
+                else {
+                    # add method link if it doesn't already exist
+                    if (!methods{rn})
+                        methods{rn} = method;
+                }
+
+            } else if (binding.httpMethod) {
+                # http binding
+
+                rwl.readLock();
+                on_exit rwl.readUnlock();
+                if (!mapMethodPathToOperation{binding.httpMethod}) {
+                    mapMethodPathToOperation{binding.httpMethod} = new TreeMap();
+                }
+                method.parseUrlOnly = binding.input.urlEncoded || binding.input.urlReplacement;
+                method.exactMatch = !binding.input.urlReplacement;
+                method.path = ltrim(method.path ?? binding.location, "/");
+                if (index(method.path, "?") >= 0) {
+                    throw "SOAPACTION-ERROR", sprintf("cannot register path %y for operation %y because it contains parameters", method.path, method.operation.name);
+                }
+                mapMethodPathToOperation{binding.httpMethod}.put(method.path, method);
+
+            } else {
+                throw "SOAPACTION-ERROR", sprintf("cannot register operation %y because it has no binding", method.operation.name);
             }
 
             #printf("DEBUG: SoapHandler::addMethodInternal() %N %N\n", method.name, method.path);
@@ -337,6 +366,7 @@ private nothing msglog(hash cx, hash msg) {
                     ("soapenv:Fault":
                      ("soapenv:Code": ("soapenv:Value": err),
                       "soapenv:Reason": ("soapenv:Text": desc)));
+                      # optional Node, Role, Detail, see https://www.w3.org/TR/soap12/, 5.4 Fault
             }
             else {
                 o = ENVELOPE_11_NS;
@@ -345,42 +375,21 @@ private nothing msglog(hash cx, hash msg) {
                       ("faultcode": err,
                        "faultstring": desc,
                        "desc": ""));
+                # optional faultActor,  https://www.w3.org/TR/2000/NOTE-SOAP-20000508/ 4.4 SOAP fault
             }
+            #TODO: http binding https://www.w3.org/TR/2007/REC-soap12-part2-20070427/#soapinhttp
             hash msg = (
                 "code": code,
                 "errlog": errLog,
                 "body": make_xml(o, fmt ? XGF_ADD_FORMATTING: 0),
-                "hdr": ("Content-Type" : soap12 ? MimeTypeSoapXml : MimeTypeXml),
+                "hdr": ("Content-Type" : WSDLLib::getSoapMimeType12(soap12)),
             );
             msglog(cx, ('reason': 'error', 'code': code, 'header': msg.hdr, 'body': msg.body));
             return msg;
         }
 
         # don't reimplement this method; fix/enhance it in the module
-        final private *hash callOperation(hash cx, any args, *string soapaction, bool reqsoap12) {
-            *string element = cx.element;
-
-            *hash method;
-            {
-                rwl.readLock();
-                on_exit rwl.readUnlock();
-
-                # first match with soapaction if possible
-                if (soapaction && sam{soapaction}) {
-                    method = sam{soapaction};
-                    #printf("DEBUG: request matched with SoapAction %y\n", soapaction);
-                }
-                else {
-                    method = methods{element};
-
-                    #printf("DEBUG: found element %N method %N\n", element, method);
-                    if (!method) {
-                        if (!element)
-                            throw "SOAP-SERVER-UNKNOWN-OPERATION", sprintf("cannot find operation element in SOAP call; call context=%N", cx);
-                        throw "SOAP-SERVER-UNKNOWN-OPERATION", sprintf("cannot map top-level element %n to a SOAP operation: %s", element, elements methods ? sprintf("currently recognized top-level elements: %n", keys methods) : "no SOAP services are currently registered");
-                    }
-                }
-            }
+        final private *hash callOperation(hash cx, any args, hash method, bool reqsoap12) {
 
             # NOTE: internal methods have no operation definition and can take no parameters
             hash h;
@@ -395,7 +404,11 @@ private nothing msglog(hash cx, hash msg) {
             cx.operation = method.operation;
 
             try {
-                args = method.operation.deserializeRequest(args);
+                if (method.parseUrlOnly) {
+                    args = method.operation.deserializePath(cx.url.path, method.binding);
+                } else {
+                    args = method.operation.deserializeRequest(args, method.binding);
+                }
             }
             catch (ex) {
                 if (method.err_func) {
@@ -460,7 +473,7 @@ private nothing msglog(hash cx, hash msg) {
             if (method.operation.output) {
                 try {
                     any header = remove rv."^header^";
-                    h += method.operation.serializeResponse(rv, header, NOTHING, NOTHING, reqsoap12);
+                    h += method.operation.serializeResponse(rv, header, NOTHING, NOTHING, reqsoap12, NOTHING, method.binding);
                     msglog(cx, ('reason': 'response', 'header': h.hdr, 'body': h.body));
                 }
                 catch (hash ex) {
@@ -474,6 +487,21 @@ private nothing msglog(hash cx, hash msg) {
             return h;
         }
 
+        private *hash matchMethod(TreeMap tm, string path, reference unmatched) {
+            bool hasParams = index(path, "?") >= 0;
+            *string um;
+            *hash method = tm.get(path, \um);
+            if (method) {
+                if (method.exactMatch) {
+                    if (!hasParams && um != "" || hasParams && index(um, "?") > 0) {
+                        return NOTHING;
+                    }
+                }
+                unmatched = um;
+            }
+            return method;
+        }
+
         # method called by HttpServer
         # don't reimplement this method; fix/enhance it in the module
         final hash handleRequest(hash cx, hash hdr, *data body) {
@@ -481,31 +509,74 @@ private nothing msglog(hash cx, hash msg) {
             #printf("soap handler context=%y hdr=%y body=%y keys wsh=%y\n", cx, hdr, body, wsh.keys()); #XXX
             cx.http_header = hdr;
             cx.http_body = body;
+            *hash method;
 
-            *string soapaction = (hdr."content-type" =~ x/;action=(.+)/)[0];
-            if (soapaction)
-                hdr."content-type" =~ s/;.+$/;#/;
-            else
-                soapaction = hdr.soapaction;
-
-            any args;
             bool reqsoap12 = False; # set to True if soap 1.2 envelope is used in request
 
-            if (hdr.method == "GET") {
-                *string path = cx.url.path;
+            *string path = cx.url.path;
+            # remove query args if present
+            # path =~ s/\?.*$//;
+            # remove leading / in path, if any
+            path =~ s/^\///;
 
+            if (hdr.method == "POST") {
+                # try SoapBinding
+                *string soapaction = (hdr."content-type" =~ x/;action=(.+)/)[0];
+                if (soapaction)
+                    hdr."content-type" =~ s/;.+$/;#/;    # TODO: is regex correct should not match till ;
+                else
+                    soapaction = hdr.soapaction;
+                if (soapaction) {
+                    rwl.readLock();
+                    on_exit rwl.readUnlock();
+
+                    method = sam{soapaction};
+                    #printf("DEBUG: request matched with SoapAction %y\n", soapaction);
+                }
+            }
+
+            if (!method) {
+                # SOAP action is not explicitely specified, e.g. HTTP binding, try get it from path
+                rwl.readLock();
+                on_exit rwl.readUnlock();
+                *string args;
+                if (exists mapMethodPathToOperation{hdr.method}) {
+                    TreeMap tm = mapMethodPathToOperation{hdr.method};
+                    method = matchMethod(tm, path, \args);
+                    if (!method) {
+                        if (cx.root_path && path.equalPartialPath(cx.root_path)) {
+                            method = tm.get(path.substr(cx.root_path.size()), \args);
+                        }
+                    }
+                }
+                if (method && method.parseUrlOnly) {
+                    try {
+                        msglog(cx, ('reason': 'request', 'method': hdr.method, 'path': path));  # we need log request
+                        #printf("DEBUG: context: %N\nargs: %N\n", cx, args);
+                        return ("code": 200) + callOperation(cx, args, method, reqsoap12);
+                    }
+                    catch (ex) {
+                        string str = debug
+                            ? get_exception_string(ex)
+                            : sprintf("exception in %s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
+                        return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
+                    }
+                }
+            }
+
+            if (!method && hdr.method == "GET") {
+                # path has not been resolved to an operation, so try an heuristic to match a service
                 # remove query args if present
                 path =~ s/\?.*$//;
-                # remove leading / in path, if any
-                path =~ s/^\///;
 
                 #printf("DEBUG: PATH=%N (%n %n)\n", path, exists wsh{path}, keys wsh);
 
-                if (!path)
+                if (!path) {
                     return (
                         "code": 501,
                         "body": sprintf("invalid HTTP GET: no path given in URL; known services: %y", wsh.keys()),
                     );
+                }
 
                 rwl.readLock();
                 on_exit rwl.readUnlock();
@@ -528,7 +599,7 @@ private nothing msglog(hash cx, hash msg) {
                     return (
                         "code": 501,
                         "body": sprintf("invalid HTTP GET: no WebService object for path %y; known paths / services: %y; known operations: %y; known alt paths: %y", path, wsh.keys(), owsh.keys(), wsph.keys()),
-                        );
+                    );
                 }
 
                 # get URL for service
@@ -559,84 +630,97 @@ private nothing msglog(hash cx, hash msg) {
                     "code": 200,
                     "body": ws.getWSDL(base_url),
                     "hdr": ("Content-Type": "text/xml"),
-                    );
+                );
             }
 
-            if (hdr.method != "POST")
-                return ( "code" : 501,
-                         "body" : sprintf("don't know how to handle method %n", hdr.method) );
+            if (method || hdr.method == "POST") {
+                # still chance to get method from xml element in case of SoapBinding (i.e.POST), we need parse message now
+                any args;
+                try {
+                    *string ct = hdr."_qore_orig_content_type";
+                    *string element = (ct =~ x/action=".*\/(.*)"/)[0];
+                    # parse multipart messages
+                    if (ct =~ /multipart\//) {
+                        *string  x = (ct =~ x/multipart\/([^;]+)/)[0];
+                        hdr."_qore_multipart" = x;
+                        x = (ct =~ x/start=([^;]+)/)[0];
+                        if (exists x)
+                            hdr."_qore_multipart_start" = x;
+                        x = (ct =~ x/boundary=([^;]+)/)[0];
+                        if (exists x)
+                            hdr."_qore_multipart_boundary" = x;
+                        #printf("hdr=%N\n", hdr);
+                    }
+                    hash msg = WSDLLib::parseMultiPartSOAPMessage(hdr + ("body" : body));
+                    msglog(cx, ('reason': 'request', 'header': msg.header, 'method': hdr.method, 'body': msg.body));
+                    args = WSDLLib::parseSOAPMessage(msg);
+                    if (WSDLLib::isSOAPMessage(msg)) {
+                        # it is SOAP message (or XML content)
+                        WSDL::XsdBase::removeNS(\args);
+                        WSDL::XsdBase::removeNS(\args.Envelope);
 
-            try {
-                *string ct = hdr."_qore_orig_content_type";
-                # parse multipart messages
-                if (ct =~ /multipart\//) {
-                    *string  x = (ct =~ x/multipart\/([^;]+)/)[0];
-                    hdr."_qore_multipart" = x;
-                    x = (ct =~ x/start=([^;]+)/)[0];
-                    if (exists x)
-                        hdr."_qore_multipart_start" = x;
-                    x = (ct =~ x/boundary=([^;]+)/)[0];
-                    if (exists x)
-                        hdr."_qore_multipart_boundary" = x;
-                    #printf("hdr=%N\n", hdr);
-                }
-                hash msg = WSDLLib::parseMultiPartSOAPMessage(hdr + ("body" : body));
-                msglog(cx, ('reason': 'request', 'header': msg.header, 'body': msg.body));
-                args = WSDLLib::parseSOAPMessage(msg);
-                WSDL::XsdBase::removeNS(\args);
-                WSDL::XsdBase::removeNS(\args.Envelope);
+                        if (!method) {
+                            # get SOAP operation name from top XML element
+                            if (!exists element && exists args.Envelope.Body && args.Envelope.Body.typeCode() == NT_HASH ) {
+                                foreach string k in (keys args.Envelope.Body) {
+                                    if (k == "multiRef" || k == "^attributes^")
+                                        continue;
+                                    element = k =~ x/.*:(.*)/[0];
+                                    break;
+                                }
+                            }
+                            if (element) {
+                                rwl.readLock();
+                                on_exit rwl.readUnlock();
 
-                # get SOAP operation name
-                *string element;
-                if (!exists (element = (ct =~ x/action=".*\/(.*)"/)[0])) {
+                                method = methods{element};
+                            }
+                        }
 
-                    *hash sbody = args.Envelope.Body;
-                    if (!exists sbody)
-                        throw "SOAP-CALL-ERROR", "missing SOAP body in SOAP envelope in SOAP operation call";
-
-                    foreach string k in (sbody.keyIterator()) {
-                        if (k == "multiRef" || k == "^attributes^")
-                            continue;
-                        element = k =~ x/.*:(.*)/[0];
-                        break;
+                        # set soap version in request
+                        *hash attr = args.Envelope."^attributes^";
+                        foreach string k in (attr.keyIterator()) {
+                            if (k =~ /:soapenv$/) {
+                                if (attr{k} == SOAP_12_ENV)
+                                    reqsoap12 = True;
+                                else if (attr{k} != SOAP_11_ENV)
+                                    throw "SOAP-CALL-ERROR", sprintf("unsupported SOAP envelope received: %n", attr{k});
+                                break;
+                            }
+                        }
+                        if (!exists element) {
+                            throw "SOAP-CALL-ERROR", "no operation call found in message";
+                        }
                     }
                 }
-
-                # set soap version in request
-                *hash attr = args.Envelope."^attributes^";
-                foreach string k in (attr.keyIterator()) {
-                    if (k =~ /:soapenv$/) {
-                        if (attr{k} == SOAP_12_ENV)
-                            reqsoap12 = True;
-                        else if (attr{k} != SOAP_11_ENV)
-                            throw "SOAP-CALL-ERROR", sprintf("unsupported SOAP envelope received: %n", attr{k});
-                        break;
-                    }
+                catch (ex) {
+                    log(cx, "exception parsing SOAP msg: %y\n%y", body, ex);
+                    string str = sprintf("exception in %s:%d: %s: %s (1: %N)", ex.file, ex.line, ex.err, ex.desc, ex.callstack)
+                    #string str = debug
+                        ? get_exception_string(ex)
+                        : sprintf("%s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
+                    return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
                 }
 
-                if (!exists element)
-                    throw "SOAP-CALL-ERROR", "no operation call found in message";
+                if (method) {
+                    try {
+                        #printf("DEBUG: context: %N\nargs: %N\n", cx, args);
+                        return ("code": 200) + callOperation(cx, args, method, reqsoap12);
+                    }
+                    catch (ex) {
+                        string str = debug
+                            ? get_exception_string(ex)
+                            : sprintf("exception in %s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
+                        return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
+                    }
+                }
+            }
 
-                cx.element = element;
-            }
-            catch (ex) {
-                log(cx, "exception parsing SOAP msg: %y", body);
-                #string str = sprintf("exception in %s:%d: %s: %s (1: %N)", ex.file, ex.line, ex.err, ex.desc, ex.callstack);
-                string str = debug
-                    ? get_exception_string(ex)
-                    : sprintf("%s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
-                return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
-            }
-            try {
-                #printf("DEBUG: context: %N\nargs: %N\n", cx, args);
-                return ("code": 200) + callOperation(cx, args, soapaction, reqsoap12);
-            }
-            catch (ex) {
-                string str = debug
-                    ? get_exception_string(ex)
-                    : sprintf("exception in %s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
-                return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
-            }
+            return (
+                "code" : 501,
+                "body" : sprintf("don't know how to handle request with method %n", hdr.method),
+            );
+
         }
 
         private *WebService tryMatch(string path) {
