@@ -5,7 +5,7 @@
 
   Qore Programming Language
 
-  Copyright 2003 - 2016 Qore Technologies, s.r.o.
+  Copyright 2003 - 2017 Qore Technologies, s.r.o.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -67,11 +67,39 @@ XmlReader::constructor(string xml) {
          return;
    }
 
-   SimpleRefHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(xarg, nullptr, xsink));
+   SimpleRefHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(xarg, QORE_XML_PARSER_OPTIONS, nullptr, xsink));
    if (*xsink)
       return;
 
    self->setPrivate(CID_XMLREADER, xr.release());
+}
+
+//! creates a new XmlReader object from the input stream
+/** @param is the input stream
+    @param opts the following options are accepted:
+    - \c encoding: (string) the file's character encoding
+    - \c xsd: (string) an XSD string for schema validation while parsing
+
+    @par Example:
+    @code
+    XmlReader xr(is);
+    @endcode
+
+    @throw XML-READER-ERROR libxml2 returned an error code when creating the XML reader object
+
+    @note the \c xml_parse_options option is accepted but ignored in this method; XML parsing options can be used in @ref XmlReader::toQore() and @ref XmlReader::toQoreData()
+
+    @since xml 1.4
+*/
+XmlReader::constructor(Qore::InputStream[InputStream] is, *hash opts) {
+    const char* encoding = QoreXmlReaderData::processOptionsGetEncoding(opts, xsink);
+    if (*xsink)
+        return;
+    ReferenceHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(is, encoding, QoreXmlReaderData::getOptions(opts), opts, xsink), xsink);
+    if (*xsink)
+       return;
+    self->setPrivate(CID_XMLREADER, xr.release());
+    self->setValue("is", static_cast<QoreObject*>(obj_is->refSelf()), xsink);
 }
 
 //! Creates an independent copy of the XmlReader object
@@ -100,7 +128,7 @@ XmlReader::copy() {
     @see XmlReader::readSkipWhitespace()
 */
 bool XmlReader::read() [flags=RET_VALUE_ONLY] {
-   return xr->read(xsink);
+    return (bool)xr->read(xsink);
 }
 
 //! the position of the current instance to the next node in the stream, skipping any whitespace nodes
@@ -117,7 +145,7 @@ bool XmlReader::read() [flags=RET_VALUE_ONLY] {
     @see XmlReader::read()
 */
 bool XmlReader::readSkipWhitespace() [flags=RET_VALUE_ONLY] {
-   return xr->readSkipWhitespace(xsink) ? false : true;
+   return (bool)xr->readSkipWhitespace(xsink);
 }
 
 //! Returns the node type of the current node

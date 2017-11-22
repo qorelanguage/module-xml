@@ -46,44 +46,44 @@ static bool keys_are_equal(const char* k1, const char* k2, bool &get_value) {
 }
 
 void QoreXmlReader::processOpts(const QoreHashNode* opts, ExceptionSink* xsink) {
-        assert(reader);
-        ConstHashIterator i(opts);
-        while (i.next()) {
-                const char* key = i.getKey();
-                if (!strcmp(key, "xsd")) {
-                        const AbstractQoreNode* n = i.getValue();
-                        if (get_node_type(n) != NT_STRING) {
-                                xsink->raiseException("XMLREADER-XSD-ERROR", "expecting type 'string' with option 'xsd'; got type '%s' instead", get_type_name(n));
-                                break;
-                        }
+	assert(reader);
+	ConstHashIterator i(opts);
+	while (i.next()) {
+		const char* key = i.getKey();
+		if (!strcmp(key, "xsd")) {
+			const AbstractQoreNode* n = i.getValue();
+			if (get_node_type(n) != NT_STRING) {
+				xsink->raiseException("XMLREADER-XSD-ERROR", "expecting type 'string' with option 'xsd'; got type '%s' instead", get_type_name(n));
+				break;
+			}
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
-                        const QoreStringNode* xsd = static_cast<const QoreStringNode*>(n);
-                        std::unique_ptr<QoreXmlSchemaContext> schema(new QoreXmlSchemaContext(*xsd, xsink));
-                        if (*xsink)
-                                return;
+			const QoreStringNode* xsd = static_cast<const QoreStringNode*>(n);
+			std::unique_ptr<QoreXmlSchemaContext> schema(new QoreXmlSchemaContext(*xsd, xsink));
+			if (*xsink)
+				return;
 
-                        int rc = setSchema(schema->getSchema());
-                        if (rc < 0) {
-                                xsink->raiseException("XSD-VALIDATION-ERROR", "XML schema could not be validated");
-                                return;
-                        }
+			int rc = setSchema(schema->getSchema());
+			if (rc < 0) {
+				xsink->raiseException("XSD-VALIDATION-ERROR", "XML schema could not be validated");
+				return;
+			}
 
-                        val = schema.release();
-                        //printd(5, "QoreXmlReader::processOpts() set schema %p\n", val);
-                        continue;
+			val = schema.release();
+			//printd(5, "QoreXmlReader::processOpts() set schema %p\n", val);
+			continue;
 #else
-                        xsink->raiseException("MISSING-FEATURE-ERROR", "the libxml2 version used to compile the xml module did not support the xmlTextReaderSetSchema() function, XSD validation is not available; for maximum portability, use the constant Option::HAVE_PARSEXMLWITHSCHEMA to check if this function is implemented before using XSD validation functionality");
-                        return;
+			xsink->raiseException("MISSING-FEATURE-ERROR", "the libxml2 version used to compile the xml module did not support the xmlTextReaderSetSchema() function, XSD validation is not available; for maximum portability, use the constant Option::HAVE_PARSEXMLWITHSCHEMA to check if this function is implemented before using XSD validation functionality");
+			return;
 #endif
-                }
-                // ignore the "encoding" option
-                else if (!strcmp(key, "encoding"))
-                        continue;
-                else {
-                        xsink->raiseException("XML-READER-ERROR", "unsupported option '%s'", key);
-                        return;
-                }
-        }
+		}
+		// ignore the "encoding" option
+		else if (!strcmp(key, "encoding") || !strcmp(key, "xml_parse_options"))
+			continue;
+		else {
+			xsink->raiseException("XML-READER-ERROR", "unsupported option '%s'", key);
+			return;
+		}
+	}
 }
 
 QoreHashNode* QoreXmlReader::parseXmlData(const QoreEncoding* data_ccsid, int pflags, ExceptionSink* xsink) {

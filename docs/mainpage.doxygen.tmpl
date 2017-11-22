@@ -340,8 +340,9 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
       - added @ref Qore::Xml::XmlDoc::validateDtd() "XmlDoc::validateDtd()
     - added support for stripping namespace prefixes on element names when parsing XML (<a href="https://github.com/qorelanguage/qore/issues/2494">issue 2494</a>)
     - added support for XSD validation with SAX parsers (<a href="https://github.com/qorelanguage/qore/issues/2489">issue 2489</a>); see
-      - @ref Qore::Xml::FileSaxIterator::constructor(string, string, __7_ hash)
-      - @ref Qore::Xml::InputStreamSaxIterator::constructor(Qore::InputStream, string, __7_ hash)
+      - @ref Qore::Xml::FileSaxIterator::constructor(string, string, hash)
+      - @ref Qore::Xml::InputStreamSaxIterator::constructor(Qore::InputStream, string, hash)
+      - @ref Qore::Xml::XmlReader::constructor(Qore::InputStream, __7_ hash)
       - @ref Qore::Xml::SaxIterator::constructor(string, string, __7_ hash)
     -fixed a bug where SAX parsing failed when the element being parsed had a namespace prefix (<a href="https://github.com/qorelanguage/qore/issues/2487">issue 2487</a>)
     - <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> module changes:

@@ -44,23 +44,24 @@ DLLLOCAL extern QoreClass* QC_SAXITERATOR;
 class QoreSaxIterator : public QoreXmlReaderData, public QoreAbstractIteratorBase {
 protected:
    std::string element_name;
-   int element_depth;
-   bool val;
+   int element_depth = -1;
+   int xml_parse_options;
+   bool val = false;
 
 public:
-   DLLLOCAL QoreSaxIterator(InputStream *is, const char* ename, const char* enc, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReaderData(is, enc, opts, xsink), element_name(ename), element_depth(-1), val(true) {
+   DLLLOCAL QoreSaxIterator(InputStream *is, const char* ename, const char* enc, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReaderData(is, enc, setOptions(opts), opts, xsink), element_name(ename), val(true) {
    }
 
-   DLLLOCAL QoreSaxIterator(QoreStringNode* xml, const char* ename, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReaderData(xml, opts, xsink), element_name(ename), element_depth(-1), val(false) {
+   DLLLOCAL QoreSaxIterator(QoreStringNode* xml, const char* ename, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReaderData(xml, setOptions(opts), opts, xsink), element_name(ename) {
    }
 
-   DLLLOCAL QoreSaxIterator(QoreXmlDocData* doc, const char* ename, ExceptionSink* xsink) : QoreXmlReaderData(doc, xsink), element_name(ename), element_depth(-1), val(false) {
+   DLLLOCAL QoreSaxIterator(QoreXmlDocData* doc, const char* ename, ExceptionSink* xsink) : QoreXmlReaderData(doc, xsink), element_name(ename), xml_parse_options(QORE_XML_PARSER_OPTIONS) {
    }
 
-   DLLLOCAL QoreSaxIterator(ExceptionSink* xsink, const char* fn, const char* ename, const char* enc = nullptr, const QoreHashNode* opts = nullptr) : QoreXmlReaderData(fn, enc, opts, xsink), element_name(ename), element_depth(-1), val(false) {
+   DLLLOCAL QoreSaxIterator(ExceptionSink* xsink, const char* fn, const char* ename, const char* enc = nullptr, const QoreHashNode* opts = nullptr) : QoreXmlReaderData(fn, enc, setOptions(opts), opts, xsink), element_name(ename) {
    }
 
-   DLLLOCAL QoreSaxIterator(const QoreSaxIterator& old, ExceptionSink* xsink) : QoreXmlReaderData(old, xsink), element_name(old.element_name), element_depth(-1), val(false) {
+   DLLLOCAL QoreSaxIterator(const QoreSaxIterator& old, ExceptionSink* xsink) : QoreXmlReaderData(old, xsink), element_name(old.element_name), xml_parse_options(old.xml_parse_options) {
    }
 
    DLLLOCAL AbstractQoreNode* getReferencedValue(ExceptionSink* xsink) {
@@ -72,11 +73,11 @@ public:
          return nullptr;
       str.makeTemp();
 
-      QoreXmlReader reader(*str, QORE_XML_PARSER_OPTIONS, xsink);
+      QoreXmlReader reader(*str, xml_parse_options, xsink);
       if (!reader)
          return nullptr;
 
-      ReferenceHolder<QoreHashNode> h(reader.parseXmlData(QCS_UTF8, XPF_NONE, xsink), xsink);
+      ReferenceHolder<QoreHashNode> h(reader.parseXmlData(QCS_UTF8, xml_parse_options, xsink), xsink);
       if (*xsink)
          return nullptr;
       // issue #2487 element may be present with a prefix
@@ -120,23 +121,8 @@ public:
 
    DLLLOCAL virtual const char* getName() const { return "SaxIterator"; }
 
-   DLLLOCAL static const char* processOptionsGetEncoding(const QoreHashNode* opts, ExceptionSink* xsink) {
-      const char* encoding = nullptr;
-      if (opts) {
-          ConstHashIterator i(opts);
-          while (i.next()) {
-              const char* key = i.getKey();
-              if (!strcmp(key, "encoding")) {
-                  const AbstractQoreNode* n = i.getValue();
-                  if (get_node_type(n) != NT_STRING) {
-                      xsink->raiseException("FILESAXITERATOR-OPTION-ERROR", "expecting type 'string' with option 'encoding'; got type '%s' instead", get_type_name(n));
-                      return nullptr;
-                  }
-                  encoding = static_cast<const QoreStringNode*>(n)->c_str();
-              }
-          }
-      }
-      return encoding;
+   DLLLOCAL int setOptions(const QoreHashNode* opts) {
+      return xml_parse_options = getOptions(opts);
    }
 };
 

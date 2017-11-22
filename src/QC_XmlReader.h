@@ -43,18 +43,18 @@ private:
    DLLLOCAL QoreXmlReaderData(const QoreXmlReaderData &orig);
 
 public:
-   DLLLOCAL QoreXmlReaderData(InputStream* is, const char* n_enc, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReader(xsink, is, n_enc, QORE_XML_PARSER_OPTIONS, opts), enc(n_enc ? n_enc : "") {
+   DLLLOCAL QoreXmlReaderData(InputStream* is, const char* n_enc, int options, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReader(xsink, is, n_enc, options, opts), enc(n_enc ? n_enc : "") {
    }
 
    // n_xml must be in UTF8 encoding and must be referenced for the object
-   DLLLOCAL QoreXmlReaderData(QoreStringNode* n_xml, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReader(xsink, n_xml, QORE_XML_PARSER_OPTIONS, opts), xmlstr(n_xml) {
+   DLLLOCAL QoreXmlReaderData(QoreStringNode* n_xml, int options, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReader(xsink, n_xml, options, opts), xmlstr(n_xml) {
    }
 
-   DLLLOCAL QoreXmlReaderData(QoreXmlDocData *n_doc, ExceptionSink* xsink) : QoreXmlReader(xsink, n_doc->getDocPtr()), doc(n_doc) {
+   DLLLOCAL QoreXmlReaderData(QoreXmlDocData* n_doc, ExceptionSink* xsink) : QoreXmlReader(xsink, n_doc->getDocPtr()), doc(n_doc) {
       doc->ref();
    }
 
-   DLLLOCAL QoreXmlReaderData(const char* n_fn, const char* n_enc, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReader(xsink, n_fn, n_enc, QORE_XML_PARSER_OPTIONS, opts), fn(n_fn), enc(n_enc ? n_enc : "") {
+   DLLLOCAL QoreXmlReaderData(const char* n_fn, const char* n_enc, int options, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReader(xsink, n_fn, n_enc, options, opts), fn(n_fn), enc(n_enc ? n_enc : "") {
    }
 
    DLLLOCAL QoreXmlReaderData(const QoreXmlReaderData& old, ExceptionSink* xsink) : QoreXmlReader(xsink, old.xmlstr, QORE_XML_PARSER_OPTIONS, old.doc ? old.doc->getDocPtr() : 0, old.fn.empty() ? 0 : old.fn.c_str(), old.enc.empty() ? 0 : old.enc.c_str()), doc((QoreXmlDocData*)old.doc), xmlstr(old.xmlstr), fn(old.fn), enc(old.enc) {
@@ -73,8 +73,10 @@ public:
          QoreXmlReader::reset(xsink, fn.c_str(), enc.empty() ? 0 : enc.c_str(), QORE_XML_PARSER_OPTIONS);
       else if (xmlstr)
          QoreXmlReader::reset(xsink, xmlstr, QORE_XML_PARSER_OPTIONS, doc ? doc->getDocPtr() : 0);
-      else
+      else {
+         assert(false);
          xsink->raiseException("XMLREADER-RESET-ERROR", "Unsupported operation");
+      }
    }
 
    DLLLOCAL QoreXmlReaderData* copy(ExceptionSink* xsink) {
@@ -89,6 +91,34 @@ public:
       else if (xmlstr)
          xmlstr->deref();
    }
+
+   DLLLOCAL static int getOptions(const QoreHashNode* opts) {
+      int xml_parse_options = QORE_XML_PARSER_OPTIONS;
+      if (opts) {
+          bool found;
+          xml_parse_options |= (int)opts->getKeyAsBigInt("xml_parse_options", found);
+      }
+      return xml_parse_options;
+   }
+
+    DLLLOCAL static const char* processOptionsGetEncoding(const QoreHashNode* opts, ExceptionSink* xsink) {
+        const char* encoding = nullptr;
+        if (opts) {
+            ConstHashIterator i(opts);
+            while (i.next()) {
+                const char* key = i.getKey();
+                const AbstractQoreNode* n = i.getValue();
+                if (!strcmp(key, "encoding")) {
+                    if (get_node_type(n) != NT_STRING) {
+                        xsink->raiseException("FILESAXITERATOR-OPTION-ERROR", "expecting type 'string' with option 'encoding'; got type '%s' instead", get_type_name(n));
+                        return nullptr;
+                    }
+                    encoding = static_cast<const QoreStringNode*>(n)->c_str();
+                }
+            }
+        }
+        return encoding;
+    }
 };
 
 #endif

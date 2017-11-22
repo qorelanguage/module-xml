@@ -57,6 +57,7 @@ InputStreamSaxIterator::constructor(Qore::InputStream[InputStream] is, string el
     @param element_name the name of the element to iterate through
     @param opts the following options are accepted:
     - \c encoding: (string) the file's character encoding
+    - \c xml_parse_options: (int bitfield) XML parsing flags; see @ref xml_parsing_constants for more information
     - \c xsd: (string) an XSD string for schema validation while parsing
 
     @par Example:
@@ -67,7 +68,7 @@ InputStreamSaxIterator::constructor(Qore::InputStream[InputStream] is, string el
 
     @throw XMLDOC-CONSTRUCTOR-ERROR error parsing XML string
 */
-InputStreamSaxIterator::constructor(Qore::InputStream[InputStream] is, string element_name, *hash opts) [dom=FILESYSTEM] {
+InputStreamSaxIterator::constructor(Qore::InputStream[InputStream] is, string element_name, hash opts) [dom=FILESYSTEM] {
    const char* encoding = QoreSaxIterator::processOptionsGetEncoding(opts, xsink);
    if (*xsink)
       return;
@@ -75,7 +76,7 @@ InputStreamSaxIterator::constructor(Qore::InputStream[InputStream] is, string el
    if (*xsink)
       return;
    self->setPrivate(CID_INPUTSTREAMSAXITERATOR, holder.release());
-   self->setValue("is", static_cast<QoreObject *>(obj_is->refSelf()), xsink);
+   self->setValue("is", static_cast<QoreObject*>(obj_is->refSelf()), xsink);
 }
 
 //! Throws an exception; objects of this class cannot be copied

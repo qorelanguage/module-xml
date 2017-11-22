@@ -150,6 +150,12 @@ class XmlTest inherits QUnit::Test {
         testXsdList(new InputStreamSaxIterator(new StringInputStream(xml), "TestElement", ("xsd": Xsd)), "stream: xsd");
         testXsdList(new SaxIterator(xml, "TestElement", ("xsd": Xsd)), "sax string: xsd");
 
+        hash opts = ("xml_parse_options": XPF_STRIP_NS_PREFIXES);
+        testXsdList(new InputStreamSaxIterator(new StringInputStream(xml), "TestElement", opts), "stream: no xsd: strip");
+        testXsdList(new SaxIterator(xml, "TestElement", opts), "sax string: no xsd: strip");
+        testXsdList(new InputStreamSaxIterator(new StringInputStream(xml), "TestElement", opts + ("xsd": Xsd)), "stream: xsd: strip");
+        testXsdList(new SaxIterator(xml, "TestElement", opts + ("xsd": Xsd)), "sax string: xsd: strip");
+
         string badxml = xml;
         badxml =~ s/TestElement/TestELement/g;
         {
@@ -160,9 +166,29 @@ class XmlTest inherits QUnit::Test {
             SaxIterator i(badxml, "TestElement", ("xsd": Xsd));
             assertThrows("PARSE-XML-EXCEPTION", "validation root", \i.next());
         }
+
+        {
+            XmlReader xr(new StringInputStream(xml));
+            assertTrue(xr.read());
+            assertEq("ns:TestElement", xr.name());
+            assertEq("XML_NODE_TYPE_NONE", xr.nodeTypeName());
+            assertTrue(xr.read());
+            assertEq("XML_NODE_TYPE_ATTRIBUTE", xr.nodeTypeName());
+            assertEq("testing", xr.getOuterXml());
+        }
+
+        {
+            XmlReader xr(new StringInputStream(xml), ("xml_parse_options": XPF_STRIP_NS_PREFIXES));
+            assertTrue(xr.read());
+            assertEq("TestElement", xr.name());
+            assertEq("XML_NODE_TYPE_NONE", xr.nodeTypeName());
+            assertTrue(xr.read());
+            assertEq("XML_NODE_TYPE_ATTRIBUTE", xr.nodeTypeName());
+            assertEq("testing", xr.getOuterXml());
+        }
     }
 
-    private testXsdList(AbstractIterator i, string label) {
+    private testXsdList(AbstractIterator i, string label, *string ename) {
         list l = map $1, i;
         assertEq(1, l.size(), label);
         assertEq(XsdTestHash."ns:TestElement", l[0], label);

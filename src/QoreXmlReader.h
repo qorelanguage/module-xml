@@ -88,6 +88,7 @@ protected:
 
       if (opts)
          processOpts(opts, xsink);
+      //printd(5, "QoreXmlReader::init() valid: %d\n", isValid());
    }
 
    DLLLOCAL void init(const QoreString* n_xml, int options, const QoreHashNode* opts, ExceptionSink* xsink) {
@@ -243,7 +244,7 @@ public:
          val->setExceptionContext(xsink);
    }
 
-   // returns 0=OK, -1=error
+   // returns 1 = OK, 0 = no more nodes to read, -1 = error
    DLLLOCAL int read(ExceptionSink* xsink) {
       setExceptionContext(xsink);
 
@@ -255,6 +256,7 @@ public:
       return rc;
    }
 
+   // returns 1 = OK, 0 = no more nodes to read, -1 = error
    DLLLOCAL int read(const char* info, ExceptionSink* xsink) {
       setExceptionContext(xsink);
 
@@ -266,10 +268,12 @@ public:
       return rc;
    }
 
+   // returns 1 = OK, 0 = no more nodes to read, -1 = error
    DLLLOCAL int read() {
       return xmlTextReaderRead(reader);
    }
 
+   // returns 1 = OK, 0 = no more nodes to read, -1 = error
    DLLLOCAL int readSkipWhitespace() {
       int rc;
       while (true) {
@@ -283,6 +287,7 @@ public:
       return rc;
    }
 
+   // returns 1 = OK, 0 = no more nodes to read, -1 = error
    DLLLOCAL int readSkipWhitespace(ExceptionSink* xsink) {
       int rc;
       while (true) {
@@ -296,6 +301,7 @@ public:
       return rc;
    }
 
+   // returns 1 = OK, 0 = no more nodes to read, -1 = error
    DLLLOCAL int readSkipWhitespace(const char* info, ExceptionSink* xsink) {
       int rc;
       while (true) {
