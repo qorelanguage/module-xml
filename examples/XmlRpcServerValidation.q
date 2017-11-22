@@ -94,14 +94,14 @@ sub process_command_line() {
         usage();
 
     if (!exists $o.port)
-	$o.port = DefaultPort;
+        $o.port = DefaultPort;
 }
 
 sub arrayOfStructsTest($m) {
     #printf("arrayOfStructsTest() arg=%N\n", $a);
     my $c;
     foreach my $elem in ($argv)
-	$c += $elem.curly;
+        $c += $elem.curly;
     #printf("arrayOfStructsTest() result=%N\n", $c);
     return $c;
 }
@@ -109,8 +109,8 @@ sub arrayOfStructsTest($m) {
 sub countChar($char, $str) {
     my $c;
     for (my $i = 0; $i < strlen($str); $i++)
-	if (substr($str, $i, 1) == $char)
-	    $c++;
+        if (substr($str, $i, 1) == $char)
+            $c++;
     return $c;
 }
 
@@ -147,8 +147,8 @@ sub nestedStructTest($m, $s) {
 
 hash sub simpleStructReturnTest($m, $n) {
     return ( "times10" : $n * 10,
-	     "times100" : $n * 100,
-	     "times1000" : $n * 1000 );
+             "times100" : $n * 100,
+             "times1000" : $n * 1000 );
 }
 
 string sub shutdown() {
