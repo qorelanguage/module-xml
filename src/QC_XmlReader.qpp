@@ -67,7 +67,7 @@ XmlReader::constructor(string xml) {
          return;
    }
 
-   SimpleRefHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(xarg, xsink));
+   SimpleRefHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(xarg, nullptr, xsink));
    if (*xsink)
       return;
 
@@ -546,7 +546,7 @@ bool XmlReader::next() {
     @see XmlReader::getOuterXml()
  */
 *string XmlReader::getInnerXml() [flags=CONSTANT] {
-   return xr->getInnerXml();
+   return xr->getInnerXml(xsink);
 }
 
 //! Return an XML string of the contents of the current node and all child nodes and markup, or \c NOTHING if the current node is neither an element nor an attribute or has no child nodes
@@ -558,7 +558,7 @@ bool XmlReader::next() {
     @see XmlReader::getInnerXml()
  */
 *string XmlReader::getOuterXml() [flags=CONSTANT] {
-   return xr->getOuterXml();
+   return xr->getOuterXml(xsink);
 }
 
 //! Set a RelaxNG schema for schema validation while parsing the XML document

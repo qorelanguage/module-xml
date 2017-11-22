@@ -5,7 +5,7 @@
 
   Qore Programming Language
 
-  Copyright (C) 2003 - 2016 Qore Technologies, s.r.o.
+  Copyright (C) 2003 - 2017 Qore Technologies, s.r.o.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -34,6 +34,8 @@ qclass SaxIterator [arg=QoreSaxIterator* i; ns=Qore::Xml; vparent=AbstractIterat
 //! creates a new SaxIterator object from the XML string and element name passed
 /** @param xml an XML string to iterate
     @param element_name the name of the element to iterate through
+    @param opts the following options are supported:
+    - \c xsd: (string) an XSD string for schema validation while parsing
 
     @par Example:
     @code
@@ -42,9 +44,11 @@ map printf("record %d: %y\n", $#, $1), i;
     @endcode
 
     @throw XMLDOC-CONSTRUCTOR-ERROR error parsing XML string
- */
-SaxIterator::constructor(string xml, string element_name) {
-   ReferenceHolder<QoreSaxIterator> holder(new QoreSaxIterator(xml->stringRefSelf(), element_name->getBuffer(), xsink), xsink);
+
+    @since xml 1.4
+*/
+SaxIterator::constructor(string xml, string element_name, *hash opts) {
+   ReferenceHolder<QoreSaxIterator> holder(new QoreSaxIterator(xml->stringRefSelf(), element_name->c_str(), opts, xsink), xsink);
    if (*xsink)
       return;
    self->setPrivate(CID_SAXITERATOR, holder.release());
@@ -100,7 +104,7 @@ while (i.next()) {
  */
 any SaxIterator::getValue() [flags=RET_VALUE_ONLY] {
    if (i->check(xsink))
-      return 0;
+      return QoreValue();
    return i->getReferencedValue(xsink);
 }
 
@@ -129,6 +133,6 @@ i.reset();
  */
 SaxIterator::reset() {
    if (i->check(xsink))
-       return 0;
+       return QoreValue();
    i->reset(xsink);
 }

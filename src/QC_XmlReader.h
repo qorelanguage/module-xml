@@ -4,7 +4,7 @@
 
  Qore Programming Language
 
- Copyright (C) 2003 - 2014 David Nichols
+ Copyright (C) 2003 - 2017 Qore Technologies, s.r.o.
 
  This library is free software; you can redistribute it and/or
  modify it under the terms of the GNU Lesser General Public
@@ -34,8 +34,8 @@ DLLLOCAL QoreClass *initXmlReaderClass(QoreNamespace &XmlDoc);
 
 class QoreXmlReaderData : public AbstractPrivateData, public QoreXmlReader {
 private:
-   QoreXmlDocData* doc;
-   QoreStringNode* xmlstr;
+   QoreXmlDocData* doc = nullptr;
+   QoreStringNode* xmlstr = nullptr;
    std::string fn;
    std::string enc;
 
@@ -43,18 +43,18 @@ private:
    DLLLOCAL QoreXmlReaderData(const QoreXmlReaderData &orig);
 
 public:
-   DLLLOCAL QoreXmlReaderData(InputStream* is, const char* n_enc, ExceptionSink* xsink) : QoreXmlReader(xsink, is, n_enc, QORE_XML_PARSER_OPTIONS), doc(0), xmlstr(0), enc(n_enc ? n_enc : "") {
+   DLLLOCAL QoreXmlReaderData(InputStream* is, const char* n_enc, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReader(xsink, is, n_enc, QORE_XML_PARSER_OPTIONS, opts), enc(n_enc ? n_enc : "") {
    }
 
    // n_xml must be in UTF8 encoding and must be referenced for the object
-   DLLLOCAL QoreXmlReaderData(QoreStringNode* n_xml, ExceptionSink* xsink) : QoreXmlReader(xsink, n_xml, QORE_XML_PARSER_OPTIONS), doc(0), xmlstr(n_xml) {
+   DLLLOCAL QoreXmlReaderData(QoreStringNode* n_xml, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReader(xsink, n_xml, QORE_XML_PARSER_OPTIONS, opts), xmlstr(n_xml) {
    }
 
-   DLLLOCAL QoreXmlReaderData(QoreXmlDocData *n_doc, ExceptionSink* xsink) : QoreXmlReader(xsink, n_doc->getDocPtr()), doc(n_doc), xmlstr(0) {
+   DLLLOCAL QoreXmlReaderData(QoreXmlDocData *n_doc, ExceptionSink* xsink) : QoreXmlReader(xsink, n_doc->getDocPtr()), doc(n_doc) {
       doc->ref();
    }
 
-   DLLLOCAL QoreXmlReaderData(const char* n_fn, const char* n_enc, ExceptionSink* xsink) : QoreXmlReader(xsink, n_fn, n_enc, QORE_XML_PARSER_OPTIONS), doc(0), xmlstr(0), fn(n_fn), enc(n_enc ? n_enc : "") {
+   DLLLOCAL QoreXmlReaderData(const char* n_fn, const char* n_enc, const QoreHashNode* opts, ExceptionSink* xsink) : QoreXmlReader(xsink, n_fn, n_enc, QORE_XML_PARSER_OPTIONS, opts), fn(n_fn), enc(n_enc ? n_enc : "") {
    }
 
    DLLLOCAL QoreXmlReaderData(const QoreXmlReaderData& old, ExceptionSink* xsink) : QoreXmlReader(xsink, old.xmlstr, QORE_XML_PARSER_OPTIONS, old.doc ? old.doc->getDocPtr() : 0, old.fn.empty() ? 0 : old.fn.c_str(), old.enc.empty() ? 0 : old.enc.c_str()), doc((QoreXmlDocData*)old.doc), xmlstr(old.xmlstr), fn(old.fn), enc(old.enc) {
@@ -83,11 +83,11 @@ public:
 
    DLLLOCAL ~QoreXmlReaderData() {
       if (doc) {
-	 assert(!xmlstr);
-	 doc->deref();
+         assert(!xmlstr);
+         doc->deref();
       }
       else if (xmlstr)
-	 xmlstr->deref();
+         xmlstr->deref();
    }
 };
 

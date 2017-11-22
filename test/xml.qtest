@@ -35,6 +35,16 @@ class XmlTest inherits QUnit::Test {
 </xsd:schema>
 ';
 
+        const XsdTestHash = (
+            "ns:TestElement": (
+                "^attributes^": (
+                    "xmlns:ns": "http://qoretechnologies.com/test/namespace",
+                ),
+                "^value^": "testing",
+            ),
+        );
+
+
         const Dtd = '<!ELEMENT note (to,from,heading,body)>
 <!ELEMENT to (#PCDATA)>
 <!ELEMENT from (#PCDATA)>
@@ -96,6 +106,7 @@ class XmlTest inherits QUnit::Test {
         addTestCase("XmlCommentTestCase", \xmlCommentTestCase());
         addTestCase("getXmlValueTestCase", \getXmlValueTestCase());
         addTestCase("dtd test", \dtdTest());
+        addTestCase("xsd test", \xsdTest());
         set_return_value(main());
     }
 
@@ -121,6 +132,40 @@ class XmlTest inherits QUnit::Test {
             XmlDoc xd(Str);
             assertThrows("DTD-VALIDATION-ERROR", \xd.validateDtd(), Dtd);
         }
+    }
+
+    xsdTest() {
+        if (!Option::HAVE_PARSEXMLWITHSCHEMA)
+            testSkip("no XSD support");
+
+        string xml = make_xml(XsdTestHash);
+        assertEq(XsdTestHash, parse_xml_with_schema(xml, Xsd), "parse_xml_with_schema()");
+
+        assertThrows("PARSE-XML-EXCEPTION", \parse_xml_with_schema(), ("<TestElement>str</TEstElement>", Xsd));
+        assertEq(("TestElement": XsdTestHash."ns:TestElement"), parse_xml_with_schema(xml, Xsd, XPF_STRIP_NS_PREFIXES));
+        assertEq(("TestElement": XsdTestHash."ns:TestElement"), parse_xml(xml, XPF_STRIP_NS_PREFIXES));
+
+        testXsdList(new InputStreamSaxIterator(new StringInputStream(xml), "TestElement"), "stream: no xsd");
+        testXsdList(new SaxIterator(xml, "TestElement"), "sax string: no xsd");
+        testXsdList(new InputStreamSaxIterator(new StringInputStream(xml), "TestElement", ("xsd": Xsd)), "stream: xsd");
+        testXsdList(new SaxIterator(xml, "TestElement", ("xsd": Xsd)), "sax string: xsd");
+
+        string badxml = xml;
+        badxml =~ s/TestElement/TestELement/g;
+        {
+            InputStreamSaxIterator i(new StringInputStream(badxml), "TestElement", ("xsd": Xsd));
+            assertThrows("PARSE-XML-EXCEPTION", "validation root", \i.next());
+        }
+        {
+            SaxIterator i(badxml, "TestElement", ("xsd": Xsd));
+            assertThrows("PARSE-XML-EXCEPTION", "validation root", \i.next());
+        }
+    }
+
+    private testXsdList(AbstractIterator i, string label) {
+        list l = map $1, i;
+        assertEq(1, l.size(), label);
+        assertEq(XsdTestHash."ns:TestElement", l[0], label);
     }
 
     xmlTestCase() {
@@ -154,12 +199,6 @@ class XmlTest inherits QUnit::Test {
         assertEq(fr, parse_xmlrpc_response(str), "make_xmlrpc_fault() and parse_xmlrpc_response() 2");
         o = ( "xml" : (o + ( "^cdata^" : "this string contains special characters &<> etc" )) );
         assertEq(True, o == parse_xml(make_xml(o), XPF_PRESERVE_ORDER), "xml serialization with cdata");
-
-        if (Option::HAVE_PARSEXMLWITHSCHEMA) {
-            o = ( "ns:TestElement" : ( "^attributes^" : ( "xmlns:ns" : "http://qoretechnologies.com/test/namespace" ), "^value^" : "testing" ) );
-
-            assertEq(o, parse_xml_with_schema(make_xml(o), Xsd), "parse_xml_with_schema()");
-        }
 
         str = make_xml(mo);
         XmlDoc xd(str);
