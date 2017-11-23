@@ -115,6 +115,7 @@ class XmlTest inherits QUnit::Test {
         addTestCase("make_xmlWithHashOptsArgumentDateFormat", \make_xmlWithHashOptsArgumentDateFormatTestCase());
         addTestCase("XmlDocConstructorFromHashTestCase", \XmlDocConstructorFromHashTestCase());
         addTestCase("XmlDocConstructorFromStringTestCase", \XmlDocConstructorFromStringTestCase());
+        addTestCase("XmlDocValidateSchemaTestCase", \XmlDocValidateSchemaTestCase());
         set_return_value(main());
     }
 
@@ -697,6 +698,44 @@ class XmlTest inherits QUnit::Test {
             # string must be explicitly converted to matched encoding
             XmlDoc doc(convert_encoding(xml, "us-ascii"));
             assertEq(xml, doc.toString());
+        }
+    }
+
+    XmlDocValidateSchemaTestCase() {
+        string schema =
+            '<?xml version="1.0"?>'
+            '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">'
+            '<xs:element name="root" type="xs:string"/>'
+            '</xs:schema>';
+
+        # parse exception with proper desc
+        {
+            string invalidSchema =
+                '<?xml version="1.0"?>'
+                '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">'
+                '<xs:element/> <!-- missing name attr -->'
+                '</xs:schema>';
+            hash input = { "root": "string" };
+            XmlDoc doc(input);
+            assertThrows("XSD-SYNTAX-ERROR",
+                         "The attribute 'name' is required but missing.",
+                         \doc.validateSchema(), invalidSchema);
+        }
+
+        # valid document against schema
+        {
+            hash input = { "root": "string" };
+            XmlDoc doc(input);
+            # nothrow
+            doc.validateSchema(schema);
+        }
+
+        # invalid document against schema with proper desc
+        {
+            hash input = { "neroot": "string" };
+            XmlDoc doc(input);
+            assertThrows("XSD-ERROR", "Element 'neroot':",
+                         \doc.validateSchema(), schema);
         }
     }
 }

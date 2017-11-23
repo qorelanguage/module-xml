@@ -182,6 +182,49 @@ static void qore_xml_schema_warning_func(void* ignored, const char* msg, ...) {
 }
 #endif
 
+
+#ifdef HAVE_XMLTEXTREADERSETSCHEMA
+static void qore_xml_schema_valid_error_func(ExceptionSink* xsink,
+                                             const char* msg, ...) {
+   if (*xsink)
+      return;
+
+   va_list args;
+   QoreStringNode* desc = new QoreStringNode;
+
+   while (true) {
+      va_start(args, msg);
+      int rc = desc->vsprintf(msg, args);
+      va_end(args);
+      if (!rc)
+         break;
+   }
+   desc->chomp();
+
+   xsink->raiseException("XSD-ERROR", desc);
+}
+#endif
+
+#if defined(HAVE_XMLTEXTREADERRELAXNGSETSCHEMA) || defined(HAVE_XMLTEXTREADERSETSCHEMA)
+static void qore_xml_schema_valid_warning_func(ExceptionSink* xsink,
+                                               const char* msg, ...) {
+#ifdef DEBUG
+   va_list args;
+   QoreString buf;
+
+   while (true) {
+      va_start(args, msg);
+      int rc = buf.vsprintf(msg, args);
+      va_end(args);
+      if (!rc)
+         break;
+   }
+
+   printf("%s", buf.getBuffer());
+#endif
+}
+#endif
+
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
 QoreXmlSchemaContext::QoreXmlSchemaContext(const QoreString& xsd, ExceptionSink* xsink) : Utf8StringHelper(xsd, xsink) {
     if (*xsink)
@@ -209,6 +252,21 @@ QoreXmlSchemaContext::QoreXmlSchemaContext(const QoreString& xsd, ExceptionSink*
             xsink->raiseException("XSD-SYNTAX-ERROR", "XML schema provided for validation could not be parsed");
         return;
     }
+}
+
+xmlSchemaValidCtxtPtr QoreXmlSchemaContext::getPtr() {
+    if (!ctx) {
+        ctx = xmlSchemaNewValidCtxt(schema);
+        assert(ctx);
+        xmlSchemaSetValidErrors(
+            ctx,
+            reinterpret_cast<xmlSchemaValidityErrorFunc>(
+                qore_xml_schema_valid_error_func),
+            reinterpret_cast<xmlSchemaValidityErrorFunc>(
+                qore_xml_schema_valid_warning_func),
+            xsink);
+    }
+    return ctx;
 }
 #endif
 

@@ -72,13 +72,10 @@ public:
         return schema;
     }
 
-    DLLLOCAL xmlSchemaValidCtxtPtr getPtr() {
-        if (!ctx)
-            ctx = xmlSchemaNewValidCtxt(schema);
-        return ctx;
-    }
+    DLLLOCAL xmlSchemaValidCtxtPtr getPtr();
 
     DLLLOCAL virtual int validateDoc(xmlDocPtr doc) {
+        getPtr();
         return xmlSchemaValidateDoc(ctx, doc);
     }
 };

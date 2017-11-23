@@ -346,6 +346,8 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
       - @ref Qore::Xml::SaxIterator::constructor(string, string, __7_ hash)
     -fixed a bug where SAX parsing failed when the element being parsed had a namespace prefix (<a href="https://github.com/qorelanguage/qore/issues/2487">issue 2487</a>)
     - added a @ref Qore::Xml::make_xml(hash, hash) "make_xml(hash, hash)" variant that allows for more control over the XML output such as date serialization formats (<a href="https://github.com/qorelanguage/qore/issues/2492">issue 2492</a>)
+    - extended @ref Qore::Xml::XmlDoc::constructor() "XmlDoc::constructor" with extra optional hash that allows for more control over the XML output such as date serialization formats (<a href="https://github.com/qorelanguage/qore/issues/2492">issue 2492</a>)
+    - XSD-ERROR exception thrown during document validation against schema is now more verbose about what exactly failed
     - <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> module changes:
       - added the \c SalesforceSoapConnection class
     - <a href="../../SoapClient/html/index.html">SoapClient</a> module changes:
