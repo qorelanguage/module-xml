@@ -80,9 +80,7 @@ protected:
    }
 
 public:
-   DLLLOCAL QoreXmlSchemaValidContext(QoreXmlSchemaContext& c) : ptr(c.getValidCtxtPtr()) {
-      assert(ptr);
-   }
+   DLLLOCAL QoreXmlSchemaValidContext(QoreXmlSchemaContext& c, ExceptionSink* xsink);
    DLLLOCAL ~QoreXmlSchemaValidContext() {
       xmlSchemaFreeValidCtxt(ptr);
    }

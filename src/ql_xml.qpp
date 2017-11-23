@@ -182,6 +182,49 @@ static void qore_xml_schema_warning_func(ExceptionSink* xsink, const char* msg, 
 }
 #endif
 
+
+#ifdef HAVE_XMLTEXTREADERSETSCHEMA
+static void qore_xml_schema_valid_error_func(ExceptionSink* xsink,
+                                             const char* msg, ...) {
+   if (*xsink)
+      return;
+
+   va_list args;
+   QoreStringNode* desc = new QoreStringNode;
+
+   while (true) {
+      va_start(args, msg);
+      int rc = desc->vsprintf(msg, args);
+      va_end(args);
+      if (!rc)
+         break;
+   }
+   desc->chomp();
+
+   xsink->raiseException("XSD-ERROR", desc);
+}
+#endif
+
+#if defined(HAVE_XMLTEXTREADERRELAXNGSETSCHEMA) || defined(HAVE_XMLTEXTREADERSETSCHEMA)
+static void qore_xml_schema_valid_warning_func(ExceptionSink* xsink,
+                                               const char* msg, ...) {
+#ifdef DEBUG
+   va_list args;
+   QoreString buf;
+
+   while (true) {
+      va_start(args, msg);
+      int rc = buf.vsprintf(msg, args);
+      va_end(args);
+      if (!rc)
+         break;
+   }
+
+   printf("%s", buf.getBuffer());
+#endif
+}
+#endif
+
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
 QoreXmlSchemaContext::QoreXmlSchemaContext(const char* xsd, int size, ExceptionSink* xsink) : schema(0) {
    xmlSchemaParserCtxtPtr scp = xmlSchemaNewMemParserCtxt(xsd, size);
@@ -210,6 +253,20 @@ QoreXmlRelaxNGContext::QoreXmlRelaxNGContext(const char* rng, int size, Exceptio
    xmlRelaxNGFreeParserCtxt(rcp);
 }
 #endif
+
+QoreXmlSchemaValidContext::QoreXmlSchemaValidContext(QoreXmlSchemaContext &c,
+                                                     ExceptionSink *xsink) :
+    ptr(c.getValidCtxtPtr())
+{
+    assert(ptr);
+    xmlSchemaSetValidErrors(
+        ptr,
+        reinterpret_cast<xmlSchemaValidityErrorFunc>(
+            qore_xml_schema_valid_error_func),
+        reinterpret_cast<xmlSchemaValidityErrorFunc>(
+            qore_xml_schema_valid_warning_func),
+        xsink);
+}
 
 static int concat_simple_value(ExceptionSink* xsink, QoreString &str, const AbstractQoreNode* n, const MakeXmlOpts &opts) {
    //printd(5, "concat_simple_value() n: %p (%s) %s\n", n, n->getTypeName(), n->getType() == NT_STRING ? ((QoreStringNode*)n)->getBuffer() : "unknown");
