@@ -65,7 +65,7 @@ int QoreXmlDoc::validateSchema(const char *xsd, int size, ExceptionSink *xsink) 
       return -1;
    }
 
-   QoreXmlSchemaValidContext vcp(schema);
+   QoreXmlSchemaValidContext vcp(schema, xsink);
    int rc = vcp.validateDoc(ptr);
 
    if (!rc)
