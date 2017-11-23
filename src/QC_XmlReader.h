@@ -83,11 +83,11 @@ public:
 
    DLLLOCAL ~QoreXmlReaderData() {
       if (doc) {
-	 assert(!xmlstr);
-	 doc->deref();
+         assert(!xmlstr);
+         doc->deref();
       }
       else if (xmlstr)
-	 xmlstr->deref();
+         xmlstr->deref();
    }
 };
 

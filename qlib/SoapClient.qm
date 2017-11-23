@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file SoapClient.qm SOAP Client module implementation based on the WSDL classes
 
-/*  SoapClient.qm Copyright (C) 2012 - 2016 Qore Technologies, s.r.o.
+/*  SoapClient.qm Copyright (C) 2012 - 2017 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.8.12
+%requires qore >= 0.8.13
 
 # requires XML functionality
 %requires(reexport) xml
@@ -456,7 +456,7 @@ public namespace SoapClient {
             if (url_path) {
                 msg.path = rtrim(url_path, "/") + msg.path;
             }
-            msglog(('reason': 'request', 'method': msg.method, 'path': msg.path, 'header': hdr, 'content-type': msg."content-type", 'accept': msg.accept, 'body': msg.body));
+            msglog(('reason': 'request', 'method': msg.method, 'path': msg.path, 'header': hdr, 'content-type': msg."content-type" ?? msg.hdr."Content-Type" ?? msg.header."Content-Type", 'accept': msg.accept ?? msg.hdr.Accept ?? msg.header.Accept, 'body': msg.body));
             # apply content encoding here
             data body = msg.body ?? "";
             if (seh.ce && body.size() > CompressionThreshold) {
@@ -649,8 +649,8 @@ hash h = soap.getDefaultHeaders();
         }
         /** Method is to be overriden to implement custom logging HTTP message sent and received from this object.
             @par msg information about message to be logged. There are keys 'reason' with value 'request', 'response' or 'error',
-                 'header' (HTTP header, in casew ) and 'body' containing XML data in readable form, i.e. uncompressed and in case of
-                 multipart message only the related part is passed. Method is executed before message is sent or after
+                 'header' (HTTP headers, as received from the remote) and 'body' containing XML data in readable form, i.e. uncompressed, and, in case of
+                 a multipart message, only the related part is passed. Method is executed before message is sent or after
                  has been received. Do not allow exception raising in method not to interrupt client function.
 
             @par Example:

@@ -338,6 +338,7 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     - added missing support for DTD validation (<a href="https://github.com/qorelanguage/qore/issues/2267">issue 2267</a>)
       - added parse_xml_with_dtd()
       - added @ref Qore::Xml::XmlDoc::validateDtd() "XmlDoc::validateDtd()
+    - added a @ref Qore::Xml::make_xml(hash, hash) "make_xml(hash, hash)" variant that allows for more control over the XML output such as date serialization formats (<a href="https://github.com/qorelanguage/qore/issues/2492">issue 2492</a>)
     - <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> module changes:
       - added the \c SalesforceSoapConnection class
     - <a href="../../SoapClient/html/index.html">SoapClient</a> module changes:
@@ -433,42 +434,42 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     - user modules moved to top-level qore module directory from version-specific module directory since they are valid for multiple versions of qore
     - implemented the following non-camel-case functions as replacements for old camel-case functions (the following camel-case function names are now deprecated):
       - make_xml(): replaced:
-      	 - makeXMLString()
-	 - makeFormattedXMLString()
+         - makeXMLString()
+         - makeFormattedXMLString()
       - make_xml_fragment(): replaced:
         - makeXMLFragment()
-	- makeFormattedXMLFragment()
+        - makeFormattedXMLFragment()
       - make_xmlrpc_call(): replaced:
         - makeFormattedXMLRPCCallString()
-	- makeFormattedXMLRPCCallStringArgs()
-	- makeFormattedXMLRPCCallStringArgsWithEncoding()
-	- makeFormattedXMLRPCCallStringWithEncoding()
-	- makeXMLRPCCallString()
-	- makeXMLRPCCallStringArgs()
-	- makeXMLRPCCallStringArgsWithEncoding()
-	- makeXMLRPCCallStringWithEncoding()
+        - makeFormattedXMLRPCCallStringArgs()
+        - makeFormattedXMLRPCCallStringArgsWithEncoding()
+        - makeFormattedXMLRPCCallStringWithEncoding()
+        - makeXMLRPCCallString()
+        - makeXMLRPCCallStringArgs()
+        - makeXMLRPCCallStringArgsWithEncoding()
+        - makeXMLRPCCallStringWithEncoding()
       - make_xmlrpc_fault(): replaced:
         - makeFormattedXMLRPCFaultResponseString()
-	- makeFormattedXMLRPCFaultResponseStringWithEncoding()
-	- makeXMLRPCFaultResponseString()
-	- makeXMLRPCFaultResponseStringWithEncoding()
+        - makeFormattedXMLRPCFaultResponseStringWithEncoding()
+        - makeXMLRPCFaultResponseString()
+        - makeXMLRPCFaultResponseStringWithEncoding()
       - make_xmlrpc_response(): replaced:
         - makeFormattedXMLRPCResponseString()
-	- makeFormattedXMLRPCResponseStringWithEncoding()
-	- makeXMLRPCResponseString()
-	- makeXMLRPCResponseStringWithEncoding()
+        - makeFormattedXMLRPCResponseStringWithEncoding()
+        - makeXMLRPCResponseString()
+        - makeXMLRPCResponseStringWithEncoding()
       - make_xmlrpc_value(): replaced:
         - makeFormattedXMLRPCValueString()
-	- makeXMLRPCValueString()
+        - makeXMLRPCValueString()
       - parse_xml(): replaced:
         - parseXML()
-	- parseXMLAsData()
+        - parseXMLAsData()
       - parse_xml_with_relaxng(): replaced:
         - parseXMLWithRelaxNG()
-	- parseXMLAsDataWithRelaxNG()
+        - parseXMLAsDataWithRelaxNG()
       - parse_xml_with_schema(): replaced:
         - parseXMLWithSchema()
-	- parseXMLAsDataWithSchema()
+        - parseXMLAsDataWithSchema()
       - parse_xmlrpc_call(): replaced parseXMLRPCCall()
       - parse_xmlrpc_response(): replaced parseXMLRPCResponse()
       - parse_xmlrpc_value(): replaced: parseXMLRPCValue()

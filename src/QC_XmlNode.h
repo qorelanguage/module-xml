@@ -40,7 +40,7 @@ private:
 public:
    DLLLOCAL QoreXmlNodeData(xmlNodePtr n_ptr, QoreXmlDocData *n_doc = 0, bool d = false) : ptr(n_ptr), doc(n_doc), del(d) {
       if (doc)
-	 doc->ref();
+         doc->ref();
    }
    DLLLOCAL QoreXmlNodeData(const QoreXmlNodeData &orig) {
       ptr = xmlCopyNode(orig.ptr, 1);
@@ -49,10 +49,10 @@ public:
    }
    DLLLOCAL ~QoreXmlNodeData() {
       if (ptr) {
-	 if (del)
-	    xmlFreeNode(ptr);
-	 if (doc)
-	    doc->deref();
+         if (del)
+            xmlFreeNode(ptr);
+         if (doc)
+            doc->deref();
       }
    }
    DLLLOCAL operator bool() const {
@@ -66,19 +66,19 @@ public:
       xmlNodePtr cur = 0;
 
       switch (ptr->type) {
-	 case XML_ELEMENT_NODE:
-	 case XML_ENTITY_NODE:
-	 case XML_DOCUMENT_NODE:
-	 case XML_HTML_DOCUMENT_NODE:
+         case XML_ELEMENT_NODE:
+         case XML_ENTITY_NODE:
+         case XML_DOCUMENT_NODE:
+         case XML_HTML_DOCUMENT_NODE:
             cur = ptr->children;
             break;
-	 default:
+         default:
             return 0;
       }
       while (cur) {
-	 if (cur->type == XML_ELEMENT_NODE)
+         if (cur->type == XML_ELEMENT_NODE)
             ++ret;
-	 cur = cur->next;
+         cur = cur->next;
       }
       return ret;
 #endif
@@ -90,19 +90,19 @@ public:
       xmlNodePtr cur = 0;
 
       switch (ptr->type) {
-	 case XML_ELEMENT_NODE:
-	 case XML_ENTITY_NODE:
-	 case XML_DOCUMENT_NODE:
-	 case XML_HTML_DOCUMENT_NODE:
+         case XML_ELEMENT_NODE:
+         case XML_ENTITY_NODE:
+         case XML_DOCUMENT_NODE:
+         case XML_HTML_DOCUMENT_NODE:
             cur = ptr->children;
             break;
-	 default:
+         default:
             return 0;
       }
       while (cur) {
-	 if (cur->type == XML_ELEMENT_NODE)
+         if (cur->type == XML_ELEMENT_NODE)
             return doNode(cur, doc);
-	 cur = cur->next;
+         cur = cur->next;
       }
       return 0;
 #endif
@@ -121,19 +121,19 @@ public:
       xmlNodePtr cur = 0;
 
       switch (ptr->type) {
-	 case XML_ELEMENT_NODE:
-	 case XML_ENTITY_NODE:
-	 case XML_DOCUMENT_NODE:
-	 case XML_HTML_DOCUMENT_NODE:
+         case XML_ELEMENT_NODE:
+         case XML_ENTITY_NODE:
+         case XML_DOCUMENT_NODE:
+         case XML_HTML_DOCUMENT_NODE:
             cur = ptr->last;
             break;
-	 default:
+         default:
             return 0;
       }
       while (cur) {
-	 if (cur->type == XML_ELEMENT_NODE)
+         if (cur->type == XML_ELEMENT_NODE)
             return doNode(cur, doc);
-	 cur = cur->prev;
+         cur = cur->prev;
       }
       return 0;
 #endif
@@ -145,25 +145,25 @@ public:
       xmlNodePtr cur = ptr;
 
       switch (cur->type) {
-	 case XML_ELEMENT_NODE:
-	 case XML_TEXT_NODE:
-	 case XML_CDATA_SECTION_NODE:
-	 case XML_ENTITY_REF_NODE:
-	 case XML_ENTITY_NODE:
-	 case XML_PI_NODE:
-	 case XML_COMMENT_NODE:
-	 case XML_DTD_NODE:
-	 case XML_XINCLUDE_START:
-	 case XML_XINCLUDE_END:
-	    cur = cur->next;
+         case XML_ELEMENT_NODE:
+         case XML_TEXT_NODE:
+         case XML_CDATA_SECTION_NODE:
+         case XML_ENTITY_REF_NODE:
+         case XML_ENTITY_NODE:
+         case XML_PI_NODE:
+         case XML_COMMENT_NODE:
+         case XML_DTD_NODE:
+         case XML_XINCLUDE_START:
+         case XML_XINCLUDE_END:
+            cur = cur->next;
             break;
-	 default:
+         default:
             return 0;
       }
       while (cur) {
-	 if (cur->type == XML_ELEMENT_NODE)
+         if (cur->type == XML_ELEMENT_NODE)
             return doNode(cur, doc);
-	 cur = cur->next;
+         cur = cur->next;
       }
       return 0;
 #endif
@@ -175,25 +175,25 @@ public:
       xmlNodePtr cur = ptr;
 
       switch (cur->type) {
-	 case XML_ELEMENT_NODE:
-	 case XML_TEXT_NODE:
-	 case XML_CDATA_SECTION_NODE:
-	 case XML_ENTITY_REF_NODE:
-	 case XML_ENTITY_NODE:
-	 case XML_PI_NODE:
-	 case XML_COMMENT_NODE:
-	 case XML_DTD_NODE:
-	 case XML_XINCLUDE_START:
-	 case XML_XINCLUDE_END:
-	    cur = cur->prev;
+         case XML_ELEMENT_NODE:
+         case XML_TEXT_NODE:
+         case XML_CDATA_SECTION_NODE:
+         case XML_ENTITY_REF_NODE:
+         case XML_ENTITY_NODE:
+         case XML_PI_NODE:
+         case XML_COMMENT_NODE:
+         case XML_DTD_NODE:
+         case XML_XINCLUDE_START:
+         case XML_XINCLUDE_END:
+            cur = cur->prev;
             break;
-	 default:
+         default:
             return 0;
       }
       while (cur) {
-	 if (cur->type == XML_ELEMENT_NODE)
+         if (cur->type == XML_ELEMENT_NODE)
             return doNode(cur, doc);
-	 cur = cur->prev;
+         cur = cur->prev;
       }
       return 0;
 #endif
@@ -201,8 +201,8 @@ public:
    DLLLOCAL QoreStringNode *getPath(ExceptionSink *xsink) {
       xmlChar *np = xmlGetNodePath(ptr);
       if (!np) {
-	 xsink->raiseException("XMLNODE-GET-PATH-ERROR", "an error occured retrieving the node's path");
-	 return 0;
+         xsink->raiseException("XMLNODE-GET-PATH-ERROR", "an error occured retrieving the node's path");
+         return 0;
       }
       return doString(np);
    }
@@ -244,7 +244,7 @@ public:
    }
    DLLLOCAL QoreStringNode *getXML() {
       if (!doc)
-	 return 0;
+         return 0;
       xmlBufferPtr buf = xmlBufferCreate();
       assert(buf);
       int rc = xmlNodeDump(buf, doc->getDocPtr(), ptr, 0, 0);
