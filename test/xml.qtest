@@ -2,7 +2,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
 # make sure we have the right version of qore
-%requires qore >= 0.8.12
+%requires qore >= 0.8.13
 
 %new-style
 %require-types

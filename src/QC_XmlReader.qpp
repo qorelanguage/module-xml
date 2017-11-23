@@ -57,21 +57,21 @@ XmlReader::constructor(XmlDoc[QoreXmlDocData] doc) {
     @throw ENCODING-CONVERSION-ERROR the string could not be converted to UTF-8 (usually due to an encoding error in the source string)
 */
 XmlReader::constructor(string xml) {
-   // FIXME: there is no TempNodeEncodingHelper class :(
-   QoreStringNode* xarg;
-   if (xml->getEncoding() == QCS_UTF8)
-      xarg = xml->stringRefSelf();
-   else {
-      xarg = xml->convertEncoding(QCS_UTF8, xsink);
-      if (!xarg)
-         return;
-   }
+    // FIXME: there is no TempNodeEncodingHelper class :(
+    QoreStringNode* xarg;
+    if (xml->getEncoding() == QCS_UTF8)
+        xarg = xml->stringRefSelf();
+    else {
+        xarg = xml->convertEncoding(QCS_UTF8, xsink);
+        if (!xarg)
+            return;
+    }
 
-   SimpleRefHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(xarg, QORE_XML_PARSER_OPTIONS, nullptr, xsink));
-   if (*xsink)
-      return;
+    SimpleRefHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(xarg, QORE_XML_PARSER_OPTIONS, nullptr, xsink));
+    if (*xsink)
+        return;
 
-   self->setPrivate(CID_XMLREADER, xr.release());
+    self->setPrivate(CID_XMLREADER, xr.release());
 }
 
 //! creates a new XmlReader object from the input stream
@@ -85,6 +85,7 @@ XmlReader::constructor(string xml) {
     XmlReader xr(is);
     @endcode
 
+    @throw XML-READER-OPTION-ERROR error in option hash
     @throw XML-READER-ERROR libxml2 returned an error code when creating the XML reader object
 
     @note the \c xml_parse_options option is accepted but ignored in this method; XML parsing options can be used in @ref XmlReader::toQore() and @ref XmlReader::toQoreData()
@@ -92,12 +93,12 @@ XmlReader::constructor(string xml) {
     @since xml 1.4
 */
 XmlReader::constructor(Qore::InputStream[InputStream] is, *hash opts) {
-    const char* encoding = QoreXmlReaderData::processOptionsGetEncoding(opts, xsink);
+    const char* encoding = QoreXmlReaderData::processOptionsGetEncoding(opts, "XML-READER-OPTION-ERROR", xsink);
     if (*xsink)
         return;
     ReferenceHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(is, encoding, QoreXmlReaderData::getOptions(opts), opts, xsink), xsink);
     if (*xsink)
-       return;
+        return;
     self->setPrivate(CID_XMLREADER, xr.release());
     self->setValue("is", static_cast<QoreObject*>(obj_is->refSelf()), xsink);
 }
@@ -109,9 +110,9 @@ XmlReader::constructor(Qore::InputStream[InputStream] is, *hash opts) {
     @code XmlReader xrcopy = xr.copy(); @endcode
 */
 XmlReader::copy() {
-   ReferenceHolder<QoreXmlReaderData> doc(xr->copy(xsink), xsink);
-   if (!*xsink)
-      self->setPrivate(CID_XMLREADER, doc.release());
+    ReferenceHolder<QoreXmlReaderData> doc(xr->copy(xsink), xsink);
+    if (!*xsink)
+        self->setPrivate(CID_XMLREADER, doc.release());
 }
 
 //! Moves the position of the current instance to the next node in the stream

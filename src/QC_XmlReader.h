@@ -101,21 +101,15 @@ public:
       return xml_parse_options;
    }
 
-    DLLLOCAL static const char* processOptionsGetEncoding(const QoreHashNode* opts, ExceptionSink* xsink) {
+    DLLLOCAL static const char* processOptionsGetEncoding(const QoreHashNode* opts, const char* ename, ExceptionSink* xsink) {
         const char* encoding = nullptr;
         if (opts) {
-            ConstHashIterator i(opts);
-            while (i.next()) {
-                const char* key = i.getKey();
-                const AbstractQoreNode* n = i.getValue();
-                if (!strcmp(key, "encoding")) {
-                    if (get_node_type(n) != NT_STRING) {
-                        xsink->raiseException("FILESAXITERATOR-OPTION-ERROR", "expecting type 'string' with option 'encoding'; got type '%s' instead", get_type_name(n));
-                        return nullptr;
-                    }
-                    encoding = static_cast<const QoreStringNode*>(n)->c_str();
-                }
+            QoreValue v = opts->getKeyValue("encoding");
+            if (v.getType() != NT_STRING) {
+                xsink->raiseException(ename, "expecting type 'string' with option 'encoding'; got type '%s' instead", get_type_name(n));
+                return nullptr;
             }
+            encoding = n.get<const QoreStringNode>()->c_str();
         }
         return encoding;
     }

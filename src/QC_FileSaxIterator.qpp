@@ -71,7 +71,7 @@ map printf("record %d: %y\n", $#, $1), i;
     @since xml 1.4
 */
 FileSaxIterator::constructor(string path, string element_name, hash opts) [dom=FILESYSTEM] {
-    const char* encoding = QoreSaxIterator::processOptionsGetEncoding(opts, xsink);
+    const char* encoding = QoreSaxIterator::processOptionsGetEncoding(opts, "FILESAXITERATOR-OPTION-ERROR", xsink);
     if (*xsink)
         return;
     ReferenceHolder<QoreSaxIterator> holder(new QoreSaxIterator(xsink, path->getBuffer(), element_name->getBuffer(), encoding, opts), xsink);

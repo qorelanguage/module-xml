@@ -46,7 +46,7 @@ map printf("record %d: %y\n", $#, $1), i;
 
     @throw XMLDOC-CONSTRUCTOR-ERROR error parsing XML string
 
-    @since xml 1.4
+    @since xml 1.4 added support for the \a opts argument
 */
 SaxIterator::constructor(string xml, string element_name, *hash opts) {
    ReferenceHolder<QoreSaxIterator> holder(new QoreSaxIterator(xml->stringRefSelf(), element_name->c_str(), opts, xsink), xsink);
