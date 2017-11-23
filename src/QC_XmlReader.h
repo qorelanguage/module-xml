@@ -104,12 +104,15 @@ public:
     DLLLOCAL static const char* processOptionsGetEncoding(const QoreHashNode* opts, const char* ename, ExceptionSink* xsink) {
         const char* encoding = nullptr;
         if (opts) {
-            QoreValue v = opts->getKeyValue("encoding");
-            if (v.getType() != NT_STRING) {
-                xsink->raiseException(ename, "expecting type 'string' with option 'encoding'; got type '%s' instead", v.getTypeName());
-                return nullptr;
+            bool found = false;
+            QoreValue v = opts->getKeyValueExistence("encoding", found);
+            if (found) {
+                if (v.getType() != NT_STRING) {
+                    xsink->raiseException(ename, "expecting type 'string' with option 'encoding'; got type '%s' instead", v.getTypeName());
+                    return nullptr;
+                }
+                encoding = v.get<const QoreStringNode>()->c_str();
             }
-            encoding = v.get<const QoreStringNode>()->c_str();
         }
         return encoding;
     }
