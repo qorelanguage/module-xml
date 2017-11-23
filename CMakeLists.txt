@@ -90,6 +90,10 @@ qore_wrap_qpp_value(QPP_SOURCES ${QPP_SRC})
 
 SET (module_name "xml")
 
+set(QORE_DOX_TMPL_SRC
+  docs/mainpage.doxygen.tmpl
+)
+
 add_library(${module_name} SHARED ${QPP_SOURCES} ${CPP_SRC})
 
 qore_binary_module(${module_name} "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}" ${LIBXML2_LIBRARIES})
@@ -99,3 +103,10 @@ install(PROGRAMS ${SCRIPTS} DESTINATION bin)
 qore_dist("${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 
 qore_config_info()
+
+FIND_PACKAGE(Doxygen)
+if (DOXYGEN_FOUND)
+  qore_wrap_dox(QORE_DOX_SRC ${QORE_DOX_TMPL_SRC})
+  add_custom_target(QORE_MOD_DOX_FILES DEPENDS ${QORE_DOX_SRC})
+  add_dependencies(docs QORE_MOD_DOX_FILES)
+endif()
