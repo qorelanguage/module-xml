@@ -5,7 +5,7 @@
 
   Qore Programming Language
 
-  Copyright 2003 - 2016 Qore Technologies, s.r.o.
+  Copyright 2003 - 2017 Qore Technologies, s.r.o.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -57,21 +57,50 @@ XmlReader::constructor(XmlDoc[QoreXmlDocData] doc) {
     @throw ENCODING-CONVERSION-ERROR the string could not be converted to UTF-8 (usually due to an encoding error in the source string)
 */
 XmlReader::constructor(string xml) {
-   // FIXME: there is no TempNodeEncodingHelper class :(
-   QoreStringNode* xarg;
-   if (xml->getEncoding() == QCS_UTF8)
-      xarg = xml->stringRefSelf();
-   else {
-      xarg = xml->convertEncoding(QCS_UTF8, xsink);
-      if (!xarg)
-         return;
-   }
+    // FIXME: there is no TempNodeEncodingHelper class :(
+    QoreStringNode* xarg;
+    if (xml->getEncoding() == QCS_UTF8)
+        xarg = xml->stringRefSelf();
+    else {
+        xarg = xml->convertEncoding(QCS_UTF8, xsink);
+        if (!xarg)
+            return;
+    }
 
-   SimpleRefHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(xarg, xsink));
-   if (*xsink)
-      return;
+    SimpleRefHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(xarg, QORE_XML_PARSER_OPTIONS, nullptr, xsink));
+    if (*xsink)
+        return;
 
-   self->setPrivate(CID_XMLREADER, xr.release());
+    self->setPrivate(CID_XMLREADER, xr.release());
+}
+
+//! creates a new XmlReader object from the input stream
+/** @param is the input stream
+    @param opts the following options are accepted:
+    - \c encoding: (string) the file's character encoding
+    - \c xsd: (string) an XSD string for schema validation while parsing
+
+    @par Example:
+    @code
+    XmlReader xr(is);
+    @endcode
+
+    @throw XML-READER-OPTION-ERROR error in option hash
+    @throw XML-READER-ERROR libxml2 returned an error code when creating the XML reader object
+
+    @note the \c xml_parse_options option is accepted but ignored in this method; XML parsing options can be used in @ref XmlReader::toQore() and @ref XmlReader::toQoreData()
+
+    @since xml 1.4
+*/
+XmlReader::constructor(Qore::InputStream[InputStream] is, *hash opts) {
+    const char* encoding = QoreXmlReaderData::processOptionsGetEncoding(opts, "XML-READER-OPTION-ERROR", xsink);
+    if (*xsink)
+        return;
+    ReferenceHolder<QoreXmlReaderData> xr(new QoreXmlReaderData(is, encoding, QoreXmlReaderData::getOptions(opts), opts, xsink), xsink);
+    if (*xsink)
+        return;
+    self->setPrivate(CID_XMLREADER, xr.release());
+    self->setValue("is", static_cast<QoreObject*>(obj_is->refSelf()), xsink);
 }
 
 //! Creates an independent copy of the XmlReader object
@@ -81,9 +110,9 @@ XmlReader::constructor(string xml) {
     @code XmlReader xrcopy = xr.copy(); @endcode
 */
 XmlReader::copy() {
-   ReferenceHolder<QoreXmlReaderData> doc(xr->copy(xsink), xsink);
-   if (!*xsink)
-      self->setPrivate(CID_XMLREADER, doc.release());
+    ReferenceHolder<QoreXmlReaderData> doc(xr->copy(xsink), xsink);
+    if (!*xsink)
+        self->setPrivate(CID_XMLREADER, doc.release());
 }
 
 //! Moves the position of the current instance to the next node in the stream
@@ -100,7 +129,7 @@ XmlReader::copy() {
     @see XmlReader::readSkipWhitespace()
 */
 bool XmlReader::read() [flags=RET_VALUE_ONLY] {
-   return xr->read(xsink);
+    return (bool)xr->read(xsink);
 }
 
 //! the position of the current instance to the next node in the stream, skipping any whitespace nodes
@@ -117,7 +146,7 @@ bool XmlReader::read() [flags=RET_VALUE_ONLY] {
     @see XmlReader::read()
 */
 bool XmlReader::readSkipWhitespace() [flags=RET_VALUE_ONLY] {
-   return xr->readSkipWhitespace(xsink) ? false : true;
+   return (bool)xr->readSkipWhitespace(xsink);
 }
 
 //! Returns the node type of the current node
@@ -546,7 +575,7 @@ bool XmlReader::next() {
     @see XmlReader::getOuterXml()
  */
 *string XmlReader::getInnerXml() [flags=CONSTANT] {
-   return xr->getInnerXml();
+   return xr->getInnerXml(xsink);
 }
 
 //! Return an XML string of the contents of the current node and all child nodes and markup, or \c NOTHING if the current node is neither an element nor an attribute or has no child nodes
@@ -558,7 +587,7 @@ bool XmlReader::next() {
     @see XmlReader::getInnerXml()
  */
 *string XmlReader::getOuterXml() [flags=CONSTANT] {
-   return xr->getOuterXml();
+   return xr->getOuterXml(xsink);
 }
 
 //! Set a RelaxNG schema for schema validation while parsing the XML document

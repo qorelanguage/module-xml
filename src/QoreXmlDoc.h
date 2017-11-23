@@ -102,7 +102,7 @@ public:
    }
 
    DLLLOCAL int validateRelaxNG(const char *rng, int size, ExceptionSink *xsink);
-   DLLLOCAL int validateSchema(const char *xsd, int size, ExceptionSink *xsink);
+   DLLLOCAL int validateSchema(const QoreString& xsd, ExceptionSink *xsink);
    DLLLOCAL int validateDtd(const QoreString& dtd, ExceptionSink* xsink);
 };
 
