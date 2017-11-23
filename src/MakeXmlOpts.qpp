@@ -23,7 +23,7 @@
 
 #include "MakeXmlOpts.h"
 
-/** @page xml_generation_opts XML Generation options
+/** @page xml_generation_opts XML Generation Options
  * Formatting and other serialization settings that may be used when generating
  * xml (either with @ref Qore::Xml::make_xml(hash, hash) or using
  * @ref Qore::Xml::XmlDoc::constructor).
