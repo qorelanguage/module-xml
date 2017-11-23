@@ -170,7 +170,7 @@ class SoapClientTest inherits QUnit::Test {
     }
     soapClientTest() {
         #printf("url: %y\n", url);
-        sc= new TestSoapClient(("wsdl": WsdlUrl, "port": "SoapPort", "url": url));
+        sc = new TestSoapClient(("wsdl": WsdlUrl, "port": "SoapPort", "url": url));
 
         cleanMsgLog();
 

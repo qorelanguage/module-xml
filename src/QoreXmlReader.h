@@ -45,14 +45,14 @@ protected:
 
    static void qore_xml_error_func(QoreXmlReader* xr, const char* msg, xmlParserSeverities severity, xmlTextReaderLocatorPtr locator) {
       if (severity == XML_PARSER_SEVERITY_VALIDITY_WARNING
-	  || severity == XML_PARSER_SEVERITY_WARNING) {
-	 printd(1, "XML parser warning: %s", msg);
-	 return;
+          || severity == XML_PARSER_SEVERITY_WARNING) {
+         printd(1, "XML parser warning: %s", msg);
+         return;
       }
       if (!xr->xs)
-	 return;
+         return;
       if (*(xr->xs))
-	 return;
+         return;
       QoreStringNode* desc = new QoreStringNode(msg);
       desc->chomp();
       xr->xs->raiseException("PARSE-XML-EXCEPTION", desc);
@@ -96,8 +96,8 @@ protected:
       assert(xml->getEncoding() == QCS_UTF8);
       reader = xmlReaderForDoc((xmlChar*)xml->getBuffer(), 0, 0, options);
       if (!reader) {
-	 xsink->raiseException("XML-READER-ERROR", "could not create XML reader");
-	 return;
+         xsink->raiseException("XML-READER-ERROR", "could not create XML reader");
+         return;
       }
 
       xmlTextReaderSetErrorHandler(reader, (xmlTextReaderErrorFunc)qore_xml_error_func, this);
@@ -107,8 +107,8 @@ protected:
       xml = 0;
       reader = xmlReaderWalker(doc);
       if (!reader) {
-	 xsink->raiseException("XML-READER-ERROR", "could not create XML reader");
-	 return;
+         xsink->raiseException("XML-READER-ERROR", "could not create XML reader");
+         return;
       }
       // the following call causes a crash - I guess the document has already been parsed anyway
       //xmlTextReaderSetErrorHandler(reader, (xmlTextReaderErrorFunc)qore_xml_error_func, xsink);
@@ -125,8 +125,8 @@ protected:
       reader = xmlReaderForFd(fd, 0, encoding, options);
       if (!reader) {
          close(fd);
-	 xsink->raiseException("XML-READER-ERROR", "could not create XML reader");
-	 return;
+         xsink->raiseException("XML-READER-ERROR", "could not create XML reader");
+         return;
       }
 
       xmlTextReaderSetErrorHandler(reader, (xmlTextReaderErrorFunc)qore_xml_error_func, this);
@@ -134,7 +134,7 @@ protected:
 
    DLLLOCAL int do_int_rv(int rc, ExceptionSink* xsink) {
       if (rc == -1 && !*xsink)
-	 xsink->raiseExceptionArg("PARSE-XML-EXCEPTION", xml ? new QoreStringNode(*xml) : 0, "error parsing XML string");
+         xsink->raiseExceptionArg("PARSE-XML-EXCEPTION", xml ? new QoreStringNode(*xml) : 0, "error parsing XML string");
       return rc;
    }
 
@@ -163,7 +163,7 @@ protected:
 
    DLLLOCAL void reset(ExceptionSink* xsink, const QoreString* n_xml, int options, xmlDocPtr doc) {
       if (reader) {
-	 xmlFreeTextReader(reader);
+         xmlFreeTextReader(reader);
          reader = 0;
       }
       init(xsink, n_xml, options, doc);
@@ -171,7 +171,7 @@ protected:
 
    DLLLOCAL void reset(ExceptionSink* xsink, const char* fn, const char* enc, int options) {
       if (reader) {
-	 xmlFreeTextReader(reader);
+         xmlFreeTextReader(reader);
          reader = 0;
       }
       if (fd >= 0)
@@ -203,7 +203,7 @@ public:
 
    DLLLOCAL ~QoreXmlReader() {
       if (reader)
-	 xmlFreeTextReader(reader);
+         xmlFreeTextReader(reader);
       if (fd >= 0)
          close(fd);
    }
@@ -216,8 +216,8 @@ public:
    DLLLOCAL int read(ExceptionSink* xsink) {
       int rc = read();
       if (rc == -1) {
-	 if (!*xsink)
-	    xsink->raiseExceptionArg("PARSE-XML-EXCEPTION", xml ? new QoreStringNode(*xml) : 0, "cannot parse XML string");
+         if (!*xsink)
+            xsink->raiseExceptionArg("PARSE-XML-EXCEPTION", xml ? new QoreStringNode(*xml) : 0, "cannot parse XML string");
       }
       return rc;
    }
@@ -225,8 +225,8 @@ public:
    DLLLOCAL int read(const char* info, ExceptionSink* xsink) {
       int rc = read();
       if (rc == -1) {
-	 if (!*xsink)
-	    xsink->raiseExceptionArg("PARSE-XML-EXCEPTION", xml ? new QoreStringNode(*xml) : 0, "cannot parse XML string: %s", info);
+         if (!*xsink)
+            xsink->raiseExceptionArg("PARSE-XML-EXCEPTION", xml ? new QoreStringNode(*xml) : 0, "cannot parse XML string: %s", info);
       }
       return rc;
    }
@@ -238,12 +238,12 @@ public:
    DLLLOCAL int readSkipWhitespace() {
       int rc;
       while (true) {
-	 rc = read();
-	 if (rc != 1)
-	    break;
- 	 int nt = xmlTextReaderNodeType(reader);
-	 if (nt != XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
-	    break;
+         rc = read();
+         if (rc != 1)
+            break;
+          int nt = xmlTextReaderNodeType(reader);
+         if (nt != XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            break;
       }
       return rc;
    }
@@ -251,12 +251,12 @@ public:
    DLLLOCAL int readSkipWhitespace(ExceptionSink* xsink) {
       int rc;
       while (true) {
-	 rc = read(xsink);
-	 if (rc != 1)
-	    break;
- 	 int nt = xmlTextReaderNodeType(reader);
-	 if (nt != XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
-	    break;
+         rc = read(xsink);
+         if (rc != 1)
+            break;
+          int nt = xmlTextReaderNodeType(reader);
+         if (nt != XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            break;
       }
       return rc;
    }
@@ -264,12 +264,12 @@ public:
    DLLLOCAL int readSkipWhitespace(const char* info, ExceptionSink* xsink) {
       int rc;
       while (true) {
-	 rc = read(info, xsink);
-	 if (rc != 1)
-	    break;
- 	 int nt = xmlTextReaderNodeType(reader);
-	 if (nt != XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
-	    break;
+         rc = read(info, xsink);
+         if (rc != 1)
+            break;
+          int nt = xmlTextReaderNodeType(reader);
+         if (nt != XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            break;
       }
       return rc;
    }
@@ -282,13 +282,13 @@ public:
    DLLLOCAL int nodeTypeSkipWhitespace() {
       int nt;
       while (true) {
-	 nt = xmlTextReaderNodeType(reader);
-	 if (nt != XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
-	    break;
+         nt = xmlTextReaderNodeType(reader);
+         if (nt != XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            break;
 
-	 // get next element
-	 if (read() != 1)
-	    return -1;
+         // get next element
+         if (read() != 1)
+            return -1;
       }
       return nt;
    }
@@ -327,7 +327,7 @@ public:
 #else
       xmlNodePtr node = xmlTextReaderCurrentNode(reader);
       if (!node)
-	 return false;
+         return false;
 
       return node->type == XML_NAMESPACE_DECL ? true : false;
 #endif
@@ -347,7 +347,7 @@ public:
 
    DLLLOCAL QoreStringNode* getValue(const QoreEncoding* id, ExceptionSink* xsink) {
       if (id == QCS_UTF8)
-	 return new QoreStringNode(constValue(), QCS_UTF8);
+         return new QoreStringNode(constValue(), QCS_UTF8);
 
       return QoreStringNode::createAndConvertEncoding(constValue(), QCS_UTF8, id, xsink);
    }
@@ -453,7 +453,7 @@ public:
    DLLLOCAL int next(ExceptionSink* xsink) {
       int rc = xmlTextReaderNext(reader);
       if (rc == -1 && !*xsink)
-	 xsink->raiseException("PARSE-XML-EXCEPTION", "error parsing XML string");
+         xsink->raiseException("PARSE-XML-EXCEPTION", "error parsing XML string");
       return rc;
    }
 
@@ -475,14 +475,14 @@ public:
 #ifdef HAVE_XMLTEXTREADERRELAXNGSETSCHEMA
    DLLLOCAL void relaxNGValidate(const char* rng, ExceptionSink* xsink) {
       if (xmlTextReaderRelaxNGValidate(reader, rng))
-	 xsink->raiseException("XMLREADER-RELAXNG-ERROR", "an error occured setting the RelaxNG schema for validation; this function must be called before the first call to XmlReader::read()");
+         xsink->raiseException("XMLREADER-RELAXNG-ERROR", "an error occured setting the RelaxNG schema for validation; this function must be called before the first call to XmlReader::read()");
    }
 #endif
 
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
    DLLLOCAL void schemaValidate(const char* xsd, ExceptionSink* xsink) {
       if (xmlTextReaderSchemaValidate(reader, xsd))
-	 xsink->raiseException("XMLREADER-XSD-ERROR", "an error occured setting the W3C XSD schema for validation; this function must be called before the first call to XmlReader::read()");
+         xsink->raiseException("XMLREADER-XSD-ERROR", "an error occured setting the W3C XSD schema for validation; this function must be called before the first call to XmlReader::read()");
    }
 #endif
 

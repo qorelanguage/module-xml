@@ -10,3 +10,4 @@
 #include "xml-module.cpp"
 #include "QoreXmlReader.cpp"
 #include "QoreXmlRpcReader.cpp"
+#include "MakeXmlOpts.cpp"
