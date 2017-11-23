@@ -186,9 +186,9 @@ class XmlTest inherits QUnit::Test {
         }
 
         {
-            XmlReader xr(new StringInputStream(xml), ("xml_parse_options": XPF_STRIP_NS_PREFIXES));
+            XmlReader xr(new StringInputStream(xml));
             assertTrue(xr.read());
-            assertEq("TestElement", xr.name());
+            assertEq("ns:TestElement", xr.name());
             assertEq("XML_NODE_TYPE_NONE", xr.nodeTypeName());
             assertTrue(xr.read());
             assertEq("XML_NODE_TYPE_ATTRIBUTE", xr.nodeTypeName());
@@ -469,16 +469,13 @@ class XmlTest inherits QUnit::Test {
 
         # specific value
         {
-            string expected = "<?xml version=\"1.0\" encoding=\"US-ASCII\"?>\n"
-                              "<root>foo?</root>\n";
             hash input = {
                 "root": "foo֍",
             };
             hash opts = {
                 "encoding": "US-ASCII",
             };
-            string xml = make_xml(input, opts);
-            assertEq(expected, xml);
+            assertThrows("ENCODING-CONVERSION-ERROR", \make_xml(), (input, opts));
         }
     }
 
