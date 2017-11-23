@@ -31,9 +31,11 @@
 
 #include <qore/Qore.h>
 
+class MakeXmlOpts;
+
 DLLLOCAL void init_xml_constants(QoreNamespace& ns);
 
-DLLLOCAL QoreStringNode* make_xml(ExceptionSink* xsink, const QoreEncoding* enc, const QoreHashNode& h, int flags = XGF_NONE);
+DLLLOCAL QoreStringNode* make_xml(ExceptionSink* xsink, const QoreHashNode &h, const MakeXmlOpts &opts);
 DLLLOCAL QoreStringNode* make_xmlrpc_call(ExceptionSink* xsink, const QoreEncoding* ccs, int offset, const QoreValueList* args, int flags = 0);
 DLLLOCAL QoreStringNode* make_xmlrpc_call_args(ExceptionSink* xsink, const QoreEncoding* ccs, int offset, const QoreValueList* args, int flags = 0);
 // ccsid is the output encoding for strings

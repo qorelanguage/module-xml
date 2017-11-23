@@ -76,7 +76,7 @@ public:
    }
    DLLLOCAL ~QoreXmlDoc() {
       if (ptr) {
-	 xmlFreeDoc(ptr);
+         xmlFreeDoc(ptr);
       }
    }
    DLLLOCAL bool isValid() const {
@@ -93,8 +93,8 @@ public:
       int len;
       xmlDocDumpMemory(ptr, &x, &len);
       if (!x) {
-	 xsink->raiseException("XML-DOC-TOSTRING-ERROR", "an error occured converting the XmlDoc object to an XML string");
-	 return 0;
+         xsink->raiseException("XML-DOC-TOSTRING-ERROR", "an error occured converting the XmlDoc object to an XML string");
+         return 0;
       }
       QoreStringNode *rv = new QoreStringNode((const char *)x, QCS_UTF8);
       xmlFree(x);

@@ -39,28 +39,28 @@ namespace intern { // make classes local
       }
 
       DLLLOCAL ~XmlRpcValue() {
-	 val.discard(0);
+         val.discard(0);
       }
 
       DLLLOCAL AbstractQoreNode* getValueNode() {
-	 return val.takeNode();
+         return val.takeNode();
       }
 
       DLLLOCAL QoreValue getValue() {
-	 QoreValue rv;
-	 rv.swap(val);
-	 return rv;
+         QoreValue rv;
+         rv.swap(val);
+         return rv;
       }
 
       DLLLOCAL void set(QoreValue v) {
-	 if (vp)
-	    *vp = v.takeNode();
-	 else
-	    discard(val.assignAndSanitize(v), 0);
+         if (vp)
+            *vp = v.takeNode();
+         else
+            discard(val.assignAndSanitize(v), 0);
       }
 
       DLLLOCAL void setPtr(AbstractQoreNode** v) {
-	 vp = v;
+         vp = v;
       }
    };
 
@@ -74,7 +74,7 @@ namespace intern { // make classes local
       int commentcount;
 
       DLLLOCAL xml_node(AbstractQoreNode** n, int d)
-	 : node(n), next(0), depth(d), vcount(0), cdcount(0), commentcount(0) {
+         : node(n), next(0), depth(d), vcount(0), cdcount(0), commentcount(0) {
       }
    };
 
@@ -85,65 +85,65 @@ namespace intern { // make classes local
 
    public:
       DLLLOCAL xml_stack() {
-	 tail = 0;
-	 val = 0;
-	 push(&val, -1);
+         tail = 0;
+         val = 0;
+         push(&val, -1);
       }
 
       DLLLOCAL ~xml_stack() {
-	 if (val)
-	    val->deref(0);
+         if (val)
+            val->deref(0);
 
-	 while (tail) {
-	    //printd(5, "xml_stack::~xml_stack(): deleting: %p (%d), next: %p\n", tail, tail->depth, tail->next);
-	    xml_node* n = tail->next;
-	    delete tail;
-	    tail = n;
-	 }
+         while (tail) {
+            //printd(5, "xml_stack::~xml_stack(): deleting: %p (%d), next: %p\n", tail, tail->depth, tail->next);
+            xml_node* n = tail->next;
+            delete tail;
+            tail = n;
+         }
       }
 
       DLLLOCAL void checkDepth(int depth) {
-	 while (tail && depth && tail->depth >= depth) {
-	    //printd(5, "xml_stack::checkDepth(%d): deleting: %p (%d), new tail: %p\n", depth, tail, tail->depth, tail->next);
-	    xml_node* n = tail->next;
-	    delete tail;
-	    tail = n;
-	 }
+         while (tail && depth && tail->depth >= depth) {
+            //printd(5, "xml_stack::checkDepth(%d): deleting: %p (%d), new tail: %p\n", depth, tail, tail->depth, tail->next);
+            xml_node* n = tail->next;
+            delete tail;
+            tail = n;
+         }
       }
 
       DLLLOCAL void push(AbstractQoreNode** node, int depth) {
-	 xml_node* sn = new xml_node(node, depth);
-	 sn->next = tail;
-	 tail = sn;
+         xml_node* sn = new xml_node(node, depth);
+         sn->next = tail;
+         tail = sn;
       }
       DLLLOCAL AbstractQoreNode* getNode() {
-	 return *tail->node;
+         return *tail->node;
       }
       DLLLOCAL void setNode(AbstractQoreNode* n) {
-	 (*tail->node) = n;
+         (*tail->node) = n;
       }
       DLLLOCAL AbstractQoreNode* getVal() {
-	 AbstractQoreNode* rv = val;
-	 val = 0;
-	 return rv;
+         AbstractQoreNode* rv = val;
+         val = 0;
+         return rv;
       }
       DLLLOCAL int getValueCount() const {
-	 return tail->vcount;
+         return tail->vcount;
       }
       DLLLOCAL void incValueCount() {
-	 tail->vcount++;
+         tail->vcount++;
       }
       DLLLOCAL int getCDataCount() const {
-	 return tail->cdcount;
+         return tail->cdcount;
       }
       DLLLOCAL void incCDataCount() {
-	 tail->cdcount++;
+         tail->cdcount++;
       }
       DLLLOCAL int getCommentCount() const {
-	 return tail->commentcount;
+         return tail->commentcount;
       }
       DLLLOCAL void incCommentCount() {
-	 tail->commentcount++;
+         tail->commentcount++;
       }
    };
 }
@@ -166,20 +166,20 @@ public:
    DLLLOCAL int readXmlRpcNode(ExceptionSink* xsink) {
       int nt = nodeTypeSkipWhitespace();
       if (nt == -1 && !*xsink)
-	 xsink->raiseException("PARSE-XMLRPC-ERROR", "error parsing XML string");
+         xsink->raiseException("PARSE-XMLRPC-ERROR", "error parsing XML string");
       return nt;
    }
 
    DLLLOCAL int checkXmlRpcMemberName(const char* member, ExceptionSink* xsink, bool close = false) {
       const char* name = (const char*)xmlTextReaderConstName(reader);
       if (!name) {
-	 xsink->raiseExceptionArg("PARSE-XMLRPC-ERROR", xml ? new QoreStringNode(*xml) : 0, "expecting %selement '%s', got NOTHING", close ? "closing " : "", member);
-	 return -1;
+         xsink->raiseExceptionArg("PARSE-XMLRPC-ERROR", xml ? new QoreStringNode(*xml) : 0, "expecting %selement '%s', got NOTHING", close ? "closing " : "", member);
+         return -1;
       }
 
       if (strcmp(name, member)) {
-	 xsink->raiseExceptionArg("PARSE-XMLRPC-ERROR", xml ? new QoreStringNode(*xml) : 0, "expecting %selement '%s', got '%s'", close ? "closing " : "", member, name);
-	 return -1;
+         xsink->raiseExceptionArg("PARSE-XMLRPC-ERROR", xml ? new QoreStringNode(*xml) : 0, "expecting %selement '%s', got '%s'", close ? "closing " : "", member, name);
+         return -1;
       }
       return 0;
    }

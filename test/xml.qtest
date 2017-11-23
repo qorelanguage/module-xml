@@ -107,6 +107,14 @@ class XmlTest inherits QUnit::Test {
         addTestCase("getXmlValueTestCase", \getXmlValueTestCase());
         addTestCase("dtd test", \dtdTest());
         addTestCase("xsd test", \xsdTest());
+        addTestCase("make_xmlWithHashOptsGeneral", \make_xmlWithHashOptsGeneralTestCase());
+        addTestCase("make_xmlWithHashOptsArgumentDocVersion", \make_xmlWithHashOptsArgumentDocVersionTestCase());
+        addTestCase("make_xmlWithHashOptsArgumentEncoding", \make_xmlWithHashOptsArgumentEncodingTestCase());
+        addTestCase("make_xmlWithHashOptsArgumentFormatWithWhitespaces", \make_xmlWithHashOptsArgumentFormatWithWhitespacesTestCase());
+        addTestCase("make_xmlWithHashOptsArgumentUseNumericRefs", \make_xmlWithHashOptsArgumentUseNumericRefsTestCase());
+        addTestCase("make_xmlWithHashOptsArgumentDateFormat", \make_xmlWithHashOptsArgumentDateFormatTestCase());
+        addTestCase("XmlDocConstructorFromHashTestCase", \XmlDocConstructorFromHashTestCase());
+        addTestCase("XmlDocConstructorFromStringTestCase", \XmlDocConstructorFromStringTestCase());
         set_return_value(main());
     }
 
@@ -251,7 +259,7 @@ class XmlTest inherits QUnit::Test {
 
         # #1326: module-xml: make_xml() is too strict for tag names, resulting in MAKE-XML-ERROR: tag: "_some_tag" is not a valid XML tag element name if tag starts with underscore
         hash underscore = ( "foo" : ("_underscore_test" : 1, ) );
-        string underscoreResult = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><foo><_underscore_test>1</_underscore_test></foo>";
+        string underscoreResult = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<foo><_underscore_test>1</_underscore_test></foo>\n";
         assertEq(underscoreResult, make_xml(underscore), "_underscore_test");
 
         assertThrows("MAKE-XML-STRING-PARAMETER-EXCEPTION", \make_xml(), ( ("a": 1, "b": 2)), "top-level multi hash");
@@ -322,7 +330,8 @@ class XmlTest inherits QUnit::Test {
     <name>test2</name>
   </record>
   <!--file 2-->
-</file>";
+</file>
+";
 
         hash rec = (
             "file": (
@@ -387,5 +396,310 @@ class XmlTest inherits QUnit::Test {
         assertEq(rec.integerValue."^value^", get_xml_value(rec.integerValue), "get_xml_value integervalue");
         assertEq(NOTHING, get_xml_value(rec.listValue), "get_xml_value listvalue");
         assertEq(NOTHING, get_xml_value(rec.hashValue), "get_xml_value hashvalue");
+    }
+
+    make_xmlWithHashOptsGeneralTestCase() {
+        # raises exception when called with invalid hash
+        # no root element
+        assertThrows("MAKE-XML-STRING-PARAMETER-EXCEPTION",
+                     \make_xml(), ({}, {}));
+        # more root elements
+        assertThrows("MAKE-XML-STRING-PARAMETER-EXCEPTION",
+                     \make_xml(), ({"root1": "foo", "root2": "bar"}, {}));
+    }
+
+    make_xmlWithHashOptsArgumentDocVersionTestCase() {
+        # invalid value
+        assertThrows("MAKE-XML-OPTS-INVALID",
+                     ".*invalid argument: 'docVersion'",
+                     \make_xml(), (
+                         {"root": "foo"},
+                         {"docVersion": False}
+                     ));
+
+        # default value
+        {
+            string expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "<root>foo</root>\n";
+            hash input = {
+                "root": "foo",
+            };
+            hash opts = {
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+
+        # specific value
+        {
+            string expected = "<?xml version=\"2.0\" encoding=\"UTF-8\"?>\n"
+                              "<root>foo</root>\n";
+            hash input = {
+                "root": "foo",
+            };
+            hash opts = {
+                "docVersion": "2.0",
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+    }
+
+    make_xmlWithHashOptsArgumentEncodingTestCase() {
+        # invalid value
+        assertThrows("MAKE-XML-OPTS-INVALID",
+                     ".*invalid argument: 'encoding'",
+                     \make_xml(), (
+                         {"root": "foo"},
+                         {"encoding": False}
+                     ));
+
+        # default value
+        {
+            string expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "<root>foo֍</root>\n";
+            hash input = {
+                "root": "foo֍",
+            };
+            hash opts = {
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+
+        # specific value
+        {
+            string expected = "<?xml version=\"1.0\" encoding=\"US-ASCII\"?>\n"
+                              "<root>foo?</root>\n";
+            hash input = {
+                "root": "foo֍",
+            };
+            hash opts = {
+                "encoding": "US-ASCII",
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+    }
+
+    make_xmlWithHashOptsArgumentFormatWithWhitespacesTestCase() {
+        # invalid value
+        assertThrows("MAKE-XML-OPTS-INVALID",
+                     ".*invalid argument: 'formatWithWhitespaces'",
+                     \make_xml(), (
+                         {"root": "foo"},
+                         {"formatWithWhitespaces": "No"}
+                     ));
+
+        # default value
+        {
+            string expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "<root><foo>bar</foo></root>\n";
+            hash input = {
+                "root": {
+                    "foo": "bar",
+                },
+            };
+            hash opts = {
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+
+        # specific value
+        {
+            string expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "<root>\n"
+                              "  <foo>bar</foo>\n"
+                              "</root>\n";
+            hash input = {
+                "root": {
+                    "foo": "bar",
+                },
+            };
+            hash opts = {
+                "formatWithWhitespaces": True,
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+    }
+
+    make_xmlWithHashOptsArgumentUseNumericRefsTestCase() {
+        # invalid value
+        assertThrows("MAKE-XML-OPTS-INVALID",
+                     ".*invalid argument: 'useNumericRefs'",
+                     \make_xml(), (
+                         {"root": "foo"},
+                         {"useNumericRefs": "No"}
+                     ));
+
+        # default value
+        {
+            string expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "<root>foo֍</root>\n";
+            hash input = {
+                "root": "foo֍",
+            };
+            hash opts = {
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+
+        # specific value
+        {
+            string expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "<root>foo&#1421;</root>\n";
+            hash input = {
+                "root": "foo֍",
+            };
+            hash opts = {
+                "useNumericRefs": True,
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+    }
+
+    make_xmlWithHashOptsArgumentDateFormatTestCase() {
+        # invalid value
+        assertThrows("MAKE-XML-OPTS-INVALID",
+                     ".*invalid argument: 'dateFormat'",
+                     \make_xml(), (
+                         {"root": "foo"},
+                         {"dateFormat": False}
+                     ));
+
+        # default value
+        {
+            date d = now();
+            string expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "<root>" + format_date("YYYYMMDDHHmmSS", d) +
+                              "</root>\n";
+            hash input = {
+                "root": d,
+            };
+            hash opts = {
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+
+        # specific value
+        {
+            date d = now();
+            string format = "YYYY-MM-DDTHH:mm:SSZ";
+            string expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "<root>" + format_date(format, d) + "</root>\n";
+            hash input = {
+                "root": d,
+            };
+            hash opts = {
+                "dateFormat": format,
+            };
+            string xml = make_xml(input, opts);
+            assertEq(expected, xml);
+        }
+    }
+
+    XmlDocConstructorFromHashTestCase() {
+        # @throw XMLDOC-CONSTRUCTOR-ERROR error parsing XML string
+        {
+            assertThrows("XMLDOC-CONSTRUCTOR-ERROR",
+                         sub(){ XmlDoc doc({}); });
+        }
+
+        # @throw MAKE-XML-ERROR An error occurred serializing the data
+        {
+            assertThrows("MAKE-XML-ERROR",
+                         sub(){ XmlDoc doc({"":""}); });
+        }
+
+        # @throw MAKE-XML-OPTS-INVALID the opts hash passed is not valid
+        {
+            assertThrows("MAKE-XML-OPTS-INVALID",
+                         ".*invalid argument: 'docVersion'",
+                         sub(){ XmlDoc doc({}, {"docVersion": False}); });
+        }
+
+        # default opts
+        {
+            date d = now();
+            hash input = {
+                "root": {
+                    "date": d,
+                    "utf": "֍"
+                }
+            };
+            XmlDoc doc(input);
+            string xml = doc.toString();
+            string expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "<root>"
+                              "<date>" + format_date("YYYYMMDDHHmmSS", d) +
+                              "</date>"
+                              "<utf>֍</utf>"
+                              "</root>\n";
+            assertEq(expected, xml);
+
+            # dates are formatted as string
+            hash expectedHash = input;
+            expectedHash.root.date = format_date("YYYYMMDDHHmmSS", d);
+            assertEq(expectedHash, doc.toQore());
+        }
+
+        # specific opts
+        {
+            date d = now();
+            string format = "YYYY-MM-DD HH:mm:SS";
+            hash input = {
+                "root": {
+                    "date": d,
+                    "utf": "֍"
+                }
+            };
+            hash opts = {
+                "docVersion": "1.99",
+                "encoding": "ascii",
+                "useNumericRefs": True,
+                "formatWithWhitespaces": True,
+                "dateFormat": format,
+            };
+            XmlDoc doc(input, opts);
+            string xml = doc.toString();
+            string expected = "<?xml version=\"1.99\" encoding=\"US-ASCII\"?>\n"
+                              "<root>\n"
+                              "  <date>" + format_date(format, d) + "</date>\n"
+                              "  <utf>&#1421;</utf>\n"
+                              "</root>\n";
+            assertEq(expected, xml);
+
+            # dates are formatted as string
+            hash expectedHash = input;
+            expectedHash.root.date = format_date(format, d);
+            assertEq(expectedHash, doc.toQore());
+        }
+    }
+
+    XmlDocConstructorFromStringTestCase() {
+        # @throw XMLDOC-CONSTRUCTOR-ERROR error parsing XML string
+        {
+            assertThrows("XMLDOC-CONSTRUCTOR-ERROR",
+                         sub(){ XmlDoc doc(""); });
+        }
+
+        # valid
+        {
+            date d = now();
+            string format = "YYYY-MM-DD HH:mm:SS";
+            string xml = "<?xml version=\"1.99\" encoding=\"US-ASCII\"?>\n"
+                         "<root>\n"
+                         "  <date>" + format_date(format, d) + "</date>\n"
+                         "  <utf>&#1421;</utf>\n"
+                         "</root>\n";
+            # string must be explicitly converted to matched encoding
+            XmlDoc doc(convert_encoding(xml, "us-ascii"));
+            assertEq(xml, doc.toString());
+        }
     }
 }

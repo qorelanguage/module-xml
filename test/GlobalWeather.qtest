@@ -28,10 +28,10 @@ class GlobalWeatherTest inherits QUnit::Test {
     private {
         const WsdlUrl = "file://" + normalize_dir(get_script_dir()) + "/globalweather.wsdl";
 
-		WebService ws;
+                WebService ws;
 
-		const MyOpts = Opts + {};
-	}
+                const MyOpts = Opts + {};
+        }
 
     constructor() : QUnit::Test("GlobalWeatherTest", "1.0", \ARGV, MyOpts) {
         ws = new WebService(WSDLLib::getFileFromURL(WsdlUrl));
@@ -41,17 +41,17 @@ class GlobalWeatherTest inherits QUnit::Test {
         foreach my string port in (keys svc.port) {
             # add test cases
             addTestCase(sprintf("clientTest-%s", port), \clientTest(), (port));
-		}
+                }
         # execute tests
         set_return_value(main());
     }
 
     clientTest(string port) {
-		SoapClient sc(("wsdl": WsdlUrl, "port": port));
-		hash h = sc.getInfo();
-		printf("Info: %y\n", h);
-		assertEq("GlobalWeather", h.service);
-		assertEq(port, h.port);
+                SoapClient sc(("wsdl": WsdlUrl, "port": port));
+                hash h = sc.getInfo();
+                printf("Info: %y\n", h);
+                assertEq("GlobalWeather", h.service);
+                assertEq(port, h.port);
 
         try {
             h = sc.callOperation("GetCitiesByCountry", ("CountryName": "Austria"), ("soapaction": ""));
@@ -63,7 +63,7 @@ class GlobalWeatherTest inherits QUnit::Test {
         }
         hash data = parse_xml(h.firstValue());
         assertEq("NewDataSet", data.firstKey());
-		#printf("Result: %N\n", data);
+                #printf("Result: %N\n", data);
 
     }
 }

@@ -710,7 +710,7 @@ class SoapTest inherits QUnit::Test {
 
         h = op.serializeResponse(h);
         assertTrue(h.hdr."Content-Type".regex("^text/xml"), "Content type");
-        assertTrue(h.body.regex("^\\<\\?xml version.*string.*xxx"), "serialize mimexml");
+        assertTrue(h.body.regex("^\\<\\?xml version.*\n.*string.*xxx"), "serialize mimexml");
     }
 
     test1() {

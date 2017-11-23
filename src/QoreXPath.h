@@ -39,7 +39,7 @@ public:
    }
    DLLLOCAL ~QoreXPathObject() {
       if (ptr)
-	 xmlXPathFreeObject(ptr);
+         xmlXPathFreeObject(ptr);
    }
    DLLLOCAL operator bool() const {
       return ptr;
@@ -64,17 +64,17 @@ public:
    DLLLOCAL QoreXPath(QoreXmlDocData *n_doc, ExceptionSink *xsink) : doc(n_doc) {
       ptr = xmlXPathNewContext(doc->getDocPtr());
       if (!ptr)
-	 xsink->raiseException("XPATH-CONSTRUCTOR-ERROR", "failed to create XPath context from XmlDoc object");      
+         xsink->raiseException("XPATH-CONSTRUCTOR-ERROR", "failed to create XPath context from XmlDoc object");      
    }
    DLLLOCAL ~QoreXPath() {
       if (ptr)
-	 xmlXPathFreeContext(ptr);
+         xmlXPathFreeContext(ptr);
    }
    DLLLOCAL QoreListNode *eval(const char *expr, ExceptionSink *xsink) {
       QoreXPathObject xpo(xmlXPathEvalExpression((xmlChar *)expr, ptr), xsink);
       if (!xpo) {
          xsink->raiseException("XPATH-ERROR", "unable to evaluate xpath expression '%s'", expr);
-	 return 0;
+         return 0;
       }
       return xpo.getNodeList(doc);
    }
