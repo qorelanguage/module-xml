@@ -50,41 +50,21 @@ void QoreXmlReader::processOpts(const QoreHashNode* opts, ExceptionSink* xsink) 
     if (!opts)
         return;
 
-    // set xml_input_io first
-    {
-        bool found = false;
-        QoreValue v = opts->getValueKeyValueExistence("xml_input_io", found);
-        if (found) {
-            if (v.getType() != NT_OBJECT) {
-                xsink->raiseException("XMLREADER-XSD-ERROR", "expecting type 'object' with option 'xml_input_io'; got type '%s' instead", v.getTypeName());
-                return;
-            }
-            const QoreObject* obj = v.get<const QoreObject>();
-            xml_io = static_cast<AbstractXmlIoInputCallback*>(obj->getReferencedPrivateData(CID_ABSTRACTXMLIOINPUTCALLBACK, xsink));
-            if (*xsink) {
-                assert(!xml_io);
-                return;
-            }
-            if (!xml_io) {
-                assert(!*xsink);
-                xsink->raiseException("XMLREADER-XSD-ERROR", "expecting an object of class 'AbstractXmlIoInputCallback' with option 'xml_input_io'; got class '%s' instead", obj->getClassName());
-                return;
-            }
-            xml_io_callback = xml_io;
-            printf("XXX DEBUG xml_io: %p\n", xml_io);
-        }
-    }
-
     ConstHashIterator i(opts);
     while (i.next()) {
         const char* key = i.getKey();
-        printf("key: %s\n", key);
         if (!strcmp(key, "xsd")) {
             const AbstractQoreNode* n = i.getValue();
             if (get_node_type(n) != NT_STRING) {
                 xsink->raiseException("XMLREADER-XSD-ERROR", "expecting type 'string' with option 'xsd'; got type '%s' instead", get_type_name(n));
                 return;
             }
+
+            // set xml_input_io first
+            XmlIoInputCallbackHelper xicbh(opts, xsink);
+            if (*xsink)
+                return;
+
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
             const QoreStringNode* xsd = static_cast<const QoreStringNode*>(n);
             std::unique_ptr<QoreXmlSchemaContext> schema(new QoreXmlSchemaContext(*xsd, xsink));

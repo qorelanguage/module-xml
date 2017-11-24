@@ -36,6 +36,7 @@ qclass SaxIterator [arg=QoreSaxIterator* i; ns=Qore::Xml; vparent=AbstractIterat
     @param element_name the name of the element to iterate through
     @param opts the following options are supported:
     - \c xml_parse_options: (int bitfield) XML parsing flags; see @ref xml_parsing_constants for more information
+    - \c xml_input_io: (AbstractXmlIoInputCallback) an AbstractXmlIoInputCallback object to resolve external XSD schema references
     - \c xsd: (string) an XSD string for schema validation while parsing
 
     @par Example:

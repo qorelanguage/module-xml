@@ -78,6 +78,7 @@ XmlReader::constructor(string xml) {
 /** @param is the input stream
     @param opts the following options are accepted:
     - \c encoding: (string) the file's character encoding
+    - \c xml_input_io: (AbstractXmlIoInputCallback) an AbstractXmlIoInputCallback object to resolve external XSD schema references
     - \c xsd: (string) an XSD string for schema validation while parsing
 
     @par Example:

@@ -36,6 +36,43 @@
 
 // FIXME: need to make error reporting consistent and set ExceptionSink for each call, not in constructor and then fix ql_xml.cc and adjust QC_XmlReader.cc
 
+class XmlIoInputCallbackHelper {
+public:
+    DLLLOCAL XmlIoInputCallbackHelper(const QoreHashNode* opts, ExceptionSink* xs) : xsink(xs) {
+        assert(!xml_io_callback);
+
+        bool found = false;
+        QoreValue v = opts->getValueKeyValueExistence("xml_input_io", found);
+        if (found) {
+            if (v.getType() != NT_OBJECT) {
+                xsink->raiseException("XMLREADER-XSD-ERROR", "expecting type 'object' with option 'xml_input_io'; got type '%s' instead", v.getTypeName());
+                return;
+            }
+            const QoreObject* obj = v.get<const QoreObject>();
+            xml_io_callback = static_cast<AbstractXmlIoInputCallback*>(obj->getReferencedPrivateData(CID_ABSTRACTXMLIOINPUTCALLBACK, xsink));
+            if (*xsink) {
+                assert(!xml_io_callback);
+                return;
+            }
+            if (!xml_io_callback) {
+                assert(!*xsink);
+                xsink->raiseException("XMLREADER-XSD-ERROR", "expecting an object of class 'AbstractXmlIoInputCallback' with option 'xml_input_io'; got class '%s' instead", obj->getClassName());
+                return;
+            }
+        }
+    }
+
+    DLLLOCAL ~XmlIoInputCallbackHelper() {
+        if (xml_io_callback) {
+            xml_io_callback->deref(xsink);
+            xml_io_callback = nullptr;
+        }
+    }
+
+private:
+    ExceptionSink* xsink;
+};
+
 class QoreXmlReader {
 protected:
    xmlTextReader* reader = nullptr;
@@ -44,7 +81,6 @@ protected:
    int fd = -1;
    ReferenceHolder<InputStream> inputStream;
    AbstractXmlValidator* val = nullptr;
-   AbstractXmlIoInputCallback* xml_io = nullptr;
 
    static void qore_xml_error_func(QoreXmlReader* xr, const char* msg, xmlParserSeverities severity, xmlTextReaderLocatorPtr locator) {
       if (severity == XML_PARSER_SEVERITY_VALIDITY_WARNING
@@ -220,12 +256,6 @@ protected:
         }
         if (xml)
             xml = nullptr;
-        if (xml_io) {
-            xml_io_callback = nullptr;
-            ExceptionSink xsink;
-            xml_io->deref(&xsink);
-            xml_io = nullptr;
-        }
     }
 
 public:
