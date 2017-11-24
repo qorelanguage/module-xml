@@ -5,7 +5,7 @@
 
   Qore Programming Language
 
-  Copyright (C) 2003 - 2016 Qore Technologies, s.r.o.
+  Copyright (C) 2003 - 2017 Qore Technologies, s.r.o.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -49,6 +49,35 @@ FileSaxIterator::constructor(string path, string element_name, *string encoding)
    if (*xsink)
       return;
    self->setPrivate(CID_FILESAXITERATOR, holder.release());
+}
+
+//! creates a new FileSaxIterator object from the file name and the element name passed
+/** @param path the path to a file containing the XML data to iterate
+    @param element_name the name of the element to iterate through
+    @param opts the following options are accepted:
+    - \c encoding: (string) the file's character encoding
+    - \c xml_parse_options: (int bitfield) XML parsing flags; see @ref xml_parsing_constants for more information
+    - \c xsd: (string) an XSD string for schema validation while parsing
+
+    @par Example:
+    @code
+FileSaxIterator i(path, "DetailRecord");
+map printf("record %d: %y\n", $#, $1), i;
+    @endcode
+
+    @throw XML-READER-ERROR error opening file
+    @throw FILESAXITERATOR-OPTION-ERROR error in option hash
+
+    @since xml 1.4
+*/
+FileSaxIterator::constructor(string path, string element_name, hash opts) [dom=FILESYSTEM] {
+    const char* encoding = QoreSaxIterator::processOptionsGetEncoding(opts, "FILESAXITERATOR-OPTION-ERROR", xsink);
+    if (*xsink)
+        return;
+    ReferenceHolder<QoreSaxIterator> holder(new QoreSaxIterator(xsink, path->getBuffer(), element_name->getBuffer(), encoding, opts), xsink);
+    if (*xsink)
+        return;
+    self->setPrivate(CID_FILESAXITERATOR, holder.release());
 }
 
 //! Returns a copy of the current object (the copy will be reset to the beginning of the XML string)

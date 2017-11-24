@@ -143,8 +143,8 @@ static void qore_xml_relaxng_error_func(ExceptionSink* xsink, const char* msg, .
 #endif
 
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
-static void qore_xml_schema_error_func(ExceptionSink* xsink, const char* msg, ...) {
-   if (*xsink)
+static void qore_xml_schema_error_func(QoreXmlSchemaContext* xsdctx, const char* msg, ...) {
+   if (*xsdctx->xsink)
       return;
 
    va_list args;
@@ -159,12 +159,12 @@ static void qore_xml_schema_error_func(ExceptionSink* xsink, const char* msg, ..
    }
    desc->chomp();
 
-   xsink->raiseException("XSD-SYNTAX-ERROR", desc);
+   xsdctx->xsink->raiseException("XSD-SYNTAX-ERROR", desc);
 }
 #endif
 
 #if defined(HAVE_XMLTEXTREADERRELAXNGSETSCHEMA) || defined(HAVE_XMLTEXTREADERSETSCHEMA)
-static void qore_xml_schema_warning_func(ExceptionSink* xsink, const char* msg, ...) {
+static void qore_xml_schema_warning_func(void* ignored, const char* msg, ...) {
 #ifdef DEBUG
    va_list args;
    QoreString buf;
@@ -226,17 +226,47 @@ static void qore_xml_schema_valid_warning_func(ExceptionSink* xsink,
 #endif
 
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
-QoreXmlSchemaContext::QoreXmlSchemaContext(const char* xsd, int size, ExceptionSink* xsink) : schema(0) {
-   xmlSchemaParserCtxtPtr scp = xmlSchemaNewMemParserCtxt(xsd, size);
-   if (!scp)
-      return;
+QoreXmlSchemaContext::QoreXmlSchemaContext(const QoreString& xsd, ExceptionSink* xsink) : Utf8StringHelper(xsd, xsink) {
+    if (*xsink)
+        return;
 
-   //xmlSchemaSetParserStructuredErrors(scp, (xmlStructuredErrorFunc)qore_xml_structured_error_func, xsink);
+    xmlSchemaParserCtxtPtr scp = xmlSchemaNewMemParserCtxt(utf8str->c_str(), utf8str->size());
+    if (!scp) {
+        xsink->raiseException("XSD-SYNTAX-ERROR", "XML schema provided for validation could not be parsed");
+        return;
+    }
 
-   xmlSchemaSetParserErrors(scp, (xmlSchemaValidityErrorFunc)qore_xml_schema_error_func,
-                            (xmlSchemaValidityErrorFunc)qore_xml_schema_warning_func , xsink);
-   schema = xmlSchemaParse(scp);
-   xmlSchemaFreeParserCtxt(scp);
+    {
+        ON_BLOCK_EXIT(xmlSchemaFreeParserCtxt, scp);
+
+        //xmlSchemaSetParserStructuredErrors(scp, (xmlStructuredErrorFunc)qore_xml_structured_error_func, xsink);
+        xmlSchemaSetParserErrors(scp, (xmlSchemaValidityErrorFunc)qore_xml_schema_error_func,
+                                 (xmlSchemaValidityErrorFunc)qore_xml_schema_warning_func, this);
+        // set exception context
+        this->xsink = xsink;
+        schema = xmlSchemaParse(scp);
+    }
+
+    if (!schema) {
+        if (!*xsink)
+            xsink->raiseException("XSD-SYNTAX-ERROR", "XML schema provided for validation could not be parsed");
+        return;
+    }
+}
+
+xmlSchemaValidCtxtPtr QoreXmlSchemaContext::getPtr() {
+    if (!ctx) {
+        ctx = xmlSchemaNewValidCtxt(schema);
+        assert(ctx);
+        xmlSchemaSetValidErrors(
+            ctx,
+            reinterpret_cast<xmlSchemaValidityErrorFunc>(
+                qore_xml_schema_valid_error_func),
+            reinterpret_cast<xmlSchemaValidityErrorFunc>(
+                qore_xml_schema_valid_warning_func),
+            xsink);
+    }
+    return ctx;
 }
 #endif
 
@@ -253,20 +283,6 @@ QoreXmlRelaxNGContext::QoreXmlRelaxNGContext(const char* rng, int size, Exceptio
    xmlRelaxNGFreeParserCtxt(rcp);
 }
 #endif
-
-QoreXmlSchemaValidContext::QoreXmlSchemaValidContext(QoreXmlSchemaContext &c,
-                                                     ExceptionSink *xsink) :
-    ptr(c.getValidCtxtPtr())
-{
-    assert(ptr);
-    xmlSchemaSetValidErrors(
-        ptr,
-        reinterpret_cast<xmlSchemaValidityErrorFunc>(
-            qore_xml_schema_valid_error_func),
-        reinterpret_cast<xmlSchemaValidityErrorFunc>(
-            qore_xml_schema_valid_warning_func),
-        xsink);
-}
 
 static int concat_simple_value(ExceptionSink* xsink, QoreString &str, const AbstractQoreNode* n, const MakeXmlOpts &opts) {
    //printd(5, "concat_simple_value() n: %p (%s) %s\n", n, n->getTypeName(), n->getType() == NT_STRING ? ((QoreStringNode*)n)->getBuffer() : "unknown");
@@ -1293,50 +1309,45 @@ QoreHashNode* parse_xmlrpc_response(ExceptionSink* xsink, const QoreString* msg,
 static AbstractQoreNode* parse_xml_with_schema_intern(ExceptionSink* xsink, bool with_flags, const QoreValueList* args, int flags = 0) {
 // NOTE: the libxml2 library requires all input to be in UTF-8
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
-   const QoreStringNode* p0 = HARD_QORE_VALUE_STRING(args, 0);
-   const QoreStringNode* p1 = HARD_QORE_VALUE_STRING(args, 1);
+    const QoreStringNode* p0 = HARD_QORE_VALUE_STRING(args, 0);
+    const QoreStringNode* xsd = HARD_QORE_VALUE_STRING(args, 1);
 
-   const QoreEncoding* ccsid;
-   if (with_flags) {
-      flags |= get_param_value(args, 2).getAsBigInt();
-      ccsid = get_value_encoding_param(args, 3);
-   }
-   else
-      ccsid = get_value_encoding_param(args, 2);
+    const QoreEncoding* ccsid;
+    if (with_flags) {
+        flags |= get_param_value(args, 2).getAsBigInt();
+        ccsid = get_value_encoding_param(args, 3);
+    }
+    else
+        ccsid = get_value_encoding_param(args, 2);
 
-   printd(5, "parse_xml_with_schema_intern() xml: %s\n xsd: %s\n", p0->getBuffer(), p1->getBuffer());
+    printd(5, "parse_xml_with_schema_intern() xml: %s\n xsd: %s\n", p0->getBuffer(), xsd->getBuffer());
 
-   // convert to UTF-8
-   TempEncodingHelper str(p0, QCS_UTF8, xsink);
-   if (!str)
-      return 0;
+    // convert to UTF-8
+    TempEncodingHelper str(p0, QCS_UTF8, xsink);
+    if (!str)
+        return nullptr;
 
-   TempEncodingHelper xsd(p1, QCS_UTF8, xsink);
-   if (!xsd)
-      return 0;
+    QoreXmlSchemaContext schema(*xsd, xsink);
+    if (!schema) {
+        assert(*xsink);
+        return nullptr;
+    }
 
-   QoreXmlSchemaContext schema(xsd->getBuffer(), xsd->strlen(), xsink);
-   if (!schema) {
-      if (!*xsink)
-         xsink->raiseException("XSD-SYNTAX-ERROR", "XML schema passed as second argument to parseXMLWithSchema() could not be parsed");
-      return 0;
-   }
+    QoreXmlReader reader(*str, QORE_XML_PARSER_OPTIONS, xsink);
+    if (!reader)
+        return nullptr;
 
-   QoreXmlReader reader(*str, QORE_XML_PARSER_OPTIONS, xsink);
-   if (!reader)
-      return 0;
+    int rc = reader.setSchema(schema.getSchema());
+    if (rc < 0) {
+        if (!*xsink)
+        xsink->raiseException("XSD-VALIDATION-ERROR", "XML schema could not be validated");
+        return nullptr;
+    }
 
-   int rc = reader.setSchema(schema.getSchema());
-   if (rc < 0) {
-      if (!*xsink)
-         xsink->raiseException("XSD-VALIDATION-ERROR", "XML schema passed as second argument to parseXMLWithSchema() could not be validated");
-      return 0;
-   }
-
-   return reader.parseXmlData(ccsid, flags, xsink);
+    return reader.parseXmlData(ccsid, flags, xsink);
 #else
-   xsink->raiseException("MISSING-FEATURE-ERROR", "the libxml2 version used to compile the xml module did not support the xmlTextReaderSetSchema() function, therefore parseXMLWithSchema() and parseXMLAsDataWithSchema() are not available; for maximum portability, use the constant Option::HAVE_PARSEXMLWITHSCHEMA to check if this function is implemented before calling");
-   return 0;
+    xsink->raiseException("MISSING-FEATURE-ERROR", "the libxml2 version used to compile the xml module did not support the xmlTextReaderSetSchema() function, therefore XSD validation functionality is not available; for maximum portability, use the constant Option::HAVE_PARSEXMLWITHSCHEMA to check if this function is implemented before calling");
+    return nullptr;
 #endif
 }
 
@@ -1558,6 +1569,11 @@ const XPF_PRESERVE_ORDER = XPF_PRESERVE_ORDER;
 /** If this option is given, then parse_xml() creates hash elements with \c'^comment^' keys corresponding to comments found in the XML
  */
 const XPF_ADD_COMMENTS = XPF_ADD_COMMENTS;
+
+//! strip namespace prefixes from element names when parsing
+/** @since xml 1.4
+*/
+const XPF_STRIP_NS_PREFIXES = XPF_STRIP_NS_PREFIXES;
 //@}
 
 /** @defgroup xml_functions XML Functions

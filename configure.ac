@@ -702,6 +702,7 @@ else
       if test -z "${userlibdir}"; then
          userlibdir="${libdir}"
       fi
+      prefix=`which qore|sed s/.bin.qore//`
    else
       libdir="$prefix/lib${LIBSUFFIX}/qore-modules"
       qlibdir=`qore --module-dir`
