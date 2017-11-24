@@ -47,12 +47,12 @@ public:
     // libxml2 I/O callback: can we provide the requested resource; 1 = true, 0 = false
     DLLLOCAL int match(const char* filename) {
         assert(!input_stream);
+        assert(xsink);
 
         // unhandled exceptions will appear on stdout
-        ExceptionSink xsink;
-        ReferenceHolder<QoreListNode> args(new QoreListNode, &xsink);
+        ReferenceHolder<QoreListNode> args(new QoreListNode, xsink);
         args->push(new QoreStringNode(filename));
-        ValueHolder bufHolder(self->evalMethodValue("open", *args, &xsink), &xsink);
+        ValueHolder bufHolder(self->evalMethodValue("open", *args, xsink), xsink);
         //printd(5, "AbstractXmlIoInputCallback::match() '%s': %d\n", filename, (int)(bool)bufHolder);
         if (!bufHolder)
             return 0;
@@ -72,12 +72,12 @@ public:
         assert(context == input_stream);
         assert(len > 0);
         assert(buffer);
+        assert(xsink);
 
         // unhandled exceptions will appear on stdout
-        ExceptionSink xsink;
-        ReferenceHolder<QoreListNode> args(new QoreListNode, &xsink);
+        ReferenceHolder<QoreListNode> args(new QoreListNode, xsink);
         args->push(new QoreBigIntNode(len));
-        ValueHolder bufHolder(input_stream->evalMethodValue("read", *args, &xsink), &xsink);
+        ValueHolder bufHolder(input_stream->evalMethodValue("read", *args, xsink), xsink);
         //printd(5, "AbstractXmlIoInputCallback::read() %d: %d\n", len, (bool)bufHolder);
         if (!bufHolder)
             return -1;
@@ -91,16 +91,30 @@ public:
     DLLLOCAL int close(void* context) {
         assert(input_stream);
         assert(context == input_stream);
+        assert(xsink);
 
-        ExceptionSink xsink;
-        input_stream->deref(&xsink);
+        input_stream->deref(xsink);
         input_stream = nullptr;
         return 0;
+    }
+
+    // set exception context
+    DLLLOCAL void setExceptionContext(ExceptionSink* xs) {
+        assert(!xsink);
+        xsink = xs;
+    }
+
+    // clear exception context
+    DLLLOCAL void clearExceptionContext() {
+        assert(xsink);
+        xsink = nullptr;
     }
 
 protected:
     QoreObject* self;
     QoreObject* input_stream = nullptr;
+    // current exception context
+    ExceptionSink* xsink = nullptr;
 };
 
 #endif

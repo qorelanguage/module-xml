@@ -59,11 +59,13 @@ public:
                 xsink->raiseException("XMLREADER-XSD-ERROR", "expecting an object of class 'AbstractXmlIoInputCallback' with option 'xml_input_io'; got class '%s' instead", obj->getClassName());
                 return;
             }
+            xml_io_callback->setExceptionContext(xsink);
         }
     }
 
     DLLLOCAL ~XmlIoInputCallbackHelper() {
         if (xml_io_callback) {
+            xml_io_callback->clearExceptionContext();
             xml_io_callback->deref(xsink);
             xml_io_callback = nullptr;
         }
