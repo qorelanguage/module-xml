@@ -47,6 +47,9 @@ static bool keys_are_equal(const char* k1, const char* k2, bool &get_value) {
 
 void QoreXmlReader::processOpts(const QoreHashNode* opts, ExceptionSink* xsink) {
     assert(reader);
+    if (!opts)
+        return;
+
     ConstHashIterator i(opts);
     while (i.next()) {
         const char* key = i.getKey();
@@ -54,8 +57,14 @@ void QoreXmlReader::processOpts(const QoreHashNode* opts, ExceptionSink* xsink) 
             const AbstractQoreNode* n = i.getValue();
             if (get_node_type(n) != NT_STRING) {
                 xsink->raiseException("XMLREADER-XSD-ERROR", "expecting type 'string' with option 'xsd'; got type '%s' instead", get_type_name(n));
-                break;
+                return;
             }
+
+            // set xml_input_io first
+            XmlIoInputCallbackHelper xicbh(opts, xsink);
+            if (*xsink)
+                return;
+
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
             const QoreStringNode* xsd = static_cast<const QoreStringNode*>(n);
             std::unique_ptr<QoreXmlSchemaContext> schema(new QoreXmlSchemaContext(*xsd, xsink));
@@ -76,13 +85,13 @@ void QoreXmlReader::processOpts(const QoreHashNode* opts, ExceptionSink* xsink) 
             return;
 #endif
         }
-        // ignore the "encoding" option
-        else if (!strcmp(key, "encoding") || !strcmp(key, "xml_parse_options"))
+
+        // ignore options already processed
+        if (!strcmp(key, "encoding") || !strcmp(key, "xml_parse_options") || !strcmp(key, "xml_input_io"))
             continue;
-        else {
-            xsink->raiseException("XML-READER-ERROR", "unsupported option '%s'", key);
-            return;
-        }
+
+        xsink->raiseException("XML-READER-ERROR", "unsupported option '%s'", key);
+        return;
     }
 }
 

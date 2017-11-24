@@ -29,7 +29,7 @@
 //! The InputStreamSaxIterator class provides a SAX iterator for input streams based on <a href="http://xmlsoft.org">libxml2</a>
 /**
  */
-qclass InputStreamSaxIterator [arg=QoreSaxIterator* i; ns=Qore::Xml; vparent=SaxIterator; private_members=InputStream is];
+qclass InputStreamSaxIterator [arg=QoreSaxIterator* i; ns=Qore::Xml; vparent=SaxIterator; internal_members=InputStream is];
 
 //! creates a new InputStreamSaxIterator object from the input stream and the element name passed
 /** @param is the input stream
@@ -57,6 +57,7 @@ InputStreamSaxIterator::constructor(Qore::InputStream[InputStream] is, string el
     @param element_name the name of the element to iterate through
     @param opts the following options are accepted:
     - \c encoding: (string) the file's character encoding
+    - \c xml_input_io: (AbstractXmlIoInputCallback) an AbstractXmlIoInputCallback object to resolve external XSD schema references
     - \c xml_parse_options: (int bitfield) XML parsing flags; see @ref xml_parsing_constants for more information
     - \c xsd: (string) an XSD string for schema validation while parsing
 

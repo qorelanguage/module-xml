@@ -1,0 +1,44 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/** @file QC_AbstractXmlIoInputCallback.qpp defines the AbstractXmlIoInputCallback class */
+/*
+  QC_AbstractXmlIoInputCallback.qpp
+
+  Qore Programming Language
+
+  Copyright (C) 2003 - 2017 Qore Technologies, s.r.o.
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include "QC_AbstractXmlIoInputCallback.h"
+
+//! The AbstractXmlIoInputCallback class provides an interface for providing input callbacks to <a href="http://xmlsoft.org">libxml2</a>
+/**
+ */
+qclass AbstractXmlIoInputCallback [arg=AbstractXmlIoInputCallback* cb; ns=Qore::Xml];
+
+//! creates a new AbstractXmlIoInputCallback object
+/** @since xml 1.4
+*/
+AbstractXmlIoInputCallback::constructor() {
+    self->setPrivate(CID_ABSTRACTXMLIOINPUTCALLBACK, new AbstractXmlIoInputCallback(self));
+}
+
+//! returns an @ref Qore::InputStream "InputStream" for the requested resource or @ref nothing if the resource cannot be served
+/** @param url a URL to the resource; examples:
+    - \c "gl-cor-content-2006-10-25.xsd"
+    - \c "http://www.xbrl.org/2003/xbrl-linkbase-2003-12-31.xsd"
+*/
+abstract *InputStream AbstractXmlIoInputCallback::open(string url);

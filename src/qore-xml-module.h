@@ -92,4 +92,7 @@ public:
     virtual int validateDoc(xmlDocPtr doc) = 0;
 };
 
+class AbstractXmlIoInputCallback;
+thread_local extern AbstractXmlIoInputCallback* xml_io_callback;
+
 #endif
