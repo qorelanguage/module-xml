@@ -28,6 +28,8 @@
 #include "qore-xml-module.h"
 #include "ql_xml.h"
 
+#include <qore/InputStream.h>
+
 DLLEXPORT extern qore_classid_t CID_ABSTRACTXMLIOINPUTCALLBACK;
 DLLLOCAL QoreClass *initAbstractXmlIoInputCallbackClass(QoreNamespace& ns);
 
