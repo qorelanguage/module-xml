@@ -16,6 +16,7 @@
     @code %requires xml @endcode
 
     Classes provided by this module:
+    - @ref Qore::Xml::AbstractXmlIoInputCallback "AbstractXmlIoInputCallback": a callback API for resolving external schema references
     - @ref Qore::Xml::FileSaxIterator "FileSaxIterator": an iterator class for XML strings
     - @ref Qore::Xml::InputStreamSaxIterator "InputStreamSaxIterator": an iterator class for input streams
     - @ref Qore::Xml::SaxIterator "SaxIterator": an iterator class for XML strings
@@ -346,8 +347,9 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
       - @ref Qore::Xml::SaxIterator::constructor(string, string, __7_ hash)
     -fixed a bug where SAX parsing failed when the element being parsed had a namespace prefix (<a href="https://github.com/qorelanguage/qore/issues/2487">issue 2487</a>)
     - added a @ref Qore::Xml::make_xml(hash, hash) "make_xml(hash, hash)" variant that allows for more control over the XML output such as date serialization formats (<a href="https://github.com/qorelanguage/qore/issues/2492">issue 2492</a>)
+    - added @ref Qore::Xml::AbstractXmlIoInputCallback "AbstractXmlIoInputCallback" to provide an abstract API for resolving external schema references (<a href="https://github.com/qorelanguage/qore/issues/2490">issue 2490</a>)
     - extended @ref Qore::Xml::XmlDoc::constructor() "XmlDoc::constructor" with extra optional hash that allows for more control over the XML output such as date serialization formats (<a href="https://github.com/qorelanguage/qore/issues/2492">issue 2492</a>)
-    - XSD-ERROR exception thrown during document validation against schema is now more verbose about what exactly failed
+    - XSD-ERROR exception thrown during document validation against schema is now more verbose about what exactly failed  (<a href="https://github.com/qorelanguage/qore/issues/2493">issue 2493</a>)
     - <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> module changes:
       - added the \c SalesforceSoapConnection class
     - <a href="../../SoapClient/html/index.html">SoapClient</a> module changes:

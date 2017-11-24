@@ -9,7 +9,7 @@ endif
 .qpp.cpp:
 	$(QPP) -V $<
 
-GENERATED_SOURCES = QC_XmlDoc.cpp QC_XmlNode.cpp QC_XmlReader.cpp QC_XmlRpcClient.cpp QC_SaxIterator.cpp QC_FileSaxIterator.cpp QC_InputStreamSaxIterator.cpp ql_xml.cpp qc_option.cpp MakeXmlOpts.cpp
+GENERATED_SOURCES = QC_XmlDoc.cpp QC_XmlNode.cpp QC_XmlReader.cpp QC_XmlRpcClient.cpp QC_SaxIterator.cpp QC_FileSaxIterator.cpp QC_InputStreamSaxIterator.cpp ql_xml.cpp qc_option.cpp MakeXmlOpts.cpp QC_AbstractXmlIoInputCallback.cpp
 CLEANFILES = $(GENERATED_SOURCES)
 
 if COND_SINGLE_COMPILATION_UNIT

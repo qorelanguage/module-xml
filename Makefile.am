@@ -15,7 +15,8 @@ noinst_HEADERS = src/QC_XmlDoc.h \
 	src/QoreXmlRpcReader.h \
 	src/ql_xml.h \
 	src/qore-xml-module.h \
-	src/MakeXmlOpts.h
+	src/MakeXmlOpts.h \
+    src/QC_AbstractXmlIoInputCallback.h
 
 USER_MODULES = qlib/XmlRpcHandler.qm qlib/WSDL.qm qlib/SoapClient.qm qlib/SoapHandler.qm qlib/XmlRpcConnection.qm qlib/SalesforceSoapClient.qm
 
@@ -31,6 +32,7 @@ EXTRA_DIST = COPYING.LGPL COPYING.MIT AUTHORS README \
 	src/ql_xml.qpp \
 	src/qc_option.qpp \
 	src/MakeXmlOpts.qpp \
+    src/QC_AbstractXmlIoInputCallback.qpp \
 	test/xml.qtest \
 	test/soap.qtest \
 	test/test.wsdl \

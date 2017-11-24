@@ -31,7 +31,7 @@
 //! The XmlReader class allows XML strings to be iterated and parsed piecewise
 /**
  */
-qclass XmlReader [arg=QoreXmlReaderData* xr; ns=Qore::Xml];
+qclass XmlReader [arg=QoreXmlReaderData* xr; ns=Qore::Xml; internal_members=InputStream is];
 
 //! Creates the XmlReader object based on an XmlDoc object
 /** @throw XML-READER-ERROR libxml2 returned an error code when creating the XML reader object
@@ -78,6 +78,7 @@ XmlReader::constructor(string xml) {
 /** @param is the input stream
     @param opts the following options are accepted:
     - \c encoding: (string) the file's character encoding
+    - \c xml_input_io: (AbstractXmlIoInputCallback) an AbstractXmlIoInputCallback object to resolve external XSD schema references
     - \c xsd: (string) an XSD string for schema validation while parsing
 
     @par Example:

@@ -65,6 +65,7 @@ set(QPP_SRC
     src/ql_xml.qpp
     src/qc_option.qpp
     src/MakeXmlOpts.qpp
+    src/QC_AbstractXmlIoInputCallback.qpp
 )
 
 set(CPP_SRC

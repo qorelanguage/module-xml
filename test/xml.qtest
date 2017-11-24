@@ -44,6 +44,18 @@ class XmlTest inherits QUnit::Test {
             ),
         );
 
+        const XsdWithRef = '<?xml version="1.0" encoding="UTF-8"?>
+<schema elementFormDefault="qualified" xmlns:link="http://qoretechnologies.com/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://qoretechnologies.com/test/namespace1" attributeFormDefault="unqualified" xmlns:qt1="http://qoretechnologies.com/1/instance" xmlns:qt2="http://qoretechnologies.com/2/something">
+  <import namespace="http://qoretechnologies.com/3/something_else" schemaLocation="qt-external.xsd"/>
+</schema>';
+
+        const XsdExternal = '<?xml version="1.0" encoding="UTF-8"?>
+<schema targetNamespace="http://www.w3.org/1999/xlink"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified"
+  attributeFormDefault="qualified">
+</schema>';
 
         const Dtd = '<!ELEMENT note (to,from,heading,body)>
 <!ELEMENT to (#PCDATA)>
@@ -194,6 +206,18 @@ class XmlTest inherits QUnit::Test {
             assertTrue(xr.read());
             assertEq("XML_NODE_TYPE_ATTRIBUTE", xr.nodeTypeName());
             assertEq("testing", xr.getOuterXml());
+        }
+
+        {
+            XsdProvider xsd_provider(("qt-external.xsd": XsdExternal));
+            XmlReader xr(new StringInputStream(""), ("xsd": XsdWithRef, "xml_input_io": xsd_provider));
+            assertEq(NOTHING, xr.getOuterXml());
+        }
+
+        {
+            XsdErrorProvider xsd_provider();
+            code c = sub () {XmlReader xr(new StringInputStream(""), ("xsd": XsdWithRef, "xml_input_io": xsd_provider));};
+            assertThrows("ERR", "XsdErrorProvider", c);
         }
     }
 
@@ -737,5 +761,27 @@ class XmlTest inherits QUnit::Test {
             assertThrows("XSD-ERROR", "Element 'neroot':",
                          \doc.validateSchema(), schema);
         }
+    }
+}
+
+class XsdProvider inherits AbstractXmlIoInputCallback {
+    public {
+        hash<string, string> h;
+    }
+
+    constructor(hash<string, string> h) {
+        self.h = h;
+    }
+
+    *InputStream open(string fn) {
+        *string str = h{fn};
+        if (str)
+            return new StringInputStream(str);
+    }
+}
+
+class XsdErrorProvider inherits AbstractXmlIoInputCallback {
+    *InputStream open(string fn) {
+        throw "ERR", "XsdErrorProvider";
     }
 }
