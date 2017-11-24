@@ -29,7 +29,7 @@
 //! The InputStreamSaxIterator class provides a SAX iterator for input streams based on <a href="http://xmlsoft.org">libxml2</a>
 /**
  */
-qclass InputStreamSaxIterator [arg=QoreSaxIterator* i; ns=Qore::Xml; vparent=SaxIterator; private_members=InputStream is];
+qclass InputStreamSaxIterator [arg=QoreSaxIterator* i; ns=Qore::Xml; vparent=SaxIterator; internal_members=InputStream is];
 
 //! creates a new InputStreamSaxIterator object from the input stream and the element name passed
 /** @param is the input stream

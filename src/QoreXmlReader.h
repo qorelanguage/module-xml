@@ -30,6 +30,7 @@
 
 #include "qore-xml-module.h"
 #include "QoreXmlDoc.h"
+#include "QC_AbstractXmlIoInputCallback.h"
 
 #include <errno.h>
 
@@ -43,6 +44,7 @@ protected:
    int fd = -1;
    ReferenceHolder<InputStream> inputStream;
    AbstractXmlValidator* val = nullptr;
+   AbstractXmlIoInputCallback* xml_io = nullptr;
 
    static void qore_xml_error_func(QoreXmlReader* xr, const char* msg, xmlParserSeverities severity, xmlTextReaderLocatorPtr locator) {
       if (severity == XML_PARSER_SEVERITY_VALIDITY_WARNING
@@ -202,23 +204,29 @@ protected:
       }
    }
 
-   DLLLOCAL void reset() {
-      //printd(5, "QoreXmlReader::reset() reader: %p val: %p fd: %d\n", reader, val, fd);
-      if (val) {
-         delete val;
-         val = nullptr;
-      }
-      if (reader) {
-         xmlFreeTextReader(reader);
-         reader = nullptr;
-      }
-      if (fd >= 0) {
-         close(fd);
-         fd = -1;
-      }
-      if (xml)
-         xml = nullptr;
-   }
+    DLLLOCAL void reset() {
+        //printd(5, "QoreXmlReader::reset() reader: %p val: %p fd: %d\n", reader, val, fd);
+        if (val) {
+            delete val;
+            val = nullptr;
+        }
+        if (reader) {
+            xmlFreeTextReader(reader);
+            reader = nullptr;
+        }
+        if (fd >= 0) {
+            close(fd);
+            fd = -1;
+        }
+        if (xml)
+            xml = nullptr;
+        if (xml_io) {
+            xml_io_callback = nullptr;
+            ExceptionSink xsink;
+            xml_io->deref(&xsink);
+            xml_io = nullptr;
+        }
+    }
 
 public:
    DLLLOCAL QoreXmlReader(const QoreString* n_xml, int options, ExceptionSink* xsink) : xs(xsink), inputStream(xsink) {

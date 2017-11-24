@@ -1,25 +1,25 @@
 /* -*- mode: c++; indent-tabs-mode: nil -*- */
 /** @file SaxIterator.qpp defines the SaxIterator class */
 /*
-  QC_SaxIterator.qpp
+    QC_SaxIterator.qpp
 
-  Qore Programming Language
+    Qore Programming Language
 
-  Copyright (C) 2003 - 2017 Qore Technologies, s.r.o.
+    Copyright (C) 2003 - 2017 Qore Technologies, s.r.o.
 
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation; either
-  version 2.1 of the License, or (at your option) any later version.
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
 
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
 
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "qore-xml-module.h"
@@ -49,10 +49,10 @@ map printf("record %d: %y\n", $#, $1), i;
     @since xml 1.4 added support for the \a opts argument
 */
 SaxIterator::constructor(string xml, string element_name, *hash opts) {
-   ReferenceHolder<QoreSaxIterator> holder(new QoreSaxIterator(xml->stringRefSelf(), element_name->c_str(), opts, xsink), xsink);
-   if (*xsink)
-      return;
-   self->setPrivate(CID_SAXITERATOR, holder.release());
+    ReferenceHolder<QoreSaxIterator> holder(new QoreSaxIterator(xml->stringRefSelf(), element_name->c_str(), opts, xsink), xsink);
+    if (*xsink)
+        return;
+    self->setPrivate(CID_SAXITERATOR, holder.release());
 }
 
 //! Returns a copy of the current object (the copy will be reset to the beginning of the XML string)

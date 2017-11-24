@@ -11,3 +11,4 @@
 #include "QoreXmlReader.cpp"
 #include "QoreXmlRpcReader.cpp"
 #include "MakeXmlOpts.cpp"
+#include "QC_AbstractXmlIoInputCallback.cpp"

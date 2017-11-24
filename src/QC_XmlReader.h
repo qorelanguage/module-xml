@@ -30,7 +30,7 @@
 #include "QC_XmlDoc.h"
 
 DLLEXPORT extern qore_classid_t CID_XMLREADER;
-DLLLOCAL QoreClass *initXmlReaderClass(QoreNamespace &XmlDoc);
+DLLLOCAL QoreClass *initXmlReaderClass(QoreNamespace& ns);
 
 class QoreXmlReaderData : public AbstractPrivateData, public QoreXmlReader {
 private:

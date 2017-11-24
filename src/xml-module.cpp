@@ -1,7 +1,7 @@
 /*
   Qore xml module
 
-  Copyright (C) 2010 - 2014 Qore Technologies, sro
+  Copyright (C) 2010 - 2017 Qore Technologies, s.r.o.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -26,6 +26,7 @@
 #include "QC_XmlNode.h"
 #include "QC_XmlReader.h"
 #include "QC_SaxIterator.h"
+#include "QC_AbstractXmlIoInputCallback.h"
 
 #include "ql_xml.h"
 
@@ -53,6 +54,8 @@ DLLEXPORT qore_module_delete_t qore_module_delete = xml_module_delete;
 DLLEXPORT qore_license_t qore_module_license = QL_MIT;
 DLLEXPORT char qore_module_license_str[] = "MIT";
 
+thread_local AbstractXmlIoInputCallback* xml_io_callback = nullptr;
+
 QoreNamespace XNS("Xml");
 
 static void qoreXmlGenericErrorFunc(QoreString *err, const char *msg, ...) {
@@ -67,42 +70,74 @@ static void qoreXmlGenericErrorFunc(QoreString *err, const char *msg, ...) {
 static void qoreXmlIgnoreErrorFunc(QoreString *err, const char *msg, ...) {
 }
 
+// libxml2 I/O callback: can we provide the requested resource; 1 = yes, 0 = no
+static int qoreXmlInputMatchCallback(const char* filename) {
+    //printd(5, "qoreXmlInputMatchCallback() filename: %s xml_io_callback: %p\n", filename, xml_io_callback);
+    return xml_io_callback ? xml_io_callback->match(filename) : 0;
+}
+
+// libxml2 I/O callback: open the requested resource; returns nullptr on error
+static void* qoreXmlInputOpenCallback(const char* filename) {
+    return xml_io_callback ? xml_io_callback->open(filename) : nullptr;
+}
+
+// libxml2 I/O callback: read the requested resource; returns the number of bytes read or -1 in case of error
+static int qoreXmlInputReadCallback(void* context, char* buffer, int len) {
+    return xml_io_callback ? xml_io_callback->read(context, buffer, len) : -1;
+}
+
+// libxml2 I/O callback: close the requested resource
+static int qoreXmlInputCloseCallback(void* context) {
+    return xml_io_callback ? xml_io_callback->close(context) : 0;
+}
+
 QoreStringNode *xml_module_init() {
-   QoreString err;
+    QoreString err;
 
-   // set our generic error handler to catch initialization errors
-   xmlSetGenericErrorFunc((void*)&err, (xmlGenericErrorFunc)qoreXmlGenericErrorFunc);
+    // set our generic error handler to catch initialization errors
+    xmlSetGenericErrorFunc((void*)&err, (xmlGenericErrorFunc)qoreXmlGenericErrorFunc);
 
-   // initialize libxml2 library
-   LIBXML_TEST_VERSION
+    // initialize libxml2 library
+    LIBXML_TEST_VERSION
 
-   if (err.strlen())
-      return new QoreStringNode(err);
+    if (err.strlen())
+        return new QoreStringNode(err);
 
-   // ignore errors after initialization
-   xmlSetGenericErrorFunc((void*)&err, (xmlGenericErrorFunc)qoreXmlIgnoreErrorFunc);
+    {
+        // register input callbacks
+        int rc = xmlRegisterInputCallbacks(qoreXmlInputMatchCallback,
+            (xmlInputOpenCallback)qoreXmlInputOpenCallback,
+            (xmlInputReadCallback)qoreXmlInputReadCallback,
+            (xmlInputCloseCallback)qoreXmlInputCloseCallback);
+        if (rc == -1)
+            return new QoreStringNodeMaker("error registering input callback; xmlRegisterInputCallbacks() returned %d; cannot initialize the libxml2 module", rc);
+    }
 
-   XNS.addSystemClass(initXmlNodeClass(XNS));
-   XNS.addSystemClass(initXmlDocClass(XNS));
-   XNS.addSystemClass(initXmlReaderClass(XNS));
-   XNS.addSystemClass(initSaxIteratorClass(XNS));
-   XNS.addSystemClass(initFileSaxIteratorClass(XNS));
-   XNS.addSystemClass(initInputStreamSaxIteratorClass(XNS));
+    // ignore errors after initialization
+    xmlSetGenericErrorFunc((void*)&err, (xmlGenericErrorFunc)qoreXmlIgnoreErrorFunc);
 
-   XNS.addSystemClass(initXmlRpcClientClass(XNS));
+    XNS.addSystemClass(initXmlNodeClass(XNS));
+    XNS.addSystemClass(initXmlDocClass(XNS));
+    XNS.addSystemClass(initXmlReaderClass(XNS));
+    XNS.addSystemClass(initSaxIteratorClass(XNS));
+    XNS.addSystemClass(initFileSaxIteratorClass(XNS));
+    XNS.addSystemClass(initInputStreamSaxIteratorClass(XNS));
+    XNS.addSystemClass(initAbstractXmlIoInputCallbackClass(XNS));
 
-   init_xml_constants(XNS);
+    XNS.addSystemClass(initXmlRpcClientClass(XNS));
 
-   // set up Option namespace for XML options
-   QoreNamespace *option = new QoreNamespace("Option");
+    init_xml_constants(XNS);
 
-   init_option_constants(*option);
+    // set up Option namespace for XML options
+    QoreNamespace *option = new QoreNamespace("Option");
 
-   XNS.addInitialNamespace(option);
+    init_option_constants(*option);
 
-   init_xml_functions(XNS);
+    XNS.addInitialNamespace(option);
 
-   return 0;
+    init_xml_functions(XNS);
+
+    return 0;
 }
 
 void xml_module_ns_init(QoreNamespace *rns, QoreNamespace *qns) {
