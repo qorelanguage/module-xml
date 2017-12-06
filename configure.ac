@@ -97,16 +97,16 @@ case "${host_os}" in
 		AC_DEFINE(HPUX, 1, if compiling on HP-UX)
 		;;
      *cygwin*)  SHLIB_SUFFIX=dll
-     		CPPFLAGS=-mwin32
-		windows=yes
-     		;;
+        CPPFLAGS=-mwin32
+        windows=yes
+        ;;
      *mingw32*) SHLIB_SUFFIX=dll
 		windows=yes
 		mingw=yes
 		#CPPFLAGS="$CPPFLAGS -D_WIN32_WINNT=0x0501"
 		#LDFLAGS="$LDFLAGS -lwsock32 -lws2_32 -lgdi32 -liconv"
 		#make_dll=yes
-		CPPFLAGS="$CPPFLAGS -DBUILDING_DLL=1"
+		CPPFLAGS="$CPPFLAGS -DBUILDING_DLL=1 -DLIBXML_STATIC=1"
 		MODULE_LDFLAGS="-no-undefined"
 		OS=Windows
 		# set LIB_PREFIX if not already set
