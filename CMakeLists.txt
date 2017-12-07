@@ -26,6 +26,10 @@ else()
     message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLIBXML_STATIC=1")
+endif()
+
 set (CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 #include(CheckSymbolExists)
