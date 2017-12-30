@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file XmlRpcHandler.qm @brief XML-RPC handler class definition for the HttpServer module
 
-/*  XmlRpcHandler.qm Copyright (C) 2012 - 2014 David Nichols
+/*  XmlRpcHandler.qm Copyright (C) 2012 - 2018 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -185,7 +185,7 @@ ash), the method definition as passed in the methods argument to this constructo
             @param logopt log options which can be used by a custom logger (see the getLogMessage parameter)
             @param cmark any value that will be added in the method hash under the \c "cmark" key
           */
-        addMethod(string name, code func, string text, string help, int logopt, any cmark) {
+        addMethod(string name, code func, string text, string help, int logopt, auto cmark) {
             addMethodInternal(("name": name,
                                "function": func,
                                "text": text,
@@ -209,7 +209,7 @@ ash), the method definition as passed in the methods argument to this constructo
         # don't reimplement this method; fix/enhance it in the module
         final private addMethodInternal(hash h) {
             # check for duplicate in method index
-            any i = mi.(h.text);
+            auto i = mi.(h.text);
             if (!exists i)
                 i = elements methods;
 
@@ -246,7 +246,7 @@ ash), the method definition as passed in the methods argument to this constructo
         }
 
         # don't reimplement this method; fix/enhance it in the module
-        final private hash callMethod(hash cx, any params) {
+        final private hash callMethod(hash cx, auto params) {
             string method = cx.method;
             # find method function
             hash found;
@@ -270,7 +270,17 @@ ash), the method definition as passed in the methods argument to this constructo
 
             #printf("DEBUG: about to call function '%s' (method=%s params=%y)\n", found.function, method, params);
 
-            any rv = found.internal ? call_object_method_args(self, found.function, params) : call_function_args(found.function, params);
+            auto rv;
+            try {
+                rv = found.internal ? call_object_method_args(self, found.function, params) : call_function_args(found.function, params);
+            }
+            catch (hash<ExceptionInfo> ex) {
+                # issue #2573: provide a more user-friendly error when the argument cannot be matched to the closure/call ref
+                if (ex.err == "RUNTIME-TYPE-ERROR" && (ex.callstack[1].file =~ /XmlRpcHandler.qm$/ && (ex.callstack[1].function == "call_function_args" || ex.callstack[1].function == "call_object_method_args")))
+                    throw "RPC-ARG-ERROR", sprintf("a call to XML-RPC method %y is missing one or more required arguments; internal call error: %s: %s", method, ex.err, ex.desc);
+                rethrow;
+            }
+
             hash h.body = make_xmlrpc_response(rv, 0, cx."response-encoding");
             return h;
         }
@@ -316,7 +326,7 @@ ash), the method definition as passed in the methods argument to this constructo
                 try {
                     xmlrpc = parse_xmlrpc_call(body);
                 }
-                catch (hash ex) {
+                catch (hash<ExceptionInfo> ex) {
                     log(cx, get_exception_string(ex));
                     log(cx, "error parsing XML-RPC string: %s", body);
                     return (
@@ -329,11 +339,11 @@ ash), the method definition as passed in the methods argument to this constructo
             }
             try {
                 cx.method = xmlrpc.methodName;
-                any rh = callMethod(cx, xmlrpc.params);
+                auto rh = callMethod(cx, xmlrpc.params);
                 #printf("method=%s args=%n\nans=%N\n", xmlrpc.methodName, xmlrpc.params, rh);flush();
                 return ( "code" : 200, "hdr" : ( "Content-Type" : MimeTypeXml ) ) + rh;
             }
-            catch (hash ex) {
+            catch (hash<ExceptionInfo> ex) {
                 #log(cx, getExceptionString(ex));
                 #log(LL_CRITICAL, "context=%N\nxmlrpc=%N\n", cx, xmlrpc);
                 #log(LL_CRITICAL, getExceptionString(ex));
