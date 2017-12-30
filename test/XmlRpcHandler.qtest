@@ -1,0 +1,50 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+%new-style
+%require-types
+%strict-args
+%enable-all-warnings
+
+%requires ../qlib/XmlRpcHandler.qm
+%requires HttpServer
+%requires QUnit
+
+%exec-class XmlRpcHandlerTest
+
+class MyXmlRpcHandler inherits XmlRpcHandler {
+    constructor(HttpServer::AbstractAuthenticator auth, list methods, *code get_log_msg, bool dbg = False, *string get_prefix, *code log) : XmlRpcHandler(auth, methods, get_log_msg, dbg, get_prefix, log) {
+    }
+
+    hash testCallMethod(hash cx, auto params) {
+        return callMethod(cx, params);
+    }
+}
+
+class XmlRpcHandlerTest inherits QUnit::Test {
+    public {
+        const Methods = (
+            (
+                "name": "^example\$",
+                "text": "example",
+                "function": string sub (string arg) { return arg; },
+                "help": "example call",
+            ),
+        );
+    }
+
+    constructor() : Test("XmlRpcHandler test", "1.0") {
+        addTestCase("base test", \testXmlRpcHandler());
+
+        # Return for compatibility with test harness that checks return value.
+        set_return_value(main());
+    }
+
+    testXmlRpcHandler() {
+        MyXmlRpcHandler handler(new PermissiveAuthenticator(), Methods);
+
+        assertEq(True, handler instanceof XmlRpcHandler);
+
+        assertThrows("RPC-ARG-ERROR", "missing one or more required arguments", \handler.testCallMethod(), ({"method": "example"}, ()));
+    }
+}
