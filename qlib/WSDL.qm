@@ -2112,6 +2112,8 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
                     throw WSDL_ERROR, sprintf("ambiguous element name %y in message %y", ename, name);
 
                 # is unique name required or not ?
+                if (!args{ename})
+                    args{ename} = new hash<ArgInfo>();
                 args{ename}.part = part.name;
                 pmap{part.name} = ename;
 
