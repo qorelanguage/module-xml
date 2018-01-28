@@ -336,7 +336,7 @@ class SoapClientTest inherits QUnit::Test {
         assertEq(url, conn_info.args[0].url);
         assertEq(45s, conn_info.args[0].connect_timeout);
         assertEq(45s, conn_info.args[0].timeout);
-        checkPreAndPostProcessing(info);
+        checkPreAndPostProcessing(conn_info);
     }
 
     private checkPreAndPostProcessing(hash<ConnectionConstructorInfo> info) {

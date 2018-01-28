@@ -481,7 +481,7 @@ public namespace SalesforceSoapClient {
         /** @since %SalesforceSoapClient 1.1
         */
         private hash<ConnectionConstructorInfo> getConstructorInfoImpl() {
-            string my_pre_code = "*string def_path; string wsdl = WSDLLib::getWSDL(args[0].url, NOTHING, NOTHING, \def_path); args[0] += {\"wsdl\": new WebService(wsdl, {\"def_path\": def_path}} + rtopts.(\"log\", \"dbglog\");";
+            string my_pre_code = "*string def_path; string wsdl = WSDLLib::getWSDL(args[0].url, NOTHING, NOTHING, \def_path); args[0] += {\"wsdl\": new WebService(wsdl, {\"def_path\": def_path})} + rtopts.(\"log\", \"dbglog\");";
             string my_post_code = "if (connect) {obj.login();}";
 
             return new hash<ConnectionConstructorInfo>({
