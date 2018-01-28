@@ -11,7 +11,7 @@
 %requires ../qlib/SoapClient.qm
 %requires ../qlib/SalesforceSoapClient.qm
 
-%requires qore >= 0.8.12
+%requires qore >= 0.9
 
 %new-style
 %require-types
@@ -29,13 +29,13 @@ class SalesforceTest inherits QUnit::Test {
         hash opts;
 
         # command-line options
-        const MyOpts = Opts + (
+        const MyOpts = Opts + {
             "wsdl": "w,wsdl=s",
             "user": "u,user=s",
             "pass": "p,pass=s",
             "token": "T,token=s",
             "timeout": "t,timeout=i",
-            );
+        };
 
         const OptionColumn = 22;
 
@@ -248,5 +248,31 @@ class SalesforceTest inherits QUnit::Test {
         string url = sc.getURL();
         hash uh = parse_url(url);
         assertEq("http", uh.protocol);
+
+        hash<ConnectionConstructorInfo> conn_info = conn.getConstructorInfo();
+        assertEq("SalesforceSoapClient", conn_info.module);
+        assertEq("SalesforceSoapClient::SalesforceSoapClient", conn_info.class_name);
+        assertEq(fake_opts, conn_info.args[0].(keys fake_opts));
+        assertEq(45s, conn_info.args[0].connect_timeout);
+        assertEq(45s, conn_info.args[0].timeout);
+        checkPreAndPostProcessing(conn_info);
+    }
+
+    private checkPreAndPostProcessing(hash<ConnectionConstructorInfo> info) {
+        Program p(PO_NEW_STYLE | PO_STRICT_ARGS | PO_REQUIRE_TYPES);
+        if (info.module)
+            p.loadModule(info.module);
+        if (info.pre_processing) {
+            string pre_processing = sprintf("sub pre_processing(reference<*softlist<auto>> args, bool connect, *hash rtopts) { %s }", info.pre_processing);
+            # ensure that the pre processing code can be parsed
+            p.parse(pre_processing, "pre processing");
+            assertTrue(True, "pre processing: " + info.class_name);
+        }
+        if (info.post_processing) {
+            string post_processing = sprintf("sub post_processing(%s obj, bool connect, *hash rtopts) { %s }", info.class_name, info.post_processing);
+            # ensure that the post processing code can be parsed
+            p.parse(post_processing, "post processing");
+            assertTrue(True, "post processing: " + info.class_name);
+        }
     }
 }
