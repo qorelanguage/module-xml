@@ -1675,7 +1675,7 @@ string make_xml(hash h, hash opts) [flags=RET_VALUE_ONLY] {
 
     @see @ref serialization
 
-    @deprecated use get_xml_string(); camel-case function names were deprecated in xml 1.3
+    @deprecated use make_xml(); camel-case function names were deprecated in xml 1.3
  */
 string makeXMLString(string key, hash h, *string encoding) [flags=RET_VALUE_ONLY,DEPRECATED] {
    const QoreEncoding* qe = encoding ? QEM.findCreate(encoding) : QCS_DEFAULT;
