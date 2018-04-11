@@ -131,15 +131,25 @@ class SalesforceTest inherits QUnit::Test {
     string createAccount() {
         #hash del_note = get_qr(sc, "Note", ("Title": "Delete Me", "Body": del_text));
 
-        hash acct1 = (
+        hash acct1 = {
             "Name": AcctName1,
             "AccountNumber": AcctNo1,
             "Description": "test account",
-            );
+        };
 
         softlist l = acct1;
 
-        hash rh = sc.create(("sObjects": sc.getType("Account", l)));
+        hash rh;
+        try {
+            rh = sc.create(("sObjects": sc.getType("Account", l)));
+        }
+        catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ex.arg.body =~ /INVALID_LOGIN/) {
+                delete sc;
+                testSkip("login failed");
+            }
+            rethrow;
+        }
         on_error
             printf("rh: %N\n", rh);
         assertEq(True, rh.result.success);
