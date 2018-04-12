@@ -112,6 +112,7 @@ class XmlTest inherits QUnit::Test {
     }
 
     constructor() : QUnit::Test("XmlTest", "1.0") {
+        addTestCase("issue 2753", \issue2753());
         addTestCase("XmlTestCase", \xmlTestCase());
         addTestCase("DeprecatedXmlTestCase", \deprecatedXmlTestCase());
         addTestCase("FileSaxIteratorTestCase", \fileSaxIteratorTestCase());
@@ -129,6 +130,18 @@ class XmlTest inherits QUnit::Test {
         addTestCase("XmlDocConstructorFromStringTestCase", \XmlDocConstructorFromStringTestCase());
         addTestCase("XmlDocValidateSchemaTestCase", \XmlDocValidateSchemaTestCase());
         set_return_value(main());
+    }
+
+    issue2753() {
+        string xml = "<a><b/><c></c></a>";
+        assertEq({"a": {"b": NOTHING, "c": NOTHING}}, parse_xml(xml));
+        assertEq({"a": {"c": NOTHING}}, parse_xml(xml, XPF_IGNORE_EMPTY_ELEMENTS));
+        xml = "<a><c></c><b/></a>";
+        assertEq({"a": {"c": NOTHING, "b": NOTHING}}, parse_xml(xml));
+        assertEq({"a": {"c": NOTHING}}, parse_xml(xml, XPF_IGNORE_EMPTY_ELEMENTS));
+        xml = "<a><c><f/><d></d><e/></c><b/></a>";
+        assertEq({"a": {"c": {"f": NOTHING, "d": NOTHING, "e": NOTHING}, "b": NOTHING}}, parse_xml(xml));
+        assertEq({"a": {"c": {"d": NOTHING}}}, parse_xml(xml, XPF_IGNORE_EMPTY_ELEMENTS));
     }
 
     dtdTest() {

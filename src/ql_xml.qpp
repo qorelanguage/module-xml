@@ -1574,6 +1574,11 @@ const XPF_ADD_COMMENTS = XPF_ADD_COMMENTS;
 /** @since xml 1.4
 */
 const XPF_STRIP_NS_PREFIXES = XPF_STRIP_NS_PREFIXES;
+
+//! ignore empty elements when parsing
+/** @since xml 1.4.1
+*/
+const XPF_IGNORE_EMPTY_ELEMENTS = XPF_IGNORE_EMPTY_ELEMENTS;
 //@}
 
 /** @defgroup xml_functions XML Functions

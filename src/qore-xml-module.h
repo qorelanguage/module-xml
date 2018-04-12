@@ -44,13 +44,15 @@
 
 // XML parsing flags
 // no flags
-#define XPF_NONE                 0
+#define XPF_NONE                  0
 // preserve element order by re-writing hash keys in case of duplicate out-of-order elements
-#define XPF_PRESERVE_ORDER       (1 << 20)
+#define XPF_PRESERVE_ORDER        (1 << 20)
 // parse comments and put as elements with key ^comment^ in hash
-#define XPF_ADD_COMMENTS         (1 << 21)
+#define XPF_ADD_COMMENTS          (1 << 21)
 // strip namespace prefixes from element names
-#define XPF_STRIP_NS_PREFIXES    (1 << 22)
+#define XPF_STRIP_NS_PREFIXES     (1 << 22)
+// ignore empty elements when parsing
+#define XPF_IGNORE_EMPTY_ELEMENTS (1 << 23)
 
 #define XPF_DECODE_MASK (XPF_DECODE_NUMERIC_REFS | XPF_DECODE_XHTML_REFS)
 
