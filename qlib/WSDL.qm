@@ -836,7 +836,7 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
         switch (type) {
             case "string":
             case "anyURI":
-                return string(val);
+                return nsc.opt_empty_string_is_nothing ? val : string(val);
 
             case "integer": {
                 # note that we do not convert xsd:integer to a qore integer if we would lose precision
@@ -3636,6 +3636,8 @@ class WSDL::NamespacePrefixHelper {
 #! namespace container class
 public class WSDL::Namespaces {
     public {
+        # options are here since this object is passed through all serialization and deserialization
+        bool opt_empty_string_is_nothing = False;
     }
 
     private {
@@ -4048,6 +4050,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
     #! creates the WebService object
     /** @param str the XML string representing the WSDL
         @param opts an optional hash of options with the following possible keys:
+        - \c "compat_empty_string_is_nothing": deserialize empty strings to @ref nothing instead of an empty string
         - \c "def_path": the default path to use when retrieving referenced XSDs
         - \c "try_import": a call reference or closure to be passed a string name for XSD imports without any scheme to retrieve the data, must take a string argument (the resource name) and return a string (the resource data)
         - \c "http_client": a HTTPClient object for retrieving data from import commands
@@ -4066,6 +4069,9 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         WSDL::XsdBase::removeNS(\h);
         WSDL::XsdBase::removeNS(\h.definitions);
         nsc = new Namespaces(h.definitions."^attributes^");
+        if (opts.compat_empty_string_is_nothing) {
+            nsc.opt_empty_string_is_nothing = True;
+        }
         #getNSPrefixes(h.definitions."^attributes^");
         #printf("%y\n", h.definitions.types);
 
