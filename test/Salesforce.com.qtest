@@ -11,7 +11,7 @@
 %requires ../qlib/SoapClient.qm
 %requires ../qlib/SalesforceSoapClient.qm
 
-%requires qore >= 0.8.12
+%requires qore >= 0.8.13
 
 %new-style
 %require-types
@@ -29,13 +29,13 @@ class SalesforceTest inherits QUnit::Test {
         hash opts;
 
         # command-line options
-        const MyOpts = Opts + (
+        const MyOpts = Opts + {
             "wsdl": "w,wsdl=s",
             "user": "u,user=s",
             "pass": "p,pass=s",
             "token": "T,token=s",
             "timeout": "t,timeout=i",
-            );
+        };
 
         const OptionColumn = 22;
 
@@ -131,15 +131,25 @@ class SalesforceTest inherits QUnit::Test {
     string createAccount() {
         #hash del_note = get_qr(sc, "Note", ("Title": "Delete Me", "Body": del_text));
 
-        hash acct1 = (
+        hash acct1 = {
             "Name": AcctName1,
             "AccountNumber": AcctNo1,
             "Description": "test account",
-            );
+        };
 
         softlist l = acct1;
 
-        hash rh = sc.create(("sObjects": sc.getType("Account", l)));
+        hash rh;
+        try {
+            rh = sc.create(("sObjects": sc.getType("Account", l)));
+        }
+        catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ex.arg.body =~ /INVALID_LOGIN/) {
+                delete sc;
+                testSkip("login failed");
+            }
+            rethrow;
+        }
         on_error
             printf("rh: %N\n", rh);
         assertEq(True, rh.result.success);
