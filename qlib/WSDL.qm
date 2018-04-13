@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.8.12
+%requires qore >= 0.8.13
 
 # requires XML functionality
 %requires xml
@@ -40,7 +40,7 @@
 %disable-warning unreferenced-variable
 
 module WSDL {
-    version = "0.3.6";
+    version = "0.3.7";
     desc = "WSDL module providing functionality for SOAP";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -75,6 +75,9 @@ module WSDL {
     - <a href="../../SoapHandler/html/index.html">SoapHandler user module</a>
 
     @section wsdlrelnotes WSDL Module Release Notes
+
+    @subsection wsdl_0_3_7 WSDL v0.3.7
+    - implemented the \c "compat_empty_string_is_nothing" option for the @ref WSDL::WebService "WebService" class for backwards compatibility with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2754">issue 2754</a>)
 
     @subsection wsdl_0_3_6 WSDL v0.3.6
     - reimplmented operation to support multi binding, operation can be assigned to more bindings
@@ -814,7 +817,7 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
             );
     }
 
-    any deserialize(string en, hash<string, XsdAbstractType> tmap, *hash mrh, any val) {
+    auto deserialize(string en, hash<string, XsdAbstractType> tmap, *hash mrh, auto val) {
         string type;
         if (val.typeCode() == NT_HASH && val.hasKey("^value^")) {
             if (val."^attributes^"."xsi:type") {
@@ -1123,7 +1126,7 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         return nillable;
     }
 
-    any serialize(Namespaces nsc, any h, *softbool omitType, string key, string typename) {
+    auto serialize(Namespaces nsc, any h, *softbool omitType, string key, string typename) {
         if (h."^type^" && h."^type^" instanceof XsdAbstractType && h.hasKey("^val^")) {
             XsdAbstractType ntype = cast<XsdAbstractType>(h."^type^");
             ntype.checkExtends(type, name);
@@ -1133,7 +1136,7 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         return serializeAsIntern(nsc, type, h, omitType, key, typename);
     }
 
-    private any serializeAsIntern(Namespaces nsc, XsdAbstractType type, any h, *softbool omitType, string key, string typename) {
+    private auto serializeAsIntern(Namespaces nsc, XsdAbstractType type, any h, *softbool omitType, string key, string typename) {
         #printf("DEBUG: XsdElement::serializeAsIntern() name: %y (with type: %y) h: %y key: %y typename: %y (%y) minOccurs: %y nillable: %y (%y %y)\n", name, ((!omitType || type != self.type) && type.hasRealName()), h, key, typename, type.getName(), minOccurs, nillable, !exists h, !minOccurs);
 
         int tc = h.typeCode();
@@ -1186,7 +1189,7 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         return (pf + type.serialize(nsc, h, omitType));
     }
 
-    any deserialize(hash<string, XsdAbstractType> tmap, *hash mrh, any val, bool present) {
+    auto deserialize(hash<string, XsdAbstractType> tmap, *hash mrh, auto val, bool present) {
         #printf("XsdElement::deserialize() name: %y type: %y (nillable: %y) val: %y present: %y\n", name, type.getName(), type.isNillable(), val, present);
         *hash a = val."^attributes^";
         if (a)
@@ -1563,7 +1566,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return h;
     }
 
-    private *hash serializeElement(Namespaces nsc, string key, XsdElement element, any h, *softbool omitType) {
+    private *hash serializeElement(Namespaces nsc, string key, XsdElement element, auto h, *softbool omitType) {
         any v = h{key};
         string e_ons;
         #printf("DEBUG: XsdComplexType::serializeElement() key: %y v: %y h: %y ns: %y\n", key, v, h, nsc.getTargetNamespaceUri());
@@ -1584,7 +1587,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return rv;
     }
 
-    *hash serialize(Namespaces nsc, any h, *softbool omitType) {
+    *hash serialize(Namespaces nsc, auto h, *softbool omitType) {
         if (exists array)
             return array.serialize(nsc, h, omitType);
 
@@ -1701,7 +1704,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return rh;
     }
 
-    *hash deserialize(string en, hash<string, XsdAbstractType> tmap, *hash mrh, any oval) {
+    *hash deserialize(string en, hash<string, XsdAbstractType> tmap, *hash mrh, auto oval) {
+        #printf("XsdComplexType::deserialize() name: %y val: %y required: %y\n", getName(), oval, required);
         if (exists array)
             return array.deserialize(en, tmap, mrh, oval);
 
@@ -1712,6 +1716,10 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
 
         hash rh;
 
+        # to avoid "RUNTIME-TYPE-ERROR" exceptions in the next line`
+        if (exists oval && oval.typeCode() != NT_HASH) {
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize complex type %y from Qore type %y (expecting \"hash\")", getName(), oval.type());
+        }
         *hash val = oval;
         *hash attr = val."^attributes^";
 
@@ -4055,6 +4063,8 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         - \c "try_import": a call reference or closure to be passed a string name for XSD imports without any scheme to retrieve the data, must take a string argument (the resource name) and return a string (the resource data)
         - \c "http_client": a HTTPClient object for retrieving data from import commands
         - \c "http_headers": a hash of optional HTTP header info to use when retrieving data from import commands
+
+        @since 0.3.7 added the \c "compat_empty_string_is_nothing" option for backwards compatibility
     */
     constructor(string str, *hash opts) {
         hash h = parse_xml(str);
