@@ -77,6 +77,7 @@ module WSDL {
     @section wsdlrelnotes WSDL Module Release Notes
 
     @subsection wsdl_0_3_7 WSDL v0.3.7
+    - fixed a bug in example message generation that resulted in invalid messages (<a href="https://github.com/qorelanguage/qore/issues/2752">issue 2752</a>)
     - implemented the \c "compat_empty_string_is_nothing" option for the @ref WSDL::WebService "WebService" class for backwards compatibility with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2754">issue 2754</a>)
 
     @subsection wsdl_0_3_6 WSDL v0.3.6
@@ -4712,7 +4713,6 @@ public class WSDL::WSMessageHelper {
                 v{'^comment^'} = comments.join(';');
             }
             if (vi.attrs) {
-                v{'^attributes^'} = ();
                 foreach string name2 in (keys cast<XsdComplexType>(elem.type).attrs) {
                     hash vi2 = getTypeInfo(cast<XsdComplexType>(elem.type).attrs{name2}.type);
                     if (vi2.type) {
