@@ -78,7 +78,10 @@ module WSDL {
 
     @subsection wsdl_0_3_7 WSDL v0.3.7
     - fixed a bug in example message generation that resulted in invalid messages (<a href="https://github.com/qorelanguage/qore/issues/2752">issue 2752</a>)
-    - implemented the \c "compat_empty_string_is_nothing" option for the @ref WSDL::WebService "WebService" class for backwards compatibility with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2754">issue 2754</a>)
+    - implemented the @ref WSDL::wsdl_set_global_compat_empty_string_is_nothing()
+    "wsdl_set_global_compat_empty_string_is_nothing" function and the
+    \c "compat_empty_string_is_nothing" option for the @ref WSDL::WebService "WebService" class
+    for backwards compatibility with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2754">issue 2754</a>)
 
     @subsection wsdl_0_3_6 WSDL v0.3.6
     - reimplmented operation to support multi binding, operation can be assigned to more bindings
@@ -216,6 +219,14 @@ public namespace WSDL {
 
     #! range of "int" values (32 bits)
     public const RANGE_INT = (-2147483648, 2147483647);
+
+    # private global variable
+    our bool global_compat_empty_string_is_nothing;
+
+    #! sets the \c global_compat_empty_string_is_nothing variable to the given value to force the WSDL module to return a blank value for a required string field when the associated XML element is present as no value instead of an empty string for backwards compatibility with Qorus 3.0
+    public sub wsdl_set_global_compat_empty_string_is_nothing(softbool val) {
+        global_compat_empty_string_is_nothing = val;
+    }
 }
 
 #! contains helper methods for retrieving WSDLs from a URL
@@ -4080,7 +4091,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         WSDL::XsdBase::removeNS(\h);
         WSDL::XsdBase::removeNS(\h.definitions);
         nsc = new Namespaces(h.definitions."^attributes^");
-        if (opts.compat_empty_string_is_nothing) {
+        if (opts.compat_empty_string_is_nothing || global_compat_empty_string_is_nothing) {
             nsc.opt_empty_string_is_nothing = True;
         }
         #getNSPrefixes(h.definitions."^attributes^");

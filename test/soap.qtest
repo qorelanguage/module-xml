@@ -523,11 +523,31 @@ class SoapTest inherits QUnit::Test {
             assertEq("", h.issue2754.i2754_e1.i2754_2_e2);
             #printf("h: %N\n", h);
 
-            WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"), ("compat_empty_string_is_nothing": True));
-            WSOperation op1 = ws1.getOperation("setInfo");
+            {
+                WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"), ("compat_empty_string_is_nothing": True));
+                WSOperation op1 = ws1.getOperation("setInfo");
 
-            h = op1.deserializeRequest(xh1);
-            assertEq(NOTHING, h.issue2754.i2754_e1.i2754_2_e2);
+                h = op1.deserializeRequest(xh1);
+                assertEq(NOTHING, h.issue2754.i2754_e1.i2754_2_e2);
+            }
+
+            {
+                wsdl_set_global_compat_empty_string_is_nothing(True);
+                WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"));
+                WSOperation op1 = ws1.getOperation("setInfo");
+
+                h = op1.deserializeRequest(xh1);
+                assertEq(NOTHING, h.issue2754.i2754_e1.i2754_2_e2);
+            }
+
+            {
+                wsdl_set_global_compat_empty_string_is_nothing(False);
+                WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"));
+                WSOperation op1 = ws1.getOperation("setInfo");
+
+                h = op1.deserializeRequest(xh1);
+                assertEq("", h.issue2754.i2754_e1.i2754_2_e2);
+            }
         }
 
         h = op.deserializeRequest(xh);
