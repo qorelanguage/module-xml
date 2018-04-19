@@ -111,14 +111,18 @@ class SoapTest inherits QUnit::Test {
                             "st:i985_e1": "test",
                             "st:i985_e2": "test",
                         ),
-                        #/*
                         "st:issue2190": (
                             "^attributes^": (
                                 "attr": "val",
                             ),
                             "^value^": "string",
                         ),
-                        #*/
+                        "st:issue2754": (
+                            "st:i2754_e1": (
+                                "st:i2754_2_e1": "str",
+                                "st:i2754_2_e2": "str",
+                            ),
+                        ),
                         "logo": "dGVzdA==",
                     ),
                 ),
@@ -170,6 +174,12 @@ class SoapTest inherits QUnit::Test {
             <sim:i985_e2>test</sim:i985_e2>
          </sim:issue985>
          <sim:issue2190 attr=\"val\">string</sim:issue2190>
+         <sim:issue2754>
+            <sim:i2754_e1>
+                <sim:i2754_2_e1>str</sim:i2754_2_e1>
+                <sim:i2754_2_e2>str</sim:i2754_2_e2>
+            </sim:i2754_e1>
+         </sim:issue2754>
          <logo>dGVzdA==</logo>
       </sim:setInfo>
    </soap:Body>
@@ -480,21 +490,65 @@ class SoapTest inherits QUnit::Test {
             ),
             "issue985": ws.getType("i985_2", ("i985_e1": "test", "i985_e2": "test",)),
             "issue2190": ("^attributes^": ("attr": "val"), "^value^": "string"),
+            "issue2754": (
+                "i2754_e1": (
+                    "i2754_2_e1": "str",
+                    "i2754_2_e2": "str",
+                ),
+            ),
             "logo": binary("test"),
             );
 
         # negative test w/o attributes
         assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), req, "attr-ser-neg");
 
-        req.body."^attributes^" = (
+        req.body."^attributes^" = {
             "infoType": "test",
             "code": 1,
-            );
+        };
 
         hash h = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING, "TEST");
         assertEq("TEST", h.hdr.SOAPAction);
         hash xh = parse_xml(h.body);
         compareSoapMsgs("attr-ser", Req_1, xh);
+
+        {
+            hash h1 = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING, "TEST");
+            h1.body =~ s/<ns1:i2754_2_e2>str<\/ns1:i2754_2_e2>/<ns1:i2754_2_e2\/>/;
+            #printf("body: %s\n", h1.body);
+            hash xh1 = parse_xml(h1.body);
+            #printf("xh1: %N\n", xh1);
+            # test issue #2754
+            h = op.deserializeRequest(xh1);
+            assertEq("", h.issue2754.i2754_e1.i2754_2_e2);
+            #printf("h: %N\n", h);
+
+            {
+                WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"), ("compat_empty_string_is_nothing": True));
+                WSOperation op1 = ws1.getOperation("setInfo");
+
+                h = op1.deserializeRequest(xh1);
+                assertEq(NOTHING, h.issue2754.i2754_e1.i2754_2_e2);
+            }
+
+            {
+                wsdl_set_global_compat_empty_string_is_nothing(True);
+                WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"));
+                WSOperation op1 = ws1.getOperation("setInfo");
+
+                h = op1.deserializeRequest(xh1);
+                assertEq(NOTHING, h.issue2754.i2754_e1.i2754_2_e2);
+            }
+
+            {
+                wsdl_set_global_compat_empty_string_is_nothing(False);
+                WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"));
+                WSOperation op1 = ws1.getOperation("setInfo");
+
+                h = op1.deserializeRequest(xh1);
+                assertEq("", h.issue2754.i2754_e1.i2754_2_e2);
+            }
+        }
 
         h = op.deserializeRequest(xh);
         assertEq(NOTHING, h.hdr.SOAPAction);
