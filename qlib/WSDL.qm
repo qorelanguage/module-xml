@@ -82,6 +82,10 @@ module WSDL {
     "wsdl_set_global_compat_empty_string_is_nothing" function and the
     \c "compat_empty_string_is_nothing" option for the @ref WSDL::WebService "WebService" class
     for backwards compatibility with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2754">issue 2754</a>)
+    - implemented the @ref WSDL::wsdl_set_global_compat_empty_string_is_nothing()
+    "wsdl_set_global_compat_allow_any_header" function and the
+    \c "compat_allow_any_header" option for the @ref WSDL::WebService "WebService" class
+    for backwards compatibility with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2765">issue 2765</a>)
 
     @subsection wsdl_0_3_6 WSDL v0.3.6
     - reimplmented operation to support multi binding, operation can be assigned to more bindings
@@ -220,12 +224,18 @@ public namespace WSDL {
     #! range of "int" values (32 bits)
     public const RANGE_INT = (-2147483648, 2147483647);
 
-    # private global variable
+    # private global variables
     our bool global_compat_empty_string_is_nothing;
+    our bool global_compat_allow_any_header;
 
-    #! sets the \c global_compat_empty_string_is_nothing variable to the given value to force the WSDL module to return a blank value for a required string field when the associated XML element is present as no value instead of an empty string for backwards compatibility with Qorus 3.0
+    #! sets the \c global_compat_empty_string_is_nothing variable to the given value to force the WSDL module to return a blank value for a required string field when the associated XML element is present as no value instead of an empty string for backwards compatibility with xml module 1.3
     public sub wsdl_set_global_compat_empty_string_is_nothing(softbool val) {
         global_compat_empty_string_is_nothing = val;
+    }
+
+    #! sets the \c global_compat_allow_any_header variable to the given value to force the WSDL module to allow any SOAP header to be sent in SOAP messages for backwards compatibility with xml module 1.3
+    public sub wsdl_set_global_compat_allow_any_header(softbool val) {
+        global_compat_allow_any_header = val;
     }
 }
 
@@ -2635,7 +2645,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         return rv;
     }
 
-    private:internal hash serializeSoapMessage(WSOperation op, any val, *hash header, *hash nsh, bool request, bool soap12, reference mpm) {
+    private:internal hash serializeSoapMessage(WSOperation op, auto val, *hash header, *hash nsh, bool request, bool soap12, reference mpm) {
         string io = request ? "input" : "output";
         # setup namespaces for SOAP envelope
         #printf("DEBUG: serializeSoapMessage: io:%s, h: %y, header: %y, soap12:%y\n", io, val, header, soap12);
@@ -2691,8 +2701,14 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
             #printf("DEBUG: outh: %y\n", outh);
             rh{soapenvEnvelope}."soapenv:Header" = outh;
         }
-        if (header.typeCode() == NT_HASH && header)
-            throw SOAP_SERIALIZATION_ERROR, sprintf("%s header data provided for operation %y remains unserialized: %y", io, op.name, header);
+        if (header.typeCode() == NT_HASH && header) {
+            if (op.nsc.opt_allow_any_header) {
+                rh{soapenvEnvelope}."soapenv:Header" += header;
+            }
+            else {
+                throw SOAP_SERIALIZATION_ERROR, sprintf("%s header data provided for operation %y remains unserialized: %y", io, op.name, header);
+            }
+        }
         if (val.typeCode() == NT_HASH && val)
             throw SOAP_SERIALIZATION_ERROR, sprintf("%s data provided for operation %y remains unserialized: %y", io, op.name, val);
 
@@ -3658,33 +3674,34 @@ public class WSDL::Namespaces {
     public {
         # options are here since this object is passed through all serialization and deserialization
         bool opt_empty_string_is_nothing = False;
+        bool opt_allow_any_header = False;
     }
 
     private {
         #! maps output namespace prefixes to namespace URIs
-        hash ns = (
+        hash ns = {
             "xsd": XSD_NS,
-            );
+        };
 
         #! maps namespace URIs to output namespace prefixes
-        hash nsr = (
+        hash nsr = {
             XSD_NS: "xsd",
-            );
+        };
 
         #! hash for valid XSD namespaces, maps input namespace prefixes -> True if it refers to an XSD schema
-        hash xsd_schema = (
+        hash xsd_schema = {
             "xsd": True,
-            );
+        };
 
         #! hash mapping input namespace prefixes to namespaces URIs
-        hash imap = (
+        hash imap = {
             "xsd": XSD_NS,
-            );
+        };
 
         #! hash mapping input namespace URIs to input namespace prefixes
-        hash imapr = (
+        hash imapr = {
             XSD_NS: "xsd",
-            );
+        };
 
         #! integer providing a sequence for output namespace prefixes
         int nsn;
@@ -4070,13 +4087,14 @@ public class WSDL::WebService inherits WSDL::XsdBase {
     #! creates the WebService object
     /** @param str the XML string representing the WSDL
         @param opts an optional hash of options with the following possible keys:
+        - \c "compat_allow_any_header": allow any SOAP header to be sent without checking the WSDL
         - \c "compat_empty_string_is_nothing": deserialize empty strings to @ref nothing instead of an empty string
         - \c "def_path": the default path to use when retrieving referenced XSDs
         - \c "try_import": a call reference or closure to be passed a string name for XSD imports without any scheme to retrieve the data, must take a string argument (the resource name) and return a string (the resource data)
         - \c "http_client": a HTTPClient object for retrieving data from import commands
         - \c "http_headers": a hash of optional HTTP header info to use when retrieving data from import commands
 
-        @since 0.3.7 added the \c "compat_empty_string_is_nothing" option for backwards compatibility
+        @since 0.3.7 added the \c "compat_empty_string_is_nothing" and \c "compat_allow_any_header" options for backwards compatibility
     */
     constructor(string str, *hash opts) {
         hash h = parse_xml(str);
@@ -4093,6 +4111,9 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         nsc = new Namespaces(h.definitions."^attributes^");
         if (opts.compat_empty_string_is_nothing || global_compat_empty_string_is_nothing) {
             nsc.opt_empty_string_is_nothing = True;
+        }
+        if (opts.compat_allow_any_header || global_compat_allow_any_header) {
+            nsc.opt_allow_any_header = True;
         }
         #getNSPrefixes(h.definitions."^attributes^");
         #printf("%y\n", h.definitions.types);
