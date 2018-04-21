@@ -1726,7 +1726,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return rh;
     }
 
-    *hash deserialize(string en, hash<string, XsdAbstractType> tmap, *hash mrh, auto oval) {
+    *hash<auto> deserialize(string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto oval) {
         #printf("XsdComplexType::deserialize() name: %y val: %y required: %y\n", getName(), oval, required);
         if (exists array)
             return array.deserialize(en, tmap, mrh, oval);
@@ -1736,17 +1736,17 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 return;
         }
 
-        hash rh;
+        hash<auto> rh;
 
         # to avoid "RUNTIME-TYPE-ERROR" exceptions in the next line`
         if (exists oval && oval.typeCode() != NT_HASH) {
             throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize complex type %y from Qore type %y (expecting \"hash\")", getName(), oval.type());
         }
-        *hash val = oval;
-        *hash attr = val."^attributes^";
+        *hash<auto> val = oval;
+        *hash<auto> attr = val."^attributes^";
 
         # attribute hash
-        *hash ah;
+        *hash<auto> ah;
         if (attr) {
             # parse incoming valid attributes
             foreach XsdAttribute xa in (attrs.iterator()) {
@@ -1838,7 +1838,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return rh;
     }
 
-    private *hash parseChoice(hash val, hash<string, XsdElement> emap, string en, hash<string, XsdAbstractType> tmap, *hash mrh, *bool required) {
+    private *hash<auto> parseChoice(hash val, hash<string, XsdElement> emap, string en, hash<string, XsdAbstractType> tmap, *hash mrh, *bool required) {
         list kl = val.keys();
         if (elements kl > 1)
             throw SOAP_DESERIALIZATION_ERROR, sprintf("too many elements supplied for choice / union in type %y for element %y (%y)", getName(), en, kl);
@@ -2050,7 +2050,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         When URL replacement is defined for operation then exception is raised.
         @return NOTHING if data are not encoded in URL for operation
     */
-    *hash deserializeRequestPath(string path, *string bname) {
+    *hash<auto> deserializeRequestPath(string path, *string bname) {
         return getBinding(bname).deserializeRequestPath(self, path);
     }
 
@@ -2306,14 +2306,14 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
     @param part if exists then deserialize only particular part
     @return serialized data, keys are wsdl element names (optionally part name is also possible) and part names for simple types
     */
-    *hash deserializeRpc(*hash mrh, hash val, *string part) {
+    *hash<auto> deserializeRpc(*hash mrh, hash val, *string part) {
         #printf("DBG WSMessage::deserializeRpc() pmap: %y part: %y val: %y\n", pmap, part, val);
-        hash ro;
+        hash<auto> ro;
 
         foreach string p in (part ?? keys pmap) {
             string k = getSerializedKey(p);
             bool present = val.hasKey(k);
-            any v = remove val{k};
+            auto v = remove val{k};
             hash arg = args{k};
             #printf("DBG WSMessage::deserializeRpc() part: %y, key: %y, val: %y\n", p, k, v);
             if (v.typeCode() == NT_HASH) {
@@ -2333,8 +2333,8 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         return ro;
     }
 
-    *hash deserializeDocument(*hash mrh, any val, *string parts) {
-        hash rh;
+    *hash<auto> deserializeDocument(*hash mrh, any val, *string parts) {
+        hash<auto> rh;
 
         *hash attr = remove val."^attributes^";
 
@@ -2351,12 +2351,12 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         foreach string p in (parts ?? keys pmap) {
             string k = getSerializedKey(p);
             bool present = val.hasKey(k);
-            any v = remove val{k};
+            auto v = remove val{k};
             #printf("DBG WSMessage::deserializeDocument() part: %y, key: %y, val: %y\n", p, k, v);
             if (v.typeCode() == NT_HASH) {
                 XsdBase::removeNS2(\v);
             }
-            hash arg = args{pmap{p}};
+            hash<auto> arg = args{pmap{p}};
             if (arg.element) {
                 rh{p} = arg.element.deserialize(tmap, mrh, getValue(mrh, v), present);
             } else {
@@ -2404,8 +2404,8 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
     /**
         @return hash in key-value pair
     */
-    hash deserializeData(string part, hash val) {
-        hash rv;
+    hash<auto> deserializeData(string part, hash val) {
+        hash<auto> rv;
         hash arg = args{pmap{part}};
         rv{part} = arg.element
             ? arg.element.deserialize(tmap, NOTHING, val{pmap{part}}, val.hasKey(pmap{part}))
@@ -2417,8 +2417,8 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
     /**
         @return hash of all parts in key-value pair
     */
-    hash deserializeAllPartData(hash val) {
-        hash rv = {};
+    hash<auto> deserializeAllPartData(hash val) {
+        hash<auto> rv = {};
         #printf("deserializeAllPartData: pmap: %y, val: %y\n", pmap, val);
         foreach string p in (keys pmap) {
             rv += deserializeData(p, val);
@@ -2888,7 +2888,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         return (mrh, body);
     }
 
-    hash deserializeRequestPathImpl(WSOperation op, string path) {
+    hash<auto> deserializeRequestPathImpl(WSOperation op, string path) {
         throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize URI request path %y for SOAP binding %y", path, name);
     }
 }
@@ -3063,13 +3063,13 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
         }
     }
 
-    hash deserializeRequestPathImpl(WSOperation op, string path) {
+    hash<auto> deserializeRequestPathImpl(WSOperation op, string path) {
         if (input.urlReplacement) {
             # all parameters are somehow encoded in path
             throw SOAP_DESERIALIZATION_ERROR, sprintf("url replacement message deserialization is not supported in binding %y", name);
         }
         if (input.urlEncoded) {
-            hash h;
+            hash<auto> h;
             if (index(path, "?") >= 0) {
                 # any params ?
                 int i = index(path, location);

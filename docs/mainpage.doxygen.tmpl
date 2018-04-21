@@ -339,6 +339,8 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
         "wsdl_set_global_compat_allow_any_header" function and the
         \c "compat_allow_any_header" option for the \c WebService class
         for backwards compatibility with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2765">issue 2765</a>)
+      - fixed types when deserializing to eliminate performance penalties stripping types in large data structures
+        (<a href="https://github.com/qorelanguage/qore/issues/2766">issue 2766</a>)
 
     @subsection xml14 xml Module Version 1.4
     <b>Changes and Bug Fixes in This Release</b>
