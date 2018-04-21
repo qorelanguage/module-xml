@@ -765,6 +765,28 @@ class SoapTest inherits QUnit::Test {
         h = op.serializeResponse(h);
         assertTrue(h.hdr."Content-Type".regex("^text/xml"), "Content type");
         assertTrue(h.body.regex("^\\<\\?xml version.*\n.*string.*xxx"), "serialize mimexml");
+
+        # tests for issue #2765
+        op = ws.getOperation("oneElem");
+        assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), (("info": "XYZ"), ("invalid": "x")));
+
+        {
+            WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"), ("compat_allow_any_header": True));
+            WSOperation op1 = ws1.getOperation("oneElem");
+            h = op1.serializeRequest(("info": "XYZ"), ("invalid": "x"));
+            assertRegex("<soapenv:Header><invalid>x</invalid>", h.body);
+        }
+
+        {
+            wsdl_set_global_compat_allow_any_header(True);
+            on_exit wsdl_set_global_compat_allow_any_header(False);
+            WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"));
+            WSOperation op1 = ws1.getOperation("oneElem");
+            h = op1.serializeRequest(("info": "XYZ"), ("invalid": "x"));
+            assertRegex("<soapenv:Header><invalid>x</invalid>", h.body);
+        }
+
+        assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), (("info": "XYZ"), ("invalid": "x")));
     }
 
     test1() {
