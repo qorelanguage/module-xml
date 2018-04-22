@@ -1675,7 +1675,7 @@ string make_xml(hash h, hash opts) [flags=RET_VALUE_ONLY] {
 
     @see @ref serialization
 
-    @deprecated use get_xml_string(); camel-case function names were deprecated in xml 1.3
+    @deprecated use make_xml(); camel-case function names were deprecated in xml 1.3
  */
 string makeXMLString(string key, hash h, *string encoding) [flags=RET_VALUE_ONLY,DEPRECATED] {
    const QoreEncoding* qe = encoding ? QEM.findCreate(encoding) : QCS_DEFAULT;
@@ -2676,36 +2676,37 @@ nothing parseXMLRPCResponse() [flags=RUNTIME_NOOP,DEPRECATED] {
 
     @since xml 1.4
  */
-any get_xml_value(any n) [flags=CONSTANT] {
-   if (n.isNothing()) {
-      return QoreValue();
-   }
-   SimpleRefHolder<SimpleQoreNode> str;
+auto get_xml_value(auto n) [flags=CONSTANT] {
+    if (n.isNothing()) {
+        return QoreValue();
+    }
+    ValueHolder rv(xsink);
 
-   switch (n.getType()) {
-      case NT_HASH: {
-         const QoreHashNode* h = reinterpret_cast<const QoreHashNode*>(n.getInternalNode());
-         const AbstractQoreNode* v = h->getKeyValue("^value^");
-         if (is_nothing(v)) {
+    switch (n.getType()) {
+        case NT_HASH: {
+            const QoreHashNode* h = n.get<const QoreHashNode>();
+            const QoreValue v = h->getValueKeyValue("^value^");
+            if (v.isNothing()) {
+                return QoreValue();
+            }
+            switch (v.getType()) {
+                case NT_HASH:
+                case NT_LIST:
+                    return QoreValue();
+                default:
+                    rv = v.refSelf();
+                    break;
+            }
+            break;
+        }
+        case NT_LIST:
             return QoreValue();
-         }
-         switch (v->getType()) {
-            case NT_HASH:
-            case NT_LIST:
-               return QoreValue();
-            default:
-               str = reinterpret_cast<SimpleQoreNode*>(v->refSelf());
-         }
-         break;
-      }
-      case NT_LIST:
-         return QoreValue();
-      default:
-         // just return parameter as-is, we need inc reference
-         str = reinterpret_cast<SimpleQoreNode*>(n.getInternalNode()->refSelf());
-         break;
-   }
-   return str.release();
+        default:
+            // just return parameter as-is, we need inc reference
+            rv = n.refSelf();
+            break;
+    }
+    return rv.release();
 }
 
 //@}
