@@ -122,7 +122,7 @@ public namespace SoapHandler {
             hash<string, hash> uri_methods;
 
             # reverse URI path method mappings: unique_id -> URI path -> method name -> true
-            hash<string, hash<string, bool>> ruri_methods;
+            hash<string, hash<string, hash<string, bool>>> ruri_methods;
 
             # service name -> WebService objects
             hash<string, WebService> wsh;
@@ -287,7 +287,10 @@ public namespace SoapHandler {
                         # assume that "path" is the name of the service
                         hash svch = ws.getService(method.path);
                         if (svch.port) {
-                            method.altpath = parse_url(svch.port.firstValue().address).path;
+                            # if we have a simple path with no directory separators and no scheme, then the value will be in the "host" field
+                            # after parse_url()
+                            hash h = parse_url(svch.port.firstValue().address);
+                            method.altpath = h.path ?? h.host;
                         }
                     }
                     catch () {
@@ -299,6 +302,7 @@ public namespace SoapHandler {
                     method.altpath = method.altpath.substr(1);
                 }
 
+                #printf("DEBUG: method: %y\n", method - "operation");
                 # soap binding
                 *string sa = sb.soapAction;
                 if (sa) {
@@ -317,23 +321,26 @@ public namespace SoapHandler {
                 }
 
                 # add SOAPAction mapping if possible
-                if (sa && !sam{sa}) {
-                    # add mapping from SOAPAction to method
-                    sam{sa} = method;
+                if (sa) {
+                    if (!sam{sa}) {
+                        # add mapping from SOAPAction to method
+                        sam{sa} = method;
 
-                    # add path / soapaction mapping for service removal
-                    if (method.unique_id) {
-                        rsam{method.unique_id}{sa} = True;
+                        # add path / soapaction mapping for service removal
+                        if (method.unique_id) {
+                            rsam{method.unique_id}{sa} = True;
+                        }
                     }
-                }
 
-                # add URI path -> SOAPAction mappings if possible
-                if (method.altpath && !uri_sam{method.altpath}{sa}) {
-                    uri_sam{method.altpath}{sa} = method;
+                    # add URI path -> SOAPAction mappings if possible
+                    if (method.altpath && !uri_sam{method.altpath}{sa}) {
+                        uri_sam{method.altpath}{sa} = method;
+                        #printf("DEBUG: added SA mapping %y -> %y -> method\n", method.altpath, sa);
 
-                    # add reverse mappings for removal
-                    if (method.unique_id) {
-                        ruri_sam{method.unique_id}{method.altpath}{sa} = True;
+                        # add reverse mappings for removal
+                        if (method.unique_id) {
+                            ruri_sam{method.unique_id}{method.altpath}{sa} = True;
+                        }
                     }
                 }
 
@@ -369,8 +376,11 @@ public namespace SoapHandler {
                     }
                 }
 
+                #printf("DEBUG: operation request names: %y\n", method.operation.getTopLevelRequestNames());
+
                 # add request name mappings
                 foreach string rn in (method.operation.getTopLevelRequestNames()) {
+                    #printf("DEBUG: rn: %y methods: %y\n", rn, keys methods);
                     if (!methods{rn}) {
                         methods{rn} = method;
 
@@ -379,12 +389,33 @@ public namespace SoapHandler {
                         }
                     }
 
-                    if (method.alt_path && !uri_methods{method.alt_path}{rn}) {
-                        uri_methods{method.alt_path}{rn} = method;
+                    #printf("DEBUG: method.altpath: %y rn: %y uri_methods: %y uri_methods{%y}: %y\n", method.altpath, rn, keys uri_methods, method.altpath, keys uri_methods{method.altpath});
+                    if (method.altpath && !uri_methods{method.altpath}{rn}) {
+                        uri_methods{method.altpath}{rn} = method;
+
+                        #printf("DEBUG: added URL mapping %y -> %s -> method\n", method.altpath, rn);
 
                         if (method.unique_id) {
-                            ruri_methods{method.unique_id}{method.alt_path}{rn} = True;
+                            ruri_methods{method.unique_id}{method.altpath}{rn} = True;
                         }
+                    }
+                }
+
+                # add mapping for method name
+                if (!methods{method.name}) {
+                    methods{method.name} = method;
+
+                    if (method.unique_id) {
+                        rmethods{method.unique_id}{method.name} = True;
+                    }
+                }
+
+                if (method.altpath && !uri_methods{method.altpath}{method.name}) {
+                    uri_methods{method.altpath}{method.name} = method;
+                    #printf("DEBUG: added URL mapping %y -> %s -> method\n", method.altpath, method.name);
+
+                    if (method.unique_id) {
+                        ruri_methods{method.unique_id}{method.altpath}{method.name} = True;
                     }
                 }
             } else if (binding instanceof HttpBinding) {
@@ -408,7 +439,6 @@ public namespace SoapHandler {
             } else {
                 throw "SOAPACTION-ERROR", sprintf("cannot register operation %y because it has unsupported binding: %y", method.operation.name, binding.className());
             }
-
             #printf("DEBUG: SoapHandler::addMethodInternal() %N %N\n", method.name, method.path);
         }
 
@@ -459,7 +489,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
 
         # don't reimplement this method; fix/enhance it in the module
         private hash<auto> makeSoapFaultResponse(hash<auto> cx, int code, string errLog, bool soap12, string err, string desc, *bool fmt) {
-            hash<auto> o;
+            hash o;
             if (soap12) {
                 o = ENVELOPE_12_NS;
                 o."soapenv:Envelope"."soapenv:Body" =
@@ -636,6 +666,8 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                     rwl.readLock();
                     on_exit rwl.readUnlock();
 
+                    #printf("DEBUG: path: %y alt_path: %y soapaction: %y us: %y urs: %y s: %y\n", path, alt_path, soapaction, exists uri_sam{path}{soapaction}, exists uri_sam{alt_path}{soapaction}, exists sam{soapaction});
+
                     # issue #2783 respect URI paths when matching
                     method = uri_sam{path}{soapaction} ?? uri_sam{alt_path}{soapaction} ?? sam{soapaction};
                     #printf("DEBUG: request matched with SoapAction %y method: %y us: %y\n", soapaction, keys method, keys uri_sam);
@@ -779,6 +811,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                                 rwl.readLock();
                                 on_exit rwl.readUnlock();
 
+                                #printf("DEBUG: path: %y alt_path: %y element: %y um: %y urm: %y m: %y\n", path, alt_path, element, exists uri_methods{path}{element}, exists uri_methods{alt_path}{element}, exists methods{element});
                                 # issue #2783: respect UTI paths when matching
                                 method = uri_methods{path}{element} ?? uri_methods{alt_path}{element} ?? methods{element};
                             }

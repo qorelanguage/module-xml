@@ -1101,7 +1101,9 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         int minOccurs = 1;
         int maxOccurs = 1;
         bool nillable = False;
+        # the resolve namespace URI for any reference
         *string ref_ns;
+        # the source name for any reference
         *string ref;
         bool usedocns;
     }
@@ -1148,6 +1150,7 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
                 nillable = True;
         }
         else if (e."^attributes^".ref) {
+            # issue #2786: must resolve ns prefixes immediately as with late resolution the context may be different
             (ref_ns, ref) = (e."^attributes^".ref =~ x/^([^:]*):(.*)$/);
             ref_ns = nsc.getNamespaceUri(ref_ns);
             unresolved.add(self);
@@ -4430,7 +4433,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
             if (emap{element.ns}{element.name})
                 throw WSDL_ERROR, sprintf("element %y declared twice in namespace %y", element.name, element.ns);
             emap{element.ns}{element.name} = element;
-            printf("DEBUG: added element %s -> %s\n", element.ns, element.name);
+            #printf("DEBUG: added element %s -> %s\n", element.ns, element.name);
         }
     }
 
