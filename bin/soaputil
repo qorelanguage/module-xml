@@ -151,6 +151,7 @@ class WSDLTools {
         }
         *hash ws_opts;
         *string wsdlContent;
+        string def_path;
         if (wsdl_file == '-') {
             wsdlContent = stdin.read(-1);
         } else {
@@ -167,7 +168,10 @@ class WSDLTools {
 
             info(sprintf("getFileFromURL(%y)\n", url));
             hash h = Qore::parse_url(url);
-            wsdlContent = WSDL::WSDLLib::getFileFromURL(url, h, 'file', NOTHING, NOTHING, True);
+            wsdlContent = WSDL::WSDLLib::getFileFromURL(url, h, 'file', NOTHING, NOTHING, True, NOTHING, \def_path);
+            if (def_path) {
+                ws_opts.def_path = def_path;
+            }
         }
 
         File output = stdout;
