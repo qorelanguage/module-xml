@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file WSDL.qm WSDL: Web Services Description Language: http://www.w3.org/TR/wsdl, SOAP 1.1: https://www.w3.org/TR/2000/NOTE-SOAP-20000508/, SOAP 1.2: https://www.w3.org/TR/soap12-part1/
 
-/*  WSDL.qm Copyright (C) 2012 - 2017 Qore Technologies, s.r.o.
+/*  WSDL.qm Copyright (C) 2012 - 2018 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -77,6 +77,8 @@ module WSDL {
     @section wsdlrelnotes WSDL Module Release Notes
 
     @subsection wsdl_0_3_7 WSDL v0.3.7
+    - fixed an error in namespace resolution with nested namespaces
+      (<a href="https://github.com/qorelanguage/qore/issues/2786">issue 2786</a>)
     - fixed a type error in example message generation that resulted in failed example message generation
       (<a href="https://github.com/qorelanguage/qore/issues/2782">issue 2782</a>)
     - fixed a bug in example message generation that resulted in invalid messages
@@ -1099,6 +1101,7 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         int minOccurs = 1;
         int maxOccurs = 1;
         bool nillable = False;
+        *string ref_ns;
         *string ref;
         bool usedocns;
     }
@@ -1145,7 +1148,8 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
                 nillable = True;
         }
         else if (e."^attributes^".ref) {
-            ref = e."^attributes^".ref;
+            (ref_ns, ref) = (e."^attributes^".ref =~ x/^([^:]*):(.*)$/);
+            ref_ns = nsc.getNamespaceUri(ref_ns);
             unresolved.add(self);
         }
     }
@@ -2146,6 +2150,10 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         name = m."^attributes^".name;
         foreach auto p in (m.part) {
             *hash<auto> part = p."^attributes^";
+
+            # issue #2786: make sure and capture any ns prefix definitions / overrides here
+            NamespacePrefixHelper nph(nsc, part);
+
             if (!exists part.name)
                 throw WSDL_ERROR, sprintf("missing part name message %y", name);
             if (pmap{part.name})
@@ -4264,8 +4272,8 @@ public class WSDL::WebService inherits WSDL::XsdBase {
     private resolveType(XsdElement xe) {
         if (xe.ref) {
             # find element
-            (*string ns, string name) = (xe.ref =~ x/^(?:(\w+):)(\w+)$/);
-            XsdElement e = emap_get(emap, nsc.getNamespaceUri(ns), name);
+            #printf("DEBUG resolveType(XsdElement), ref_ns: %y ref: %y\n", xe.ref_ns, xe.ref);
+            XsdElement e = emap_get(emap, xe.ref_ns, xe.ref);
             if (!e.type)
                 resolveType(e);
             #printf("resolveType(XsdElement), resolved to e: %y type: %y\n", e.name, e.type.name);
@@ -4293,7 +4301,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         if (exists v.ns && nsc.isSchema(v.ns)) {
             rv = getBaseType(v.val);
         } else {
-            # find type
+            # find typep
             rv = tmap_get(tmap, v.val);
         }
         #printf("resolveType(hash), ns: %y, val: %y -> %y\n", v.ns, v.val, rv.name);
@@ -4302,110 +4310,13 @@ public class WSDL::WebService inherits WSDL::XsdBase {
 
     # parse XSD schema types
     private parseTypes(*hash<auto> data, auto http_client, auto http_headers) {
-        #printf("DEBUG: parseTypes data: %y, http_client: %y, http_headers: %y\n", data, http_client, http_headers);
+        #printf("DEBUG: parseTypes data: %y, http_client: %y, http_headers: %y\n", keys data, http_client, http_headers);
         WSDL::XsdBase::removeNS(\data);
 
         XsdLateResolverHelper unresolved();
 
         foreach *hash<auto> schema in (data.schema) {
-            *hash<auto> sa = schema."^attributes^";
-            #if (!sa)
-            #    throw "OOPS";
-            NamespacePrefixHelper nph(nsc, sa);
-
-            bool usedocns = sa.elementFormDefault == "qualified";
-
-            #printf("DEBUG: schema tn: %y\n", schema."^attributes^"."targetNamespace");
-            WSDL::XsdBase::removeNS(\schema);
-            #printf("DEBUG: WebService::parseTypes() schema: %y\n", schema);
-
-            # process XSD import if present
-            foreach hash<auto> import in (schema.import) {
-                *hash<auto> a = import."^attributes^";
-                # import file
-                if (a.schemaLocation) {
-                    hash<auto> h = parse_url(a.schemaLocation);
-                    string xsd;
-                    if (!h.protocol && try_import)
-                        xsd = call_function(try_import, a.schemaLocation);
-                    else
-                        xsd = WSDLLib::getFileFromURL(a.schemaLocation, "file", http_client, http_headers, NOTHING, def_path);
-
-                    # parse XML to Qore data structure ignoring XML element order
-                    hash<auto> xh = parse_xml(xsd);
-
-                    # parse namespace definitions in schema attributes
-                    if (xh.size() != 1)
-                        throw WSDL_ERROR, sprintf("expecting a single element indicating an XSD schema in the imported file; got instead: %y", xh.keys());
-
-                    # get schema member name
-                    string sk = xh.firstKey();
-
-                    #printf("*** DEBUG %y: sk: %y a: %y\n", a.schemaLocation, sk, xh{sk}."^attributes^");
-
-                    # use temporary Namespaces object for import
-                    Namespaces n_nsc = nsc;
-                    nsc = new Namespaces(xh{sk}."^attributes^", n_nsc);
-                    on_exit
-                        nsc = n_nsc;
-                    on_success
-                        n_nsc.merge(nsc);
-
-                    # verify that the top-level key indicates an XSD schema definition
-                    (*string ns, *string mem) = (sk =~ x/^(\w+):(\w+)$/);
-                    if (ns && !nsc.isSchema(ns))
-                        throw WSDL_ERROR, sprintf("expecting imported schema definition to be in XSD namespace %y, got %y: %y instead", XSD_NS, ns, nsc.getInputNamespaceUri(ns));
-
-                    parseTypes(xh);
-                }
-            }
-
-            foreach hash<auto> st in (schema.simpleType) {
-                XsdSimpleType t(st, nsc, unresolved, usedocns);
-                if (tmap{t.name})
-                    throw WSDL_ERROR, sprintf("type %y declared twice", t.name);
-                tmap{t.name} = t;
-
-                #tmap.add(t);
-                #printf("DEBUG: st: %y\n", t.name);
-            }
-            foreach hash<auto> ct in (schema.complexType) {
-                XsdComplexType t(ct, nsc, unresolved, usedocns);
-                if (tmap{t.name})
-                    throw WSDL_ERROR, sprintf("type %y declared twice", t.name);
-                tmap{t.name} = t;
-
-                #tmap.add(t);
-                #printf("DEBUG: ct: %y\n", t.name);
-            }
-            # make element map
-            foreach hash<auto> el in (schema.element) {
-                *hash<auto> attr = el."^attributes^";
-                XsdElement element;
-                if (exists attr.type) {
-                    hash<auto> eattr.name = attr.name;
-
-                    *XsdAbstractType type;
-                    hash<auto> typeinfo;
-                    if (!nsc.doType(attr.type, \typeinfo, \type)) {
-                        type = tmap_try_get(tmap, typeinfo.val);
-                        if (!type)
-                            eattr.type = typeinfo.val;
-                        #printf("DEBUG: adding element %y type %y\n", attr.name, t);
-                    }
-
-                    element = new WSDL::XsdElement(("^attributes^": eattr), nsc, type, unresolved, usedocns);
-                }
-                else {
-                    #printf("DEBUG: adding element %y\n", attr.name);
-                    element = new WSDL::XsdElement(el, nsc, NOTHING, unresolved, usedocns);
-                }
-
-                if (emap{element.ns}{element.name})
-                    throw WSDL_ERROR, sprintf("element %y declared twice in namespace %y", element.name, element.ns);
-                emap{element.ns}{element.name} = element;
-                #emap.add(element);
-            }
+            parseSchema(schema, http_client, http_headers, unresolved);
         }
 
         # resolve types
@@ -4419,6 +4330,108 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         map (map cast<XsdComplexType>($1.type).finalize(tmap, nsc), $1.iterator(), $1.type instanceof XsdComplexType), emap.iterator();
 
         map resolveType($1), unresolved.getList();
+    }
+
+    private parseSchema(*hash<auto> schema, auto http_client, auto http_headers, XsdLateResolverHelper unresolved) {
+        *hash<auto> sa = schema."^attributes^";
+        #if (!sa)
+        #    throw "OOPS";
+        NamespacePrefixHelper nph(nsc, sa);
+
+        bool usedocns = sa.elementFormDefault == "qualified";
+
+        #printf("DEBUG: schema sa: %y\n", sa);
+        #printf("DEBUG: schema tn: %y\n", schema."^attributes^"."targetNamespace");
+        WSDL::XsdBase::removeNS(\schema);
+        #printf("DEBUG: WebService::parseTypes() schema: %y\n", schema);
+
+        # process XSD import if present
+        foreach hash<auto> import in (schema.import) {
+            *hash<auto> a = import."^attributes^";
+            # import file
+            if (a.schemaLocation) {
+                hash<auto> h = parse_url(a.schemaLocation);
+                string xsd;
+                if (!h.protocol && try_import)
+                    xsd = call_function(try_import, a.schemaLocation);
+                else
+                    xsd = WSDLLib::getFileFromURL(a.schemaLocation, "file", http_client, http_headers, NOTHING, def_path);
+
+                # parse XML to Qore data structure ignoring XML element order
+                hash<auto> xh = parse_xml(xsd);
+
+                # parse namespace definitions in schema attributes
+                if (xh.size() != 1)
+                    throw WSDL_ERROR, sprintf("expecting a single element indicating an XSD schema in the imported file; got instead: %y", xh.keys());
+
+                # get schema member name
+                string sk = xh.firstKey();
+
+                #printf("*** DEBUG %y: sk: %y a: %y\n", a.schemaLocation, sk, xh{sk}."^attributes^");
+
+                # use temporary Namespaces object for import
+                Namespaces n_nsc = nsc;
+                nsc = new Namespaces(xh{sk}."^attributes^", n_nsc);
+                on_exit
+                    nsc = n_nsc;
+                on_success
+                    n_nsc.merge(nsc);
+
+                # verify that the top-level key indicates an XSD schema definition
+                (*string ns, *string mem) = (sk =~ x/^(\w+):(\w+)$/);
+                if (ns && !nsc.isSchema(ns))
+                    throw WSDL_ERROR, sprintf("expecting imported schema definition to be in XSD namespace %y, got %y: %y instead", XSD_NS, ns, nsc.getInputNamespaceUri(ns));
+
+                parseTypes(xh);
+            }
+        }
+
+        foreach hash<auto> st in (schema.simpleType) {
+            XsdSimpleType t(st, nsc, unresolved, usedocns);
+            if (tmap{t.name})
+                throw WSDL_ERROR, sprintf("type %y declared twice", t.name);
+            tmap{t.name} = t;
+
+            #tmap.add(t);
+            #printf("DEBUG: st: %y\n", t.name);
+        }
+        foreach hash<auto> ct in (schema.complexType) {
+            XsdComplexType t(ct, nsc, unresolved, usedocns);
+            if (tmap{t.name})
+                throw WSDL_ERROR, sprintf("type %y declared twice", t.name);
+            tmap{t.name} = t;
+
+            #tmap.add(t);
+            #printf("DEBUG: ct: %y\n", t.name);
+        }
+        # make element map
+        foreach hash<auto> el in (schema.element) {
+            *hash<auto> attr = el."^attributes^";
+            XsdElement element;
+            if (exists attr.type) {
+                hash<auto> eattr.name = attr.name;
+
+                *XsdAbstractType type;
+                hash<auto> typeinfo;
+                if (!nsc.doType(attr.type, \typeinfo, \type)) {
+                    type = tmap_try_get(tmap, typeinfo.val);
+                    if (!type)
+                        eattr.type = typeinfo.val;
+                    #printf("DEBUG: adding element %y type %y\n", attr.name, keys type);
+                }
+
+                element = new WSDL::XsdElement(("^attributes^": eattr), nsc, type, unresolved, usedocns);
+            }
+            else {
+                element = new WSDL::XsdElement(el, nsc, NOTHING, unresolved, usedocns);
+                #printf("DEBUG: adding element %y (ns %y name %y)\n", attr.name, element.ns, element.name);
+            }
+
+            if (emap{element.ns}{element.name})
+                throw WSDL_ERROR, sprintf("element %y declared twice in namespace %y", element.name, element.ns);
+            emap{element.ns}{element.name} = element;
+            printf("DEBUG: added element %s -> %s\n", element.ns, element.name);
+        }
     }
 
     private parseMessages(*softlist<auto> message) {
