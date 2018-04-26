@@ -309,7 +309,7 @@ public namespace SoapHandler {
                 on_exit rwl.writeUnlock();
 
                 # verify if the operation mapping can be added first
-                if (sa && sam{sa}.operation && sam{sa}.operation != method.operation) {
+                if (!method.althpath && sa && sam{sa}.operation && sam{sa}.operation != method.operation) {
                     throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
                 }
                 if (method.altpath && wsph{method.altpath} && wsph{method.altpath} != ws) {
