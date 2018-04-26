@@ -330,8 +330,11 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     @section xmlreleasenotes Release Notes
 
     @subsection xml141 xml Module Version 1.4.1
+    - <a href="../../SoapHandlerDL/html/index.html">SoapHandler</a> module changes:
+      - fixed a bug where the URI path was not respected when resolving SOAP calls
+        (<a href="https://github.com/qorelanguage/qore/issues/2783">issue 2783</a>)
     - <a href="../../WSDL/html/index.html">WSDL</a> module changes:
-      - fixed a bug in example message generation that resulted in invalid messages (<a href="https://github.com/qorelanguage/qore/issues/2752">issue 2752</a>)
+      - fixed a type error in message generation (<a href="https://github.com/qorelanguage/qore/issues/2783">issue 2783</a>)
       - implemented the \c wsdl_set_global_compat_empty_string_is_nothing() function and the
         \c "compat_empty_string_is_nothing" option for the \c WebService class for backwards compatibility
         with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2754">issue 2754</a>)
@@ -341,6 +344,9 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
         for backwards compatibility with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2765">issue 2765</a>)
       - fixed types when deserializing to eliminate performance penalties stripping types in large data structures
         (<a href="https://github.com/qorelanguage/qore/issues/2766">issue 2766</a>)
+    - fixed \c soaputil to import XSDs automatically when parsing WSDLs
+      (<a href="https://github.com/qorelanguage/qore/issues/2784">issue 2784</a>)
+
 
     @subsection xml14 xml Module Version 1.4
     <b>Changes and Bug Fixes in This Release</b>

@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file SoapHandler.qm SOAP handler module providing the SoapHandler class to be registered as a handler with the Qore HttpServer module
 
-/*  SoapHandler.qm Copyright (C) 2012 - 2017 Qore Technologies, s.r.o.
+/*  SoapHandler.qm Copyright (C) 2012 - 2018 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -112,25 +112,47 @@ public namespace SoapHandler {
 
         #! @cond nodoc
         private {
-            hash methods;
+            # method mappings: method name -> method hash
+            hash<auto> methods;
+
+            # reverse mappings for methods: unique_id -> method -> True
+            hash<string, hash<string, bool>> rmethods;
+
+            # URI path -> method name -> method mappings
+            hash<string, hash> uri_methods;
+
+            # reverse URI path method mappings: unique_id -> URI path -> method name -> true
+            hash<string, hash<string, bool>> ruri_methods;
 
             # service name -> WebService objects
-            hash wsh;
+            hash<string, WebService> wsh;
+
+            # reverse mapping to remove wsh mappings; unique_id -> path -> True
+            hash<string, hash<string, bool>> rwsh;
 
             # operation name -> WebService object
-            hash owsh;
+            hash<string, WebService> owsh;
 
-            # lookup service name -> alternate paths
-            hash plh;
+            # reverse operation mappings; unique_id -> op name -> true
+            hash<string, hash<string, bool>> rowsh;
 
-            # lookup alt path -> WebService object
-            hash wsph;
+            # lookup URI path -> WebService object
+            hash<string, WebService> wsph;
+
+            # reverse URI path lookups: unique_id -> URI path -> true
+            hash<string, hash<string, bool>> rwsph;
+
+            # URI path -> SOAP Action -> method mappings
+            hash<string, hash<string, hash>> uri_sam;
+
+            # reverse URI path -> SOAP Action mappings: unique_id -> URI path -> SOAPAction -> true
+            hash<string, hash<string, hash<string, bool>>> ruri_sam;
 
             # soapaction map: action -> binding -> operation
-            hash sam;
+            hash<string, hash> sam;
 
-            # service -> binding -> soapaction
-            hash psam;
+            # reverse mapping: unique_id -> soapaction -> True
+            hash<string, hash<string, bool>> rsam;
 
             int loglevel;
 
@@ -143,11 +165,8 @@ public namespace SoapHandler {
             # for atomicity when adding / removing methods
             RWLock rwl();
 
-            # hash of methods by path
-            hash th;
-
             # path TreeMap for each HTTP method
-            hash mapMethodPathToOperation;
+            hash<string, TreeMap> mapMethodPathToOperation;
 
             # soapaction -> method -> binding
         }
@@ -174,23 +193,26 @@ public namespace SoapHandler {
             @param err_func a call reference, a closure, or a string function name to call with error information if an exception is thrown with SOAP data
             @param altpath an alternate path for the service / WSDL
             @param binding SOAP binding name, leave empty to use the first assigned binding
+            @param unique_id the unique ID for the backend service implementation for all operations on this WSDL; necessary for any removeService() call
          */
-        addMethod(WebService ws, WSOperation op, any func, *string help, *int logopt, any cmark, *string path, any err_func, *string altpath, *string binding) {
-            if (!func)
+        addMethod(WebService ws, WSOperation op, auto func, *string help, *int logopt, auto cmark, *string path, auto err_func, *string altpath, *string binding, *string unique_id) {
+            if (!func.callp() && func.TypeCode() != NT_STRING) {
                 throw "SOAP-SERVER-ADDMETHOD-PARAMETER-ERROR", sprintf("second argument is not a function name or callable value type (got: %y)", func);
+            }
 
-            addMethodInternal(ws,
-                                ( "operation" : op,
-                                  "name"      : op.name,
-                                  "binding"   : binding,
-                                  "function"  : func,
-                                  "err_func"  : err_func,
-                                  "help"      : help,
-                                  "logopt"    : logopt,
-                                  "cmark"     : cmark,
-                                  "path"      : path,
-                                  "altpath"   : altpath,
-                                ));
+            addMethodInternal(ws, {
+                "operation" : op,
+                "name"      : op.name,
+                "binding"   : binding,
+                "function"  : func,
+                "err_func"  : err_func,
+                "help"      : help,
+                "logopt"    : logopt,
+                "cmark"     : cmark,
+                "path"      : path,
+                "altpath"   : altpath,
+                "unique_id" : unique_id,
+            });
             #printf("methods=%N\n", methods);
         }
 
@@ -205,91 +227,166 @@ public namespace SoapHandler {
         }
 
         #! call to remove the given service
-        removeService(string name) {
+        /** @param unique_id must correspond to the \a unique_id in any addMethod() calls
+        */
+        removeService(string unique_id) {
             rwl.writeLock();
             on_exit rwl.writeUnlock();
 
-            if (wsh{name}) {
-                # remove all operations for the given web service
-                map delete owsh{$1.operation.name}, wsh{name}.listOperations();
-
-                # remove alternate path mappings
-                map delete wsph{$1}, keys plh{name};
-                delete plh{name};
-
-                # remove webservice mappings
-                delete wsh{name};
+            # remove URI path -> method mappings
+            foreach hash h in (ruri_methods{unique_id}.pairIterator()) {
+                map remove uri_methods{h.key}{$1}, keys h.value;
+                if (!uri_methods{h.key}) {
+                    remove uri_methods{h.key};
+                }
             }
-
-            # remove soapaction mappings
-            map delete sam.$1, keys psam{name};
-
-            # remove path soapaction mappings
-            delete psam{name};
+            remove ruri_methods{unique_id};
 
             # remove method link mappings
-            map delete methods.$1, keys th{name};
+            map delete methods.$1, keys rmethods{unique_id};
+            delete rmethods{unique_id};
 
-            # remove path method mapping
-            delete th{name};
+            # remove service operational mappings for service
+            map remove owsh{$1}, keys rowsh{unique_id};
+            remove rowsh{unique_id};
+
+            # remove operation path mappings for service
+            map remove wsh{$1}, keys rwsh{unique_id};
+            remove rwsh{unique_id};
+
+            # remove URI path mappings for service
+            map remove wsph{$1}, keys rwsph{unique_id};
+            remove rwsph{unique_id};
+
+            # remove URI path -> SOAPAction mappings for service
+            foreach hash h in (ruri_sam{unique_id}.pairIterator()) {
+                map remove uri_sam{h.key}{$1}, keys h.value;
+                if (!uri_sam{h.key}) {
+                    remove uri_sam{h.key};
+                }
+            }
+            remove ruri_sam{unique_id};
+
+            # remove SOAPAction mappings for service
+            map remove sam{$1}, keys rsam{unique_id};
+            remove rsam{unique_id};
         }
 
         #! @cond nodoc
         # don't reimplement this method; fix/enhance it in the module
-        final private addMethodInternal(WebService ws, hash method) {
+        final private addMethodInternal(WebService ws, hash<auto> method) {
             #printf("DEBUG: SoapHandler::addMethodInternal() method: %N\n", method);
             OperationalBinding binding = method.operation.getBinding(method.binding);
 
             if (binding instanceof SoapBinding) {
                 SoapBinding sb = binding;
 
+                # issue #2783: use the URI path for the service if possible
+                if (!method.altpath && method.path) {
+                    try {
+                        # assume that "path" is the name of the service
+                        hash svch = ws.getService(method.path);
+                        if (svch.port) {
+                            method.altpath = parse_url(svch.port.firstValue().address).path;
+                        }
+                    }
+                    catch () {
+                    }
+                }
+
+                # issue #2783: remove any leading slash from altpath
+                if (method.altpath =~ /^\//) {
+                    method.altpath = method.altpath.substr(1);
+                }
+
                 # soap binding
                 *string sa = sb.soapAction;
-                if (sa)
+                if (sa) {
                     method.soap_action = sa;
+                }
 
                 rwl.writeLock();
                 on_exit rwl.writeUnlock();
 
-                if (sa) {
-                    if (!sam{sa})
-                        sam{sa} = method;
-                    else if (sam{sa}.operation != method.operation)
-                        throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
+                # verify if the operation mapping can be added first
+                if (sa && sam{sa}.operation && sam{sa}.operation != method.operation) {
+                    throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
+                }
+                if (method.altpath && wsph{method.altpath} && wsph{method.altpath} != ws) {
+                    throw "SOAP-PATH-ERROR", sprintf("URI path %y is already bound to another WebService; remove the existing WebService before binding another service to the same URI path", method.altpath);
                 }
 
-                # map top-level element to method
-                if (method.path) {
-                    string path = method.path;
+                # add SOAPAction mapping if possible
+                if (sa && !sam{sa}) {
+                    # add mapping from SOAPAction to method
+                    sam{sa} = method;
 
                     # add path / soapaction mapping for service removal
-                    if (sa && !psam{path}{sa})
-                        psam{path}{sa} = True;
+                    if (method.unique_id) {
+                        rsam{method.unique_id}{sa} = True;
+                    }
+                }
 
+                # add URI path -> SOAPAction mappings if possible
+                if (method.altpath && !uri_sam{method.altpath}{sa}) {
+                    uri_sam{method.altpath}{sa} = method;
+
+                    # add reverse mappings for removal
+                    if (method.unique_id) {
+                        ruri_sam{method.unique_id}{method.altpath}{sa} = True;
+                    }
+                }
+
+                # add URI path mapping if possible
+                if (method.altpath && !wsph{method.altpath}) {
+                    wsph{method.altpath} = ws;
+
+                    if (method.unique_id) {
+                        # add reverse lookup for service removal
+                        rwsph{method.unique_id}{method.altpath} = True;
+                    }
+                }
+
+                # add operation path mapping if possible
+                if (method.path && !wsh{method.path}) {
                     # add link to WebService object
-                    if (!wsh{path})
-                        wsh{path} = ws;
+                    wsh{method.path} = ws;
 
-                    if (method.altpath && !wsph{method.altpath}) {
-                        # add lookup for altpath
-                        plh{path}.(method.altpath) = True;
-                        wsph{method.altpath} = ws;
+                    # add reverse mapping for service removal
+                    if (method.unique_id) {
+                        rwsh{method.unique_id}{method.path} = True;
                     }
+                }
 
-                    # add a link for each operation as well
-                    map owsh{$1.operation.name} = ws, ws.listOperations(), !owsh{$1.operation.name};
+                # map operation names to WebService objects
+                foreach hash<OperationInfo> oph in (ws.listOperations()) {
+                    if (!owsh{oph.operation.name}) {
+                        owsh{oph.operation.name} = ws;
 
-                    # add method links if they don't already exist
-                    foreach string rn in (method.operation.getTopLevelRequestNames()) {
+                        if (method.unique_id) {
+                            rowsh{method.unique_id}{oph.operation.name} = True;
+                        }
+                    }
+                }
+
+                # add request name mappings
+                foreach string rn in (method.operation.getTopLevelRequestNames()) {
+                    if (!methods{rn}) {
                         methods{rn} = method;
-                        th{path}{rn} = True;
+
+                        if (method.unique_id) {
+                            rmethods{method.unique_id}{rn} = True;
+                        }
+                    }
+
+                    if (method.alt_path && !uri_methods{method.alt_path}{rn}) {
+                        uri_methods{method.alt_path}{rn} = method;
+
+                        if (method.unique_id) {
+                            ruri_methods{method.unique_id}{method.alt_path}{rn} = True;
+                        }
                     }
                 }
-                else {
-                    # add method link if it doesn't already exist
-                    map methods.$1 = method, method.operation.getTopLevelRequestNames();
-                }
-
             } else if (binding instanceof HttpBinding) {
                 HttpBinding hb = binding;
                 # http binding
@@ -315,8 +412,8 @@ public namespace SoapHandler {
             #printf("DEBUG: SoapHandler::addMethodInternal() %N %N\n", method.name, method.path);
         }
 
-        private *hash help(hash cx) {
-            hash h;
+        private *hash<auto> help(hash<auto> cx) {
+            hash<auto> h;
 
             rwl.readLock();
             on_exit rwl.readUnlock();
@@ -330,7 +427,7 @@ public namespace SoapHandler {
         }
 
         # don't reimplement this method; fix/enhance it in the module
-        final private log(hash cx, string str) {
+        final private log(hash<auto> cx, string str) {
             string msg = "SOAP ";
             if (exists cx.user)
                 msg += sprintf("user %s ", cx.user);
@@ -349,20 +446,20 @@ public namespace SoapHandler {
 
             @par Example:
             @code{.py}
-private nothing msglog(hash cx, hash msg) {
+private nothing msglog(hash<auto> cx, hash<auto> msg) {
     log(sprintf("%s:\n%s\n", msg.reason, msg.body));
 }
             @endcode
 
             @since %SoapHandler 0.2.5
         */
-        private nothing msglog(hash cx, hash msg) {
+        private nothing msglog(hash<auto> cx, hash<auto> msg) {
             # implement functionality in descendant class
         }
 
         # don't reimplement this method; fix/enhance it in the module
-        private hash makeSoapFaultResponse(hash cx, int code, string errLog, bool soap12, string err, string desc, *bool fmt) {
-            hash o;
+        private hash<auto> makeSoapFaultResponse(hash<auto> cx, int code, string errLog, bool soap12, string err, string desc, *bool fmt) {
+            hash<auto> o;
             if (soap12) {
                 o = ENVELOPE_12_NS;
                 o."soapenv:Envelope"."soapenv:Body" =
@@ -381,7 +478,7 @@ private nothing msglog(hash cx, hash msg) {
                 # optional faultActor,  https://www.w3.org/TR/2000/NOTE-SOAP-20000508/ 4.4 SOAP fault
             }
             #TODO: http binding https://www.w3.org/TR/2007/REC-soap12-part2-20070427/#soapinhttp
-            hash msg = (
+            hash<auto> msg = (
                 "code": code,
                 "errlog": errLog,
                 "body": make_xml(o, fmt ? XGF_ADD_FORMATTING: 0),
@@ -392,10 +489,9 @@ private nothing msglog(hash cx, hash msg) {
         }
 
         # don't reimplement this method; fix/enhance it in the module
-        final private *hash callOperation(hash cx, any args, hash method, bool reqsoap12) {
-
+        final private *hash<auto> callOperation(hash<auto> cx, auto args, hash<auto> method, bool reqsoap12) {
             # NOTE: internal methods have no operation definition and can take no parameters
-            hash h;
+            hash<auto> h;
             if (method.internal) {
                 h.body = call_object_method(self, method.function);
                 return h;
@@ -413,9 +509,9 @@ private nothing msglog(hash cx, hash msg) {
                     args = method.operation.deserializeRequest(args, method.binding);
                 }
             }
-            catch (ex) {
+            catch (hash<ExceptionInfo> ex) {
                 if (method.err_func) {
-                    hash nex = ex;
+                    hash<auto> nex = ex;
                     nex.desc = sprintf("error deserializing incoming SOAP request: %s", ex.desc);
                     call_function(method.err_func, cx, nex);
                 }
@@ -431,7 +527,7 @@ private nothing msglog(hash cx, hash msg) {
                 if (method.logopt & HttpServer::LP_LOGPARAMS) {
                     msg += sprintf("(");
                     int i = 0;
-                    foreach any arg in (args) {
+                    foreach auto arg in (args) {
                         if (inlist(i++, method.maskargs))
                             msg += "<masked>, ";
                         else if (arg.typeCode() == NT_HASH && elements arg) {
@@ -457,7 +553,7 @@ private nothing msglog(hash cx, hash msg) {
                 log(cx, msg);
             }
             #printf("about to call function '%s' (method=%s params=%N)\n", method.function, method.name, args);flush();
-            any rv;
+            auto rv;
 
             if (args.typeCode() == NT_LIST)
                 unshift args, cx;
@@ -474,11 +570,11 @@ private nothing msglog(hash cx, hash msg) {
             # if there is an output message, then serialize the response
             if (method.operation.output) {
                 try {
-                    any header = remove rv."^header^";
+                    auto header = remove rv."^header^";
                     h += method.operation.serializeResponse(rv, header, NOTHING, NOTHING, reqsoap12, NOTHING, method.binding);
                     msglog(cx, ('reason': 'response', 'header': h.hdr, 'body': h.body));
                 }
-                catch (hash ex) {
+                catch (hash<ExceptionInfo> ex) {
                     if (method.err_func)
                         call_function(method.err_func, cx, ex);
                     rethrow;
@@ -489,10 +585,10 @@ private nothing msglog(hash cx, hash msg) {
             return h;
         }
 
-        private *hash matchMethod(TreeMap tm, string path, reference unmatched) {
+        private *hash<auto> matchMethod(TreeMap tm, string path, reference unmatched) {
             bool hasParams = index(path, "?") >= 0;
             *string um;
-            *hash method = tm.get(path, \um);
+            *hash<auto> method = tm.get(path, \um);
             if (method) {
                 if (method.exactMatch) {
                     if (!hasParams && um != "" || hasParams && index(um, "?") > 0) {
@@ -506,12 +602,12 @@ private nothing msglog(hash cx, hash msg) {
 
         # method called by HttpServer
         # don't reimplement this method; fix/enhance it in the module
-        final hash handleRequest(hash cx, hash hdr, *data body) {
+        final hash<auto> handleRequest(hash<auto> cx, hash<auto> hdr, *data body) {
             #log(LL_DEBUG_1, "soap handler context=%y hdr=%y body=%y wsh=%y", cx, hdr, body, wsh.keys());
             #printf("soap handler context=%y hdr=%y body=%y keys wsh=%y\n", cx, hdr, body, wsh.keys());
             cx.http_header = hdr;
             cx.http_body = body;
-            *hash method;
+            *hash<auto> method;
 
             bool reqsoap12 = False; # set to True if soap 1.2 envelope is used in request
 
@@ -519,6 +615,15 @@ private nothing msglog(hash cx, hash msg) {
 
             # remove leading / in path, if any
             path =~ s/^\///;
+
+            *string alt_path;
+            # issue #2783 respect URI paths when matching
+            if (cx.root_path && path.equalPartialPath(cx.root_path)) {
+                alt_path = path.substr(cx.root_path.size());
+                # remove leading / in path, if any
+                alt_path =~ s/^\///;
+            }
+            #printf("DEBUG: path: %y alt: %y root: %y hdr.method: %y\n", path, alt_path, cx.root_path, hdr.method);
 
             if (hdr.method == "POST") {
                 # try SoapBinding
@@ -531,8 +636,9 @@ private nothing msglog(hash cx, hash msg) {
                     rwl.readLock();
                     on_exit rwl.readUnlock();
 
-                    method = sam{soapaction};
-                    #printf("DEBUG: request matched with SoapAction %y\n", soapaction);
+                    # issue #2783 respect URI paths when matching
+                    method = uri_sam{path}{soapaction} ?? uri_sam{alt_path}{soapaction} ?? sam{soapaction};
+                    #printf("DEBUG: request matched with SoapAction %y method: %y us: %y\n", soapaction, keys method, keys uri_sam);
                 }
             }
 
@@ -544,11 +650,16 @@ private nothing msglog(hash cx, hash msg) {
                 if (exists mapMethodPathToOperation{hdr.method}) {
                     TreeMap tm = mapMethodPathToOperation{hdr.method};
                     method = matchMethod(tm, path, \args);
+                    if (!method && alt_path) {
+                        method = tm.get(alt_path, \args);
+                    }
+                    /*
                     if (!method) {
                         if (cx.root_path && path.equalPartialPath(cx.root_path)) {
                             method = tm.get(path.substr(cx.root_path.size()), \args);
                         }
                     }
+                    */
                 }
                 if (method && method.parseUrlOnly) {
                     try {
@@ -556,7 +667,7 @@ private nothing msglog(hash cx, hash msg) {
                         #printf("DEBUG: context: %N\nargs: %N\n", cx, args);
                         return ("code": 200) + callOperation(cx, args, method, reqsoap12);
                     }
-                    catch (ex) {
+                    catch (hash<ExceptionInfo> ex) {
                         string str = debug
                             ? get_exception_string(ex)
                             : sprintf("exception in %s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
@@ -577,11 +688,8 @@ private nothing msglog(hash cx, hash msg) {
                 on_exit rwl.readUnlock();
 
                 *WebService ws = tryMatch(path);
-                if (!ws && cx.root_path && path.equalPartialPath(cx.root_path)) {
-                    path = path.substr(cx.root_path.size());
-                    # remove leading / in path, if any
-                    path =~ s/^\///;
-                    ws = tryMatch(path);
+                if (!ws && alt_path) {
+                    ws = tryMatch(alt_path);
                 }
                 if (!ws) {
                     # try a match with the last component of the path, if any
@@ -600,7 +708,7 @@ private nothing msglog(hash cx, hash msg) {
                 # get URL for service
                 # note that "socket-info".hostname is not returned for UNIX sockets
                 string host;
-                hash sih = cx."socket-info";
+                hash<auto> sih = cx."socket-info";
                 if (sih.family == AF_UNIX) {
                     host = sprintf("socket=%s", encode_url(sih.address, True));
                 }
@@ -633,7 +741,7 @@ private nothing msglog(hash cx, hash msg) {
 
             if (method || hdr.method == "POST") {
                 # still chance to get method from xml element in case of SoapBinding (i.e.POST), we need parse message now
-                any args;
+                auto args;
                 try {
                     *string ct = hdr."_qore_orig_content_type";
                     *string element = (ct =~ x/action=".*\/(.*)"/)[0];
@@ -649,7 +757,7 @@ private nothing msglog(hash cx, hash msg) {
                             hdr."_qore_multipart_boundary" = x;
                         #printf("hdr=%N\n", hdr);
                     }
-                    hash msg = WSDLLib::parseMultiPartSOAPMessage(hdr + ("body" : body));
+                    hash<auto> msg = WSDLLib::parseMultiPartSOAPMessage(hdr + ("body" : body));
                     msglog(cx, ('reason': 'request', 'header': msg.header, 'method': hdr.method, 'body': msg.body));
                     args = WSDLLib::parseSOAPMessage(msg);
                     if (WSDLLib::isSOAPMessage(msg)) {
@@ -671,12 +779,13 @@ private nothing msglog(hash cx, hash msg) {
                                 rwl.readLock();
                                 on_exit rwl.readUnlock();
 
-                                method = methods{element};
+                                # issue #2783: respect UTI paths when matching
+                                method = uri_methods{path}{element} ?? uri_methods{alt_path}{element} ?? methods{element};
                             }
                         }
 
                         # set soap version in request
-                        *hash attr = args.Envelope."^attributes^";
+                        *hash<auto> attr = args.Envelope."^attributes^";
                         foreach string k in (keys attr) {
                             if (k =~ /:soapenv$/) {
                                 if (attr{k} == SOAP_12_ENV)
@@ -692,7 +801,7 @@ private nothing msglog(hash cx, hash msg) {
                         #printf("DEBUG element: %y methods: %y args: %y\n", element, methods.keys(), args);
                     }
                 }
-                catch (ex) {
+                catch (hash<ExceptionInfo> ex) {
                     log(cx, "exception parsing SOAP msg: %y\n%y", body, ex);
                     string str = sprintf("exception in %s:%d: %s: %s (1: %N)", ex.file, ex.line, ex.err, ex.desc, ex.callstack)
                     #string str = debug
@@ -706,7 +815,7 @@ private nothing msglog(hash cx, hash msg) {
                         #printf("DEBUG: context: %N\nargs: %N\n", cx, args);
                         return ("code": 200) + callOperation(cx, args, method, reqsoap12);
                     }
-                    catch (ex) {
+                    catch (hash<ExceptionInfo> ex) {
                         string str = debug
                             ? get_exception_string(ex)
                             : sprintf("exception in %s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
@@ -722,13 +831,8 @@ private nothing msglog(hash cx, hash msg) {
         }
 
         private *WebService tryMatch(string path) {
-            *WebService ws = wsh{path};
-            if (!ws) {
-                ws = owsh{path};
-                if (!ws)
-                    ws = wsph{path};
-            }
-            return ws;
+            # issue #2783: we have to try the top-level service path match first, then operation paths
+            return wsph{path} ?? owsh{path} ?? wsh{path};
         }
         #! @endcond
     }
