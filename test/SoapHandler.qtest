@@ -64,6 +64,7 @@ class TestSoapServer inherits HttpServer {
 
         # setup operation handler
         soap.addMethod(ws1, ws1.getOperation("getCompanyInfo"), \getCompanyInfo(), NOTHING, NOTHING, NOTHING, "CompanyInfoService");
+        soap.addMethod(ws1, ws1.getOperation("getCompanyInfo"), \getCompanyInfo2(), NOTHING, NOTHING, NOTHING, "CompanyInfoService", NOTHING, "company2");
         soap.addMethod(ws2, ws2.getOperation("Send"), \Send(), NOTHING, NOTHING, NOTHING, "ExampleSendOrder");
 
         addListener(port);
@@ -77,6 +78,17 @@ class TestSoapServer inherits HttpServer {
             "body" : ("result": 99.9),
             "docs" : sprintf("<head>testing</head><body>%s</body>", h.tickerSymbol),
             "logo" : <bead>,
+        );
+    }
+
+    hash getCompanyInfo2(hash cx, hash h) {
+        if (h.tickerSymbol == "ERR")
+            throw "ERR", "ERR";
+
+        return (
+            "body" : ("result": 100.1),
+            "docs" : sprintf("<head>testing</head><body>%s</body>", h.tickerSymbol),
+            "logo" : <facebead>,
         );
     }
 
@@ -172,6 +184,7 @@ class SoapHandlerTest inherits QUnit::Test {
         string path1;
         string url2;
         string path2;
+        string url3;
         int serverPort;
     }
 
@@ -192,13 +205,31 @@ class SoapHandlerTest inherits QUnit::Test {
         # when dual IPv4/IPv6 stack then may resolve gethostname() with unsupposed IP address where server is not listening
         url1 = sprintf("http://%s:%d/%s", m_options.host ?? gethostname(), serverPort, path1);
         url2 = sprintf("http://%s:%d/%s", m_options.host ?? gethostname(), serverPort, path2);
+        url3 = sprintf("http://%s:%d/company2", m_options.host ?? gethostname(), serverPort);
 
         # add test cases
+        addTestCase("issue 2783", \issue2783());
         addTestCase("simpleTest", \simpleTest());
         addTestCase("multiTest", \multiTest());
 
         # execute tests
         set_return_value(main()); exit();
+    }
+
+    issue2783() {
+        SoapClient sc(("wsdl": WsdlUrl1, "url": url3));
+
+        # setup SOAP call with multipart response
+        hash h.body.tickerSymbol = "QORE";
+        # make SOAP call with multipart response
+        hash response = sc.call("getCompanyInfo", h);
+
+        assertEq(100.1, response.body.result);
+        assertEq(Type::String, response.docs.type());
+        assertEq(Type::Binary, response.logo.type());
+
+        string wsdl = sc.get("company2?wsdl");
+        assertEq(Type::String, wsdl.type());
     }
 
     simpleTest() {
@@ -224,6 +255,5 @@ class SoapHandlerTest inherits QUnit::Test {
         assertEq(Type::String, (remove answer.ReceiptAck.OriginalTXID).type());
         assertEq(Type::String, (remove answer.Timestamp).type());
         assertEq(MultiResp, answer);
-
     }
 }
