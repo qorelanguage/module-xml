@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file WSDL.qm WSDL: Web Services Description Language: http://www.w3.org/TR/wsdl, SOAP 1.1: https://www.w3.org/TR/2000/NOTE-SOAP-20000508/, SOAP 1.2: https://www.w3.org/TR/soap12-part1/
 
-/*  WSDL.qm Copyright (C) 2012 - 2017 Qore Technologies, s.r.o.
+/*  WSDL.qm Copyright (C) 2012 - 2018 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -77,6 +77,8 @@ module WSDL {
     @section wsdlrelnotes WSDL Module Release Notes
 
     @subsection wsdl_0_3_7 WSDL v0.3.7
+    - fixed an error in namespace resolution with nested namespaces
+      (<a href="https://github.com/qorelanguage/qore/issues/2786">issue 2786</a>)
     - fixed a type error in example message generation that resulted in failed example message generation
       (<a href="https://github.com/qorelanguage/qore/issues/2782">issue 2782</a>)
     - fixed a bug in example message generation that resulted in invalid messages
@@ -1099,6 +1101,9 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         int minOccurs = 1;
         int maxOccurs = 1;
         bool nillable = False;
+        # the resolved namespace URI for any reference
+        *string ref_ns;
+        # the source name for any reference
         *string ref;
         bool usedocns;
     }
@@ -1145,7 +1150,9 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
                 nillable = True;
         }
         else if (e."^attributes^".ref) {
-            ref = e."^attributes^".ref;
+            # issue #2786: must resolve ns prefixes immediately as with late resolution the context may be different
+            (ref_ns, ref) = (e."^attributes^".ref =~ x/^([^:]*):(.*)$/);
+            ref_ns = nsc.getNamespaceUri(ref_ns);
             unresolved.add(self);
         }
     }
@@ -2146,6 +2153,10 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         name = m."^attributes^".name;
         foreach auto p in (m.part) {
             *hash<auto> part = p."^attributes^";
+
+            # issue #2786: make sure and capture any ns prefix definitions / overrides here
+            NamespacePrefixHelper nph(nsc, part);
+
             if (!exists part.name)
                 throw WSDL_ERROR, sprintf("missing part name message %y", name);
             if (pmap{part.name})
@@ -4264,8 +4275,8 @@ public class WSDL::WebService inherits WSDL::XsdBase {
     private resolveType(XsdElement xe) {
         if (xe.ref) {
             # find element
-            (*string ns, string name) = (xe.ref =~ x/^(?:(\w+):)(\w+)$/);
-            XsdElement e = emap_get(emap, nsc.getNamespaceUri(ns), name);
+            #printf("DEBUG resolveType(XsdElement), ref_ns: %y ref: %y\n", xe.ref_ns, xe.ref);
+            XsdElement e = emap_get(emap, xe.ref_ns, xe.ref);
             if (!e.type)
                 resolveType(e);
             #printf("resolveType(XsdElement), resolved to e: %y type: %y\n", e.name, e.type.name);
@@ -4302,7 +4313,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
 
     # parse XSD schema types
     private parseTypes(*hash<auto> data, auto http_client, auto http_headers) {
-        #printf("DEBUG: parseTypes data: %y, http_client: %y, http_headers: %y\n", data, http_client, http_headers);
+        #printf("DEBUG: parseTypes data: %y, http_client: %y, http_headers: %y\n", keys data, http_client, http_headers);
         WSDL::XsdBase::removeNS(\data);
 
         XsdLateResolverHelper unresolved();
@@ -4315,6 +4326,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
 
             bool usedocns = sa.elementFormDefault == "qualified";
 
+            #printf("DEBUG: schema sa: %y\n", sa);
             #printf("DEBUG: schema tn: %y\n", schema."^attributes^"."targetNamespace");
             WSDL::XsdBase::removeNS(\schema);
             #printf("DEBUG: WebService::parseTypes() schema: %y\n", schema);
@@ -4391,20 +4403,20 @@ public class WSDL::WebService inherits WSDL::XsdBase {
                         type = tmap_try_get(tmap, typeinfo.val);
                         if (!type)
                             eattr.type = typeinfo.val;
-                        #printf("DEBUG: adding element %y type %y\n", attr.name, t);
+                        #printf("DEBUG: adding element %y type %y\n", attr.name, keys type);
                     }
 
                     element = new WSDL::XsdElement(("^attributes^": eattr), nsc, type, unresolved, usedocns);
                 }
                 else {
-                    #printf("DEBUG: adding element %y\n", attr.name);
                     element = new WSDL::XsdElement(el, nsc, NOTHING, unresolved, usedocns);
+                    #printf("DEBUG: adding element %y (ns %y name %y)\n", attr.name, element.ns, element.name);
                 }
 
                 if (emap{element.ns}{element.name})
                     throw WSDL_ERROR, sprintf("element %y declared twice in namespace %y", element.name, element.ns);
                 emap{element.ns}{element.name} = element;
-                #emap.add(element);
+                #printf("DEBUG: added element %s -> %s\n", element.ns, element.name);
             }
         }
 
