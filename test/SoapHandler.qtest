@@ -231,7 +231,7 @@ class SoapHandlerTest inherits QUnit::Test {
             ex = ex1;
         }
         assertEq("HTTP-CLIENT-RECEIVE-ERROR", ex.err);
-        assertEq(500, arg.status_code);
+        assertEq(500, ex.arg.status_code);
     }
 
     issue2783() {
