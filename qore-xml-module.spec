@@ -51,7 +51,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 Requires: /usr/bin/env
 Requires: qore-module-api-%{module_api}
 BuildRequires: gcc-c++
-BuildRequires: qore-devel >= 0.8.12
+BuildRequires: qore-devel >= 0.8.13
 BuildRequires: libxml2-devel
 BuildRequires: openssl-devel
 BuildRequires: qore
@@ -100,6 +100,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root,-)
 %{module_dir}
 %{user_module_dir}
+%{_bindir}/soaputil
 %doc COPYING.LGPL COPYING.MIT README RELEASE-NOTES AUTHORS
 
 %changelog
