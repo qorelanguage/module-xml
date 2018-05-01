@@ -230,8 +230,9 @@ class SoapHandlerTest inherits QUnit::Test {
         catch (hash<ExceptionInfo> ex1) {
             ex = ex1;
         }
-        assertEq("HTTP-CLIENT-RECEIVE-ERROR", ex.err);
-        assertEq(500, ex.arg.status_code);
+        assertEq("SOAP-SERVER-FAULT-RESPONSE", ex.err);
+        assertEq("err1", ex.arg.Detail."ns1:GetCompanyInfoFault"."ns1:err");
+        assertEq("desc1", ex.arg.Detail."ns1:GetCompanyInfoFault"."ns1:desc");
     }
 
     issue2783() {
