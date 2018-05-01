@@ -440,10 +440,18 @@ class SoapTest inherits QUnit::Test {
     }
 
     constructor() : QUnit::Test("SoapTest", "1.0") {
+        addTestCase("issue 2793", \issue2793());
         addTestCase("SoapTestCase", \soapTestCase());
         addTestCase("Test1", \test1());
         addTestCase("multi", \multiTest());
         set_return_value(main());
+    }
+
+    issue2793() {
+        WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"));
+        hash<auto> sws = ws1.serialize();
+        WebService ws2 = WebService::deserialize(sws);
+        assertTrue(ws2.getOperation("setInfo") instanceof WSOperation);
     }
 
     *hash parseMessage(hash msg, WSOperation op, bool request) {
