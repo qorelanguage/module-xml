@@ -71,8 +71,9 @@ class TestSoapServer inherits HttpServer {
     }
 
     hash getCompanyInfo(hash cx, hash h) {
-        if (h.tickerSymbol == "ERR")
-            throw "ERR", "ERR";
+        if (h.tickerSymbol == "ERR") {
+            throw "getCompanyInfoFault", "a terrible error occurred", {"err": "err1", "desc": "desc1", "arg": 100};
+        }
 
         return (
             "body" : ("result": 99.9),
@@ -208,12 +209,29 @@ class SoapHandlerTest inherits QUnit::Test {
         url3 = sprintf("http://%s:%d/company2", m_options.host ?? gethostname(), serverPort);
 
         # add test cases
+        addTestCase("issue 2804", \issue2804());
         addTestCase("issue 2783", \issue2783());
         addTestCase("simpleTest", \simpleTest());
         addTestCase("multiTest", \multiTest());
 
         # execute tests
         set_return_value(main()); exit();
+    }
+
+    issue2804() {
+        SoapClient sc({"wsdl": WsdlUrl1, "url": url1});
+        # setup SOAP call with multipart response
+        hash h.body.tickerSymbol = "ERR";
+        # make SOAP call with multipart response
+        hash<ExceptionInfo> ex;
+        try {
+            sc.call("getCompanyInfo", h);
+        }
+        catch (hash<ExceptionInfo> ex1) {
+            ex = ex1;
+        }
+        assertEq("HTTP-CLIENT-RECEIVE-ERROR", ex.err);
+        assertEq(500, arg.status_code);
     }
 
     issue2783() {

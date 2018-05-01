@@ -333,7 +333,11 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     - <a href="../../SoapHandlerDL/html/index.html">SoapHandler</a> module changes:
       - fixed a bug where the URI path was not respected when resolving SOAP calls
         (<a href="https://github.com/qorelanguage/qore/issues/2783">issue 2783</a>)
+      - implemented supoprt for handling SOAP faults based on the exception \c err string (must correspond to the fault name)
+        (<a href="https://github.com/qorelanguage/qore/issues/2804">issue 2804</a>)
     - <a href="../../WSDL/html/index.html">WSDL</a> module changes:
+      - implemented supoprt for handling SOAP faults in response messages with SOAP bindings
+        (<a href="https://github.com/qorelanguage/qore/issues/2804">issue 2804</a>)
       - fixed a bug resolving namespaces in nested schemas with late resolution with overlapping namespace prefixes
         (<a href="https://github.com/qorelanguage/qore/issues/2786">issue 2786</a>)
       - fixed a type error in message generation (<a href="https://github.com/qorelanguage/qore/issues/2783">issue 2783</a>)

@@ -75,6 +75,8 @@ module SoapHandler {
         WSDLs from GET requests if the URI path includes <tt>?wsdl</tt> at the end of the string
     - reimplemented operation to support multiple SOAP bindings, SOAP operations can be assigned to multiple bindings
     - HTTP binding support
+    - implemented supoprt for handling SOAP faults based on the exception \c err string (must correspond to the fault name)
+      (<a href="https://github.com/qorelanguage/qore/issues/2804">issue 2804</a>)
 
     @subsection soaphandler_0_2_5 SoapHandler 0.2.5
     - added support for matching requests with soap action values
@@ -592,10 +594,30 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
             else
                 args = cx;
 
-            if (method.internal)
-                rv = call_object_method_args(self, method.function, args);
-            else
-                rv = call_function_args(method.function, args);
+            try {
+                if (method.internal)
+                    rv = call_object_method_args(self, method.function, args);
+                else
+                    rv = call_function_args(method.function, args);
+            }
+            catch (hash<ExceptionInfo> ex) {
+                # issue #2804: see if the exception error code is a valid fault for the operation
+                #printf("err: %y has fault: %y\n", ex.err, method.operation.hasFault(ex.err));
+                if (ex.err.typeCode() == NT_STRING && method.operation.hasFault(ex.err)) {
+                    try {
+                        auto header = remove rv."^header^";
+                        h += method.operation.serializeFault(ex.err, ex.desc ?? "no description provided", ex.arg, header, NOTHING, NOTHING, NOTHING, NOTHING, method.binding);
+                        msglog(cx, {"reason": "response", "header": h.hdr, "body": h.body});
+                    }
+                    catch (hash<ExceptionInfo> ex) {
+                        if (method.err_func) {
+                            call_function(method.err_func, cx, ex);
+                        }
+                        rethrow;
+                    }
+                }
+                rethrow;
+            }
 
             # if there is an output message, then serialize the response
             if (method.operation.output) {

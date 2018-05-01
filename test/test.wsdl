@@ -85,6 +85,15 @@
           </s:all>
         </s:complexType>
       </s:element>
+      <s:element name="GetInfoFault">
+        <s:complexType>
+          <s:all>
+            <s:element name="err" type="s:string" />
+            <s:element name="desc" type="s:string" />
+            <s:element name="arg" type="s:anyType" />
+          </s:all>
+        </s:complexType>
+      </s:element>
       <s:element name="issue468">
         <s:complexType>
           <s:sequence>
@@ -248,10 +257,14 @@
   <wsdl:message name="m9">
     <wsdl:part name="STR" element="tns:string" />
   </wsdl:message>
+  <wsdl:message name="GetInfoFault">
+    <wsdl:part name="fault" element="tns:GetInfoFault"/>
+  </wsdl:message>
   <wsdl:portType name="pt1">
     <wsdl:operation name="getInfo">
       <wsdl:input message="tns:m1" />
       <wsdl:output message="tns:m2" />
+      <wsdl:fault name="getInfoFault" message="tns:GetInfoFault"/>
     </wsdl:operation>
     <wsdl:operation name="setInfo">
       <wsdl:input message="tns:m3" />
@@ -282,6 +295,9 @@
       <wsdl:output>
         <soap12:body use="literal" />
       </wsdl:output>
+      <wsdl:fault name="getInfoFault">
+        <soap:fault name="GetInfoFault" use="literal"/>
+      </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="setInfo">
       <soap12:operation soapAction="http://qore.org/setInfo" />
