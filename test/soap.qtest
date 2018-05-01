@@ -787,6 +787,16 @@ class SoapTest inherits QUnit::Test {
         }
 
         assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), (("info": "XYZ"), ("invalid": "x")));
+
+        op = ws.getOperation("getInfo");
+        h = op.serializeRequest(("tickerSymbol": "test"));
+        assertEq("POST", h.method);
+        assertEq("http://qore.org/getInfo", h.hdr.SOAPAction);
+
+        assertEq(("getInfoFault",), keys op.getFaultMessages());
+        assertTrue(op.hasFault("getInfoFault"));
+        h = op.serializeFault("getInfoFault", "test fault msg", {"err": "error", "desc": "description", "arg": 100}, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING);
+        assertRegex("test fault msg", h.body);
     }
 
     test1() {
