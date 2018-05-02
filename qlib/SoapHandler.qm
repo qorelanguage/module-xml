@@ -602,7 +602,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
             }
             catch (hash<ExceptionInfo> ex) {
                 # issue #2804: see if the exception error code is a valid fault for the operation
-                printf("err: %y has fault: %y\n", ex.err, method.operation.hasFault(ex.err));
+                #printf("err: %y has fault: %y\n", ex.err, method.operation.hasFault(ex.err));
                 if (ex.err.typeCode() == NT_STRING && method.operation.hasFault(ex.err)) {
                     try {
                         auto header = remove rv."^header^";
