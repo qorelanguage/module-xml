@@ -93,7 +93,16 @@ class SalesforceTest inherits QUnit::Test {
 
         now = now_us();
         sc = new SalesforceSoapClient(opts);
-        sc.login();
+        try {
+            sc.login();
+        }
+        catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "SOAP-SERVER-FAULT-RESPONSE" && ex.arg.faultcode == "INVALID_LOGIN") {
+                delete sc;
+                return;
+            }
+            rethrow;
+        }
 
         # delete all objects in case of a previous test failure
         try {

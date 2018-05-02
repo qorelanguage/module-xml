@@ -478,14 +478,17 @@ public namespace SoapClient {
             }
             catch (hash ex) {
                 # allow fault responses returned with a 500-series status code to be processed as a SOAP fault so that error information is returned in the exception
-                #printf("response exception: %y\n", ex);
-                if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR") {
-                    if (ex.arg.status_code >= 500 && ex.arg.status_code < 600 && ex.arg.body =~ /<\?xml.*Fault/) {
-                        info."response-body" = ex.arg.body;
-                    }
-                    msglog(('reason': 'error', 'code': ex.arg.status_code, 'header': ex.arg.header, 'body': ex.arg.body));
+                #printf("response exception: %s\n", get_exception_string(ex));
+                if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ((ex.arg.status_code == 400 || (ex.arg.status_code >= 500 && ex.arg.status_code < 600)) && ex.arg.body =~ /<\?xml.*Fault/s)) {
+                    info."response-body" = ex.arg.body;
+                    rh = ex.arg;
                 }
-                rethrow;
+                else {
+                    if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR") {
+                        msglog(('reason': 'error', 'code': ex.arg.status_code, 'header': ex.arg.header, 'body': ex.arg.body));
+                    }
+                    rethrow;
+                }
             }
             hash rmsg = WSDLLib::parseMultiPartSOAPMessage(rh);
             msglog(('reason': 'response', 'header': rmsg.header, 'content-type': rmsg."content-type", 'body': rmsg.body));

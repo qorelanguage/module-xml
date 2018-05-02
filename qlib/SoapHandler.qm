@@ -490,26 +490,26 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
         }
 
         # don't reimplement this method; fix/enhance it in the module
-        private hash<auto> makeSoapFaultResponse(hash<auto> cx, int code, string errLog, bool soap12, string err, string desc, *bool fmt) {
+        private hash<auto> makeSoapFaultResponse(hash<auto> cx, string errLog, bool soap12, string err, string desc, *bool fmt) {
             hash o;
             if (soap12) {
                 o = ENVELOPE_12_NS;
                 o."soapenv:Envelope"."soapenv:Body" =
                     ("soapenv:Fault":
-                     ("soapenv:Code": ("soapenv:Value": err),
-                      "soapenv:Reason": ("soapenv:Text": desc)));
+                     ("soapenv:Code": ("soapenv:Value": "soapenv:Sender"),
+                      "soapenv:Reason": ("soapenv:Text": sprintf("%s: %s", err, desc))));
                       # optional Node, Role, Detail, see https://www.w3.org/TR/soap12/, 5.4 Fault
             }
             else {
                 o = ENVELOPE_11_NS;
                 o."soapenv:Envelope"."soapenv:Body" =
                     ("soapenv:Fault":
-                      ("faultcode": err,
-                       "faultstring": desc,
-                       "desc": ""));
+                      ("faultcode": "soapenv:Client",
+                       "faultstring": sprintf("%s: %s", err, desc)));
                 # optional faultActor,  https://www.w3.org/TR/2000/NOTE-SOAP-20000508/ 4.4 SOAP fault
             }
             #TODO: http binding https://www.w3.org/TR/2007/REC-soap12-part2-20070427/#soapinhttp
+            int code = soap12 ? 400 : 500;
             hash<auto> msg = (
                 "code": code,
                 "errlog": errLog,
@@ -550,7 +550,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                 string str = debug
                     ? get_exception_string(ex)
                     : sprintf("%s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
-                return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
+                return makeSoapFaultResponse(cx, str, reqsoap12, ex.err, ex.desc);
             }
 
             if ((method.logopt & HttpServer::LP_LEVELMASK) <= loglevel && exists cx.logfunc) {
@@ -608,6 +608,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                         auto header = remove rv."^header^";
                         h += method.operation.serializeFault(ex.err, ex.desc ?? "no description provided", ex.arg, header, NOTHING, NOTHING, NOTHING, NOTHING, method.binding);
                         msglog(cx, {"reason": "response", "header": h.hdr, "body": h.body});
+                        h.code = reqsoap12 ? 400 : 500;
                         return h;
                     }
                     catch (hash<ExceptionInfo> ex) {
@@ -726,7 +727,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                         string str = debug
                             ? get_exception_string(ex)
                             : sprintf("exception in %s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
-                        return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
+                        return makeSoapFaultResponse(cx, str, reqsoap12, ex.err, ex.desc);
                     }
                 }
             }
@@ -863,7 +864,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                     #string str = debug
                         ? get_exception_string(ex)
                         : sprintf("%s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
-                    return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
+                    return makeSoapFaultResponse(cx, str, reqsoap12, ex.err, ex.desc);
                 }
 
                 if (method) {
@@ -875,7 +876,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                         string str = debug
                             ? get_exception_string(ex)
                             : sprintf("exception in %s: %s: %s", get_ex_pos(ex), ex.err, ex.desc);
-                        return makeSoapFaultResponse(cx, 500, str, reqsoap12, ex.err, ex.desc);
+                        return makeSoapFaultResponse(cx, str, reqsoap12, ex.err, ex.desc);
                     }
                 }
             }

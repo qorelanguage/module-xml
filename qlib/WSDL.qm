@@ -2825,7 +2825,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
                     "soapenv:Fault": {
                         "faultcode": "soapenv:Client",
                         "faultstring": faultmsg,
-                    } + body ? {"detail": body} : NOTHING,
+                    } + (body ? {"detail": body} : NOTHING),
                 };
             }
         }
@@ -2886,10 +2886,15 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
                     if (op.nsc.hasSoap12()) {
                         WSDL::XsdBase::removeNS(\body.Fault.Code);
                         WSDL::XsdBase::removeNS(\body.Fault.Reason);
+                        # remove extraneous "ns" keys
+                        remove body.Fault.Code.ns;
+                        remove body.Fault.Reason.ns;
                         string desc = sprintf("The following fault response was received from the server: code: %y", body.Fault.Code.Value);
                         auto sc = body.Fault.Code.Subcode;
                         while (exists sc) {
                             WSDL::XsdBase::removeNS(\sc);
+                            # remove extraneous "ns" keys
+                            remove sc.ns;
                             desc += sprintf(", subcode: %y", sc.Value);
                             sc = sc.Subcode;
                         }
