@@ -3,27 +3,36 @@
   <wsdl:types>
     <s:schema elementFormDefault="qualified" targetNamespace="http://qoretechnologies.com/simpletest">
       <s:element name="SetCompanyLogo">
-	<s:complexType>
-	  <s:all>
-	    <s:element name="name" type="s:string"/>
-	    <s:element name="id" type="s:int"/>
-	  </s:all>
-	</s:complexType>
+        <s:complexType>
+          <s:all>
+                <s:element name="name" type="s:string"/>
+            <s:element name="id" type="s:int"/>
+          </s:all>
+        </s:complexType>
       </s:element>
       <s:element name="SetCompanyLogoResult" type="s:string"/>
       <s:element name="GetCompanyInfo">
-	<s:complexType>
-	  <s:all>
-	    <s:element name="tickerSymbol" type="s:string"/>
-	  </s:all>
-	</s:complexType>
+        <s:complexType>
+          <s:all>
+            <s:element name="tickerSymbol" type="s:string"/>
+          </s:all>
+        </s:complexType>
       </s:element>
       <s:element name="GetCompanyInfoResult">
-	<s:complexType>
-	  <s:all>
-	    <s:element name="result" type="s:decimal"/>
-	  </s:all>
-	</s:complexType>
+        <s:complexType>
+          <s:all>
+            <s:element name="result" type="s:decimal"/>
+          </s:all>
+        </s:complexType>
+      </s:element>
+      <s:element name="GetCompanyInfoFault">
+        <s:complexType>
+          <s:all>
+            <s:element name="err" type="s:string" />
+            <s:element name="desc" type="s:string" />
+            <s:element name="arg" type="s:anyType" />
+          </s:all>
+        </s:complexType>
       </s:element>
     </s:schema>
   </wsdl:types>
@@ -47,10 +56,15 @@
     <wsdl:part name="body" element="tns:SetCompanyLogoResult"/>
   </wsdl:message>
 
+  <wsdl:message name="GetCompanyInfoFault">
+    <wsdl:part name="fault" element="tns:GetCompanyInfoFault"/>
+  </wsdl:message>
+
   <wsdl:portType name="pt1">
     <wsdl:operation name="getCompanyInfo">
       <wsdl:input message="tns:m1"/>
       <wsdl:output message="tns:m2"/>
+      <wsdl:fault name="getCompanyInfoFault" message="tns:GetCompanyInfoFault"/>
     </wsdl:operation>
     <wsdl:operation name="setCompanyLogo">
       <wsdl:input message="tns:m3"/>
@@ -63,19 +77,22 @@
     <wsdl:operation name="getCompanyInfo">
       <soap12:operation soapAction="http://example.com/getCompanyInfo"/>
       <wsdl:input>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal"/>
       </wsdl:input>
       <wsdl:output>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal"/>
       </wsdl:output>
+      <wsdl:fault name="getCompanyInfoFault">
+        <soap:fault name="GetCompanyInfoFault" use="literal"/>
+      </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="setCompanyLogo">
       <soap12:operation soapAction="http://example.com/setCompanyLogo"/>
       <wsdl:input>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal"/>
       </wsdl:input>
       <wsdl:output>
-	<soap12:body use="literal"/>
+        <soap12:body use="literal"/>
       </wsdl:output>
     </wsdl:operation>
   </wsdl:binding>

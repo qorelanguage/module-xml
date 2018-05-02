@@ -81,6 +81,8 @@ module WSDL {
       (<a href="https://github.com/qorelanguage/qore/issues/2793">issue 2793</a>)
 
     @subsection wsdl_0_3_7 WSDL v0.3.7
+    - implemented supoprt for handling SOAP faults in response messages with SOAP bindings
+      (<a href="https://github.com/qorelanguage/qore/issues/2804">issue 2804</a>)
     - fixed an error in namespace resolution with nested namespaces
       (<a href="https://github.com/qorelanguage/qore/issues/2786">issue 2786</a>)
     - fixed a type error in example message generation that resulted in failed example message generation
@@ -1702,7 +1704,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                     else {
                         if (vh) {
                             rh += serializeChoice(nsc, ch.elementmap, vh, omitType, False);
-                            # remove the serialized key from the input hash<auto> for the check below
+                            # remove the serialized key from the input hash for the check below
                             map remove h{$1}, keys vh;
                         }
                         if (vhch) {
@@ -1907,8 +1909,13 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         hash<string, OperationalBinding> bindings;
     }
 
+    private {
+        #! fault messages keyed by fault name
+        hash<string, WSMessage> faults;
+    }
+
     #! creates the WSOperation object from the arguments supplied
-    /** @param p the raw hash<auto> from deserialized XML data for the operation
+    /** @param p the raw hash from deserialized XML data for the operation
         @param nsc the namespace container
         @param messages a hash of messages defined in the WSDL; keys are message names; values are WSMessage objects
      */
@@ -1937,13 +1944,37 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
 
             output := msg;
             if (msghash.name)
-                output_name = msghash.name.val ? msghash.name.val : msghash.name;
+                output_name = msghash.name.val ?? msghash.name;
+        }
+
+        # issue #2804: process fault messages
+        foreach hash<auto> fh in (p.fault) {
+            hash<auto> msghash = processNSValue(fh."^attributes^");
+
+            *WSMessage msg = messages{msghash.message.val};
+            if (!msg) {
+                throw WSDL_ERROR, sprintf("missing definition for fault message %y required by operation %y", msghash.name.val, name);
+            }
+
+            string fault_name = msghash.name.val ?? msghash.name;
+            faults{fault_name} = msg;
+            #printf("DEBUG: op %y fault %y msg %y\n", name, fault_name, msg.name);
         }
 
         *string op_ns = nsc.getTargetNamespaceUri();
         if (op_ns && op_ns !~ /\/$/)
             op_ns += "/";
         soapAction = op_ns ? op_ns + name : name;
+    }
+
+    #! returns a hash of fault messages keyed by fault name
+    hash<string, WSMessage> getFaultMessages() {
+        return faults;
+    }
+
+    #! returns True if the given string is a valid fault message for the operation
+    bool hasFault(string fault) {
+        return faults.hasKey(fault);
     }
 
     #! this method is called if this operation supports at least one binding with document style
@@ -1973,7 +2004,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     #! returns a hash representing the given binding
     /** @param bname the name of the binding, if not provided then uses the first assigned binding
 
-        @return a binding param hash<auto> describing the binding with the following keys:
+        @return a binding param hash describing the binding with the following keys:
         - \c "httpMethod"
         - \c "soapTransport"
 
@@ -2002,11 +2033,35 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         bindings{bname} = b;
     }
 
+    #! serializes a fault response to an XML string or HTTP payload for the operation.
+    /** @param fault an optional fault message for the operation (@see getFaultMessages())
+        @param h the fault data to serialize
+        @param header optional soap header info to serialize if required (ex: authorization info). In the first step headers are matched to binding/input/header WSDL definition, remaining headers are passed as-is
+        @param enc the optional encoding to use; if this argument is not present, then the default encoding will be used
+        @param nsh an optional namespace hash for the output message
+        @param xml_opts optional XML generation options
+        @param req_soapaction if present will override any SOAPAction value for the request, ignored for HTTP binding
+        @param bname SOAP binding name or empty to get the first assigned binding
+
+        @return a hash with keys:
+        - \c body: XML string in the SOAP response format or body part of HTTP message (string or binary). Target content type is evaluated from WSDL or in case of ambiguity
+        using "^attributes^"."^content-type^". Provided content type must match allowed types in WSDL. Also "application/x-www-form-urlencoded" or any general type are supported.
+        - \c hdr: hash of HTTP headers
+        - \c path: the path part of URL. Used when urlEncoded is defined
+        - \c method: the HTTP request method
+        */
+    hash<auto> serializeFault(*string fault, string faultmsg, auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string bname) {
+        if (exists fault && !faults{fault}) {
+            throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize unknown fault %y for operation %y; known faults: %y", fault, name, keys faults);
+        }
+        return getBinding(bname).serializeMessage(self, faults{fault}, False, nsc.hasSoap12(), h, header, enc, nsh, xml_opts, req_soapaction, faultmsg);
+    }
+
     #! serializes a request to an XML string or HTTP payload for the operation.
     /** @param h the request to serialize
         @param header optional soap header info to serialize if required (ex: authorization info). In the first step headers are matched to binding/input/header WSDL definition, remaining headers are passed as-is
         @param enc the optional encoding to use; if this argument is not present, then the default encoding will be used
-        @param nsh an optional namespace hash<auto> for the output message
+        @param nsh an optional namespace hash for the output message
         @param xml_opts optional XML generation options
         @param req_soapaction if present will override any SOAPAction value for the request, ignored for HTTP binding
         @param bname SOAP binding name or empty to get the first assigned binding
@@ -2014,12 +2069,12 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         @return a hash with keys:
         - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary). Target content type is evaluated from WSDL or in case of ambiguity
         using "^attributes^"."^content-type^". Provided content type must match allowed types in WSDL. Also "application/x-www-form-urlencoded" or any general type are supported.
-        - \c hdr: hash<auto> of HTTP headers
+        - \c hdr: hash of HTTP headers
         - \c path: the path part of URL. Used when urlEncoded is defined
         - \c method: the HTTP request method
-        */
+    */
     hash<auto> serializeRequest(auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string bname) {
-        return getBinding(bname).serializeMessage(self, True, nsc.hasSoap12(), h, header, enc, nsh, xml_opts, req_soapaction);
+        return getBinding(bname).serializeMessage(self, input, True, nsc.hasSoap12(), h, header, enc, nsh, xml_opts, req_soapaction);
     }
 
     #! serializes a SOAP response to an XML string for the operation
@@ -2034,7 +2089,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         @return a hash with keys:
         - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary). Target content type is evaluated from WSDL or in case of ambiguity
         using "^attributes^"."^content-type^". Provided content type must match allowed types in WSDL.
-        - \c hdr: hash<auto> of HTTP headers
+        - \c hdr: hash of HTTP headers
     */
     hash<auto> serializeResponse(auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *bool soap12, *int xml_opts, *string bname) {
         if (exists soap12) {
@@ -2050,13 +2105,13 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         else
             soap12 = nsc.hasSoap12();
 
-        return getBinding(bname).serializeMessage(self, False, soap12, h, header, enc, nsh, xml_opts);
+        return getBinding(bname).serializeMessage(self, output, False, soap12, h, header, enc, nsh, xml_opts);
     }
 
     #! parses a hash representing a parsed XML request (parsed with @ref parse_xml() "parse_xml(XPF_PRESERVE_ORDER)") for the operation and returns the corresponding Qore data structure
     /** @param o the parsed SOAP or HTTP request with @ref WSDLLib::parseSOAPMessage() for the operation
         @param bname SOAP binding name, leave empty to use the first assigned binding
-        @return the Qore data structure corresponding to the request data. When SOAP header is deserialized according binding/input WSDL then all data are passed under sub hash<auto> values prefixed by message name
+        @return the Qore data structure corresponding to the request data. When SOAP header is deserialized according binding/input WSDL then all data are passed under subhash vales prefixed by message name
         In case of HTTP binding the content type is matched against WSDL binding when wildcards are supported and current content type value is applied to "^attributes^"."^content-type^".
     */
     auto deserializeRequest(hash<auto> o, *string bname) {
@@ -2066,7 +2121,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     #! parses a hash representing a parsed XML response (parsed with @ref parse_xml() "parse_xml(XPF_PRESERVE_ORDER)") for the operation and returns the corresponding Qore data structure
     /** @param o the parsed SOAP or HTTP request with @ref WSDLLib::parseSOAPMessage() for the operation
         @param bname SOAP binding name, leave empty to use the first assigned binding
-        @return the Qore data structure corresponding to the response data. When SOAP header is deserialized according binding/output WSDL then all data are passed under sub hash<auto> values prefixed by message name
+        @return the Qore data structure corresponding to the response data. When SOAP header is deserialized according binding/output WSDL then all data are passed under subhash vales prefixed by message name
         In case of HTTP binding the content type is matched against WSDL binding when wildcards are supported and current content type value is applied to "^attributes^"."^content-type^".
     */
     auto deserializeResponse(hash<auto> o, *string bname) {
@@ -2081,7 +2136,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         return getBinding(bname).deserializeRequestPath(self, path);
     }
 
-    #! processes a hash of raw deserialized XML data and removes any namespace prefix from keys (saved to a \c "ns" key in the hash<auto> value assigned to the key) and returns the processed version of the hash
+    #! processes a hash of raw deserialized XML data and removes any namespace prefix from keys (saved to a \c "ns" key in the hash vale assigned to the key) and returns the processed version of the hash
     static private hash<auto> processNSValue(hash<auto> h) {
         foreach string k in (keys h) {
             (*string ns, *string name) = h{k} =~ x/(\w+):(\w+)/;
@@ -2110,7 +2165,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 }
 
-#! message argument hash<auto> description
+#! message argument hash description
 public hashdecl WSDL::ArgInfo {
     #! the arg name
     string name;
@@ -2127,7 +2182,7 @@ public hashdecl WSDL::ArgInfo {
 
 #! web service message class
 /**
-Message definition consists of part definition. Part name is important for simple types to name it at both SOAP and Qore side (hash<auto> key).
+Message definition consists of part definition. Part name is important for simple types to name it at both SOAP and Qore side (hash key).
 For elements is not used at the SOAP side, it implies condition the element name must be unique in message. In the other words
 it's forbidden definition of two parts with the same element. It's unclear if is legal in Wsdl and how to handle it. Class raises
 exception if detects it. The part name is also used for references from binding (header, content).
@@ -2231,8 +2286,9 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         @param n_name name of output key
         @param encoded if the encoded use module should be used (or the literal use model)
         @param h data to be serialized, keys are wsdl element names (or optionally the part name) and part names for simple types
+        @param fault @ref True if serializing a fault response
      */
-    *hash<auto> serializeRpc(*softlist<auto> parts, *WSDL::BindingMessageDescription msginfo, *MultiPartRelatedMessage mpm, string n_name, bool encoded, reference h) {
+    *hash<auto> serializeRpc(*softlist<auto> parts, *WSDL::BindingMessageDescription msginfo, *MultiPartRelatedMessage mpm, string n_name, bool encoded, reference h, bool fault) {
         hash<auto> rh;
         #printf("DEBUG: message %s: parts: %y, pmap: %y, h: %y\n", name , parts, pmap, ,h);
         foreach string part in (parts ?? keys pmap) {
@@ -2261,9 +2317,12 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
                     "xmlns:soapenc": SOAP_ENCODING,
                 );
 
-            hash<auto> rvh.("ns1:" + n_name) = rh;
+            # issue #2804: do not wrap the fault data with the request name
+            if (fault) {
+                return rh;
+            }
 
-            return rvh;
+            return {"ns1:" + n_name: rh};
         }
     }
 
@@ -2274,9 +2333,9 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         @param mpm a multipart message object, for future use
         @param encoded if the encoded use module should be used (or the literal use model)
         @param h data to be serialized, keys are wsdl element names (optionally part name is also possible) and part names for simple types
-
+        @param fault @ref True if serializing a fault response
      */
-    *hash<auto> serializeDocument(*softlist<auto> parts, *WSDL::BindingMessageDescription msginfo, *MultiPartRelatedMessage mpm, bool encoded, reference h) {
+    *hash<auto> serializeDocument(*softlist<auto> parts, *WSDL::BindingMessageDescription msginfo, *MultiPartRelatedMessage mpm, bool encoded, reference h, bool fault) {
         hash<auto> rh;
 
         #printf("DEBUG: WSMessage::serializeDocument() parts: %y h: %y args: %y, pmap: %y\n", parts, h.typeCode()==NT_HASH ?  h.keys() : h, args.keys(), pmap);
@@ -2404,7 +2463,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
 
     #! serialize all values as string or binary
     /**
-        @return hash<auto> of all parts in key-value pair
+        @return hash of all parts in key-value pair
     */
     hash<auto> serializeAllPartData(*hash<auto> val) {
         return map {$1: serializeData(nsc, $1, val).value}, keys args;
@@ -2415,7 +2474,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         @param val value to be resolved
         @param key member name, it is requires reference to a simple type, not compaund element
 
-        @return as hash<auto> with 'value' and optional 'content-type' key passed from v.content-type if exists
+        @return as hash with 'value' and optional 'content-type' key passed from v.content-type if exists
      */
     hash<auto> serializeData(Namespaces nsc, string key, *hash<auto> val) {
         if (args{key}.element) {
@@ -2446,7 +2505,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
 
     #! deserialize all values in string or binary form
     /**
-        @return hash<auto> of all parts in key-value pair
+        @return hash of all parts in key-value pair
     */
     hash<auto> deserializeAllPartData(hash<auto> val) {
         hash<auto> rv = {};
@@ -2470,7 +2529,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
 
         auto rv;
         string k;
-        # there is not unique part name space as it may contain more messages in one hash<auto> so let's do a little heuristic
+        # there is no unique part namespace as it may contain more messages in one hash, so let's do a little heuristic
         if (v.hasKey(name)) {
             if (args{ename}.part && exists v{name}{args{ename}.part}) {
                 k = args{ename}.part;
@@ -2598,8 +2657,8 @@ public class WSDL::OperationalBinding inherits WSDL::XsdNamedData {
         self.output = output;
     }
 
-    hash<auto> serializeMessage(WSOperation op, bool request, bool soap12, auto h, *hash<auto> header, string enc = "UTF-8", *hash<auto> nsh, *int xml_opts, *string req_soapaction) {
-        return serializeMessageImpl(op, request, soap12, h, header, enc, nsh, xml_opts, req_soapaction);
+    hash<auto> serializeMessage(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc = "UTF-8", *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg) {
+        return serializeMessageImpl(op, msg, request, soap12, h, header, enc, nsh, xml_opts, req_soapaction, faultmsg);
     }
 
     auto deserializeMessage(WSOperation op, hash<auto> o, bool request) {
@@ -2610,7 +2669,7 @@ public class WSDL::OperationalBinding inherits WSDL::XsdNamedData {
         return deserializeRequestPathImpl(op, path);
     }
 
-    abstract hash<auto> serializeMessageImpl(WSOperation op, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction);
+    abstract hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg);
 
     abstract auto deserializeMessageImpl(WSOperation op, hash<auto> o, bool request);
 
@@ -2626,7 +2685,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         self.soapTransport = soapTransport;
     }
 
-    hash<auto> serializeMessageImpl(WSOperation op, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction) {
+    hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg) {
         hash<auto> rv;
 
         if (request) {
@@ -2645,7 +2704,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
 
         MultiPartRelatedMessage mpm;
 
-        rv.body = make_xml(serializeSoapMessage(op, h, header, nsh, request, soap12, \mpm), xml_opts, enc);
+        rv.body = make_xml(serializeSoapMessage(op, msg, h, header, nsh, request, soap12, \mpm, faultmsg), xml_opts, enc);
 
         string ct = WSDLLib::getSoapMimeType12(soap12);
         # FIXME: fix multipart message handling
@@ -2677,7 +2736,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         return rv;
     }
 
-    private:internal hash<auto> serializeSoapMessage(WSOperation op, auto val, *hash<auto> header, *hash<auto> nsh, bool request, bool soap12, reference mpm) {
+    private:internal hash<auto> serializeSoapMessage(WSOperation op, *WSMessage msg, auto val, *hash<auto> header, *hash<auto> nsh, bool request, bool soap12, reference mpm, *string faultmsg) {
         string io = request ? "input" : "output";
         # setup namespaces for SOAP envelope
         #printf("DEBUG: serializeSoapMessage: io:%s, h: %y, header: %y, soap12:%y\n", io, val, header, soap12);
@@ -2694,20 +2753,21 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
             mpm = new MultiPartRelatedMessage();
         */
 
-        #printf("DEBUG: docstyle: %y\n", docstyle);
+        bool fault = exists faultmsg;
+
+        #printf("DEBUG: docstyle: %y fault: %y\n", docstyle, fault);
         #printf("DEBUG: op: %y io: %y op{io}: %s %d %y\n", op.keys(), io, op{io}.type(), op{io}.typeCode(), boolean(op{io}));
         *hash<auto> body;
-        if (op{io}) {
-            WSMessage msg = op{io};
+        if (msg) {
             if (docstyle) {
                 bool encoded = bmd.body.encoded;
                 # bmd.body.encoded == False = literal encoding
                 #printf("parts: %y, args: %y\n", bmd.body.parts, msg.args.keys());
-                body = msg.serializeDocument(bmd.body.parts, bmd, mpm, encoded, \val);
+                body = msg.serializeDocument(bmd.body.parts, bmd, mpm, encoded, \val, fault);
             }
             else {
                 string mname = (request ? op.output_name : op.input_name) ?? (op.name + (request ? "" : "Response"));
-                body = msg.serializeRpc(bmd.body.parts, bmd, mpm, mname, bmd.body.encoded, \val);
+                body = msg.serializeRpc(bmd.body.parts, bmd, mpm, mname, bmd.body.encoded, \val, fault);
             }
             #printf("DEBUG: body: %N\nval: %N\n", body, val);
         }
@@ -2721,10 +2781,10 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
                 # only style="document" is assumed since headers do not contain parameters.
                 *hash<auto> h;
                 if (header)
-                    h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hdr.encoded, \header);
+                    h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hdr.encoded, \header, False);
                 if (!h && val) {
                     # header data provided in val ?
-                    h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hdr.encoded, \val);
+                    h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hdr.encoded, \val, False);
                 }
                 if (h) {
                     remove h."^attributes^".("soapenv:encodingStyle", "xmlns:soapenc");
@@ -2745,8 +2805,34 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         if (val.typeCode() == NT_HASH && val)
             throw SOAP_SERIALIZATION_ERROR, sprintf("%s data provided for operation %y remains unserialized: %y", io, op.name, val);
 
-        if (body) {
-            rh{soapenvEnvelope}."soapenv:Body" = body;
+        if (fault) {
+            if (soap12) {
+                rh{soapenvEnvelope}."soapenv:Body" = {
+                    "soapenv:Fault": {
+                        "soapenv:Code": {
+                            "soapenv:Value": "soapenv:Sender",
+                        },
+                        "soapenv:Reason": {
+                            "soapenv:Text": faultmsg,
+                        },
+                    } + (body ? {"soapenv:Detail": body} : NOTHING),
+                };
+                # optional Node, Role, Detail, see https://www.w3.org/TR/soap12/, 5.4 Fault
+            }
+            else {
+                # soap 1.1
+                rh{soapenvEnvelope}."soapenv:Body" = {
+                    "soapenv:Fault": {
+                        "faultcode": "soapenv:Client",
+                        "faultstring": faultmsg,
+                    } + body ? {"detail": body} : NOTHING,
+                };
+            }
+        }
+        else {
+            if (body) {
+                rh{soapenvEnvelope}."soapenv:Body" = body;
+            }
         }
         return rh;
     }
@@ -2777,8 +2863,9 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         *hash<auto> body = o.Envelope.Body;
 
         if (!op{io}) {
-            if (exists body)
+            if (exists body) {
                 throw SOAP_DESERIALIZATION_ERROR, sprintf("%s value given for operation %y binding %y with no %s message: %y", request ? "request" : "response", op.name, name, io, body);
+            }
         }
         else if (!exists body)
             throw SOAP_DESERIALIZATION_ERROR, sprintf("no %s body value given for operation %y binding %y", request ? "request" : "response", op.name, name);
@@ -2841,7 +2928,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         }
 
         if (exists hrv) {
-            # for backwards compatibility with a flat hash<auto> when there was only argument
+            # for backwards compatibility with a flat hash when there was only argument
             # but we must be care of when the argument is a type (not element)
             if (rv.size() == 1 && rv.typeCode() == NT_HASH && !exists hrv{rv.firstKey()} ) {
                 rv = rv.firstValue();
@@ -2856,7 +2943,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
             }
             rv += hrv;
         } else if (exists rv ) {
-            # for backwards compatibility with a flat hash<auto> when there was only argument
+            # for backwards compatibility with a flat hash when there was only argument
             # but we must be care of when the argument is a type (not element)
             if (rv.size() == 1 && rv.typeCode() == NT_HASH) {
                 rv = rv.firstValue();
@@ -2868,7 +2955,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
 
     #! processes multi-part references and returns a hash of multi-part reference info and the updated message body hash
     private:internal static list<auto> processMultiRef(hash<auto> body) {
-        # setup message info hash<auto> and multiRef lookup hash<auto> key, if any are present
+        # setup message info hash and multiRef lookup hash key, if any are present
         hash<auto> mrh = {
             # save original msg body hash
             "body": body,
@@ -2937,7 +3024,7 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
         self.location = location;
     }
 
-    hash<auto> serializeMessageImpl(WSOperation op, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction) {
+    hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg) {
         hash<auto> rv;
 
         if (request) {
@@ -2954,10 +3041,8 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
 
         BindingMessageDescription bmd = self{io};
 
-        if (!op{io} && (bmd.content || bmd.mimeXml))
+        if (!msg && (bmd.content || bmd.mimeXml))
             throw SOAP_SERIALIZATION_ERROR, sprintf("%s value given for operation %y with no %s message: %y", request ? "request" : "response", name, io, h);
-
-        *WSMessage msg = op{io};
 
         if (bmd.content.formUrlEncoded) {
             ct = MimeTypeFormUrlEncoded;
@@ -3159,7 +3244,7 @@ public class WSDL::BindingMessageBodyDescription {
         self.encoded = encoded;
         self.encodingStyle = encodingStyle;
         self.ns = ns;
-        # get a list<auto> of strings ignoring whitespace
+        # get a list of strings ignoring whitespace
         if (parts.val())
             self.parts = select (map trim($1), parts.split(" ")), $1.val();
     }
@@ -3206,10 +3291,10 @@ public class WSDL::BindingContentDescription {
         #! specifies the name of the message part
         string part;
 
-        # list<auto> of accepted content types (with "xxx/*")
+        # list of accepted content types (with "xxx/*")
         list<auto> acceptedContentTypes = ();
 
-        # list<auto> of accepted specific content types
+        # list of accepted specific content types
         list<auto> acceptedContentTypeSubtypes = ();
 
         #! are all content-types form URL encoded?
@@ -3306,7 +3391,7 @@ public class WSDL::BindingMessageDescription {
     }
 
     private:internal {
-        #! a list<auto> of WSDL::BindingMessageHeaderDescription objects
+        #! a list of WSDL::BindingMessageHeaderDescription objects
         list<BindingMessageHeaderDescription> headers = cast<list<BindingMessageHeaderDescription>>(());
     }
 
@@ -3319,7 +3404,7 @@ public class WSDL::BindingMessageDescription {
         return !headers.empty();
     }
 
-    #! returns a list<auto> of WSDL::BindingMessageHeaderDescription objects
+    #! returns a list of WSDL::BindingMessageHeaderDescription objects
     list<BindingMessageHeaderDescription> getHeaders() {
         return headers;
     }
@@ -3722,17 +3807,17 @@ public class WSDL::Namespaces {
             XSD_NS: "xsd",
         };
 
-        #! hash<auto> for valid XSD namespaces, maps input namespace prefixes -> True if it refers to an XSD schema
+        #! hash for valid XSD namespaces, maps input namespace prefixes -> True if it refers to an XSD schema
         hash<string, bool> xsd_schema = {
             "xsd": True,
         };
 
-        #! hash<auto> mapping input namespace prefixes to namespaces URIs
+        #! hash mapping input namespace prefixes to namespaces URIs
         hash<string, string> imap = {
             "xsd": XSD_NS,
         };
 
-        #! hash<auto> mapping input namespace URIs to input namespace prefixes
+        #! hash mapping input namespace URIs to input namespace prefixes
         hash<string, string> imapr = {
             XSD_NS: "xsd",
         };
@@ -4088,7 +4173,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         #! namespace container
         Namespaces nsc;
 
-        #! list<auto> of services in this WSDL
+        #! list of services in this WSDL
         list<string> wsdl_services();
 
         #! a hash of element names to XsdElement objects for top-level document-style bindings
@@ -4097,13 +4182,13 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         #! map of elements
         hash<string, hash<string, XsdElement>> emap();
 
-        #! hash<auto> of messages names to messages
+        #! hash of messages names to messages
         hash<string, WSMessage> messages();
 
         #! map of types
         hash<string, XsdAbstractType> tmap();
 
-        #! hash<auto> of port names to port type information hashes
+        #! hash of port names to port type information hashes
         hash<string, hash<PortTypeInfo>> portType();
 
         #! optional closure/call reference to try to resolve import declarations
@@ -4123,7 +4208,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
 
     #! creates the WebService object
     /** @param str the XML string representing the WSDL
-        @param opts an optional hash<auto> of options with the following possible keys:
+        @param opts an optional hash of options with the following possible keys:
         - \c "compat_allow_any_header": allow any SOAP header to be sent without checking the WSDL
         - \c "compat_empty_string_is_nothing": deserialize empty strings to @ref nothing instead of an empty string
         - \c "def_path": the default path to use when retrieving referenced XSDs
@@ -4190,7 +4275,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         throw "WSDL-OPERATION-ERROR", sprintf("cannot retrieve operation %y; known operations: %y", opname, (foldl $1 + $2, (map $1.operations.keys(), portType.iterator())));
     }
 
-    #! returns a list<auto> of known operation names
+    #! returns a list of known operation names
     softlist<auto> getOperationNames() {
         return foldl $1 + $2, (map keys $1.operations, portType.iterator());
     }
@@ -4215,8 +4300,8 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         }
     }
 
-    #! returns a list<auto> of hashes giving supported operation names for each port in the WSDL
-    /** @return a list<auto> of hashes giving supported operation names for each port in the WSDL; each hash<auto> has the following keys:
+    #! returns a list of hashes giving supported operation names for each port in the WSDL
+    /** @return a list of hashes giving supported operation names for each port in the WSDL; each hash<auto> has the following keys:
         - \c "port": the name of the port defining the operation
         - \c "operation": the @ref WSDL::WSOperation object for the operation
      */
@@ -4247,8 +4332,8 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         return b;
     }
 
-    #! returns a list<auto> of services defined in the WSDL
-    /** @return a list<auto> of hashes of services defined in the WSDL; each hash<auto> has the following keys:
+    #! returns a list of services defined in the WSDL
+    /** @return a list of hashes of services defined in the WSDL; each hash<auto> has the following keys:
         - \c "name": the name of the service
         - \c "port": a hash of port information; the keys are port names and the values have the following keys:
           - \c "address": the location of the port
@@ -4482,7 +4567,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
                 if (!binding{bind})
                     throw WSDL_ERROR, sprintf("service %y port %y refers to non-existant binding %y; known bindings: %y", svcname, name, bind, binding.keys());
 
-                # create the ServiceInfo hash<auto> if necessary
+                # create the ServiceInfo hash if necessary
                 if (!services{svcname})
                     services{svcname} = new hash<WSDL::ServiceInfo>(("name": svcname));
 
@@ -4496,7 +4581,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
     }
 
     private parsePortType(*softlist<auto> data) {
-        # setup list<auto> of services defined in this WSDL
+        # setup list of services defined in this WSDL
         foreach hash<auto> port in (data) {
             WSDL::XsdBase::removeNS(\port);
             #printf("DEBUG: portType: %y\n", port);
@@ -4621,7 +4706,7 @@ public class WSDL::WSMessageHelper {
 
     #! creates the WebService object
     /** @param ws the object representing the WSDL
-        @param opts an optional hash<auto> of options with the following possible keys:
+        @param opts an optional hash of options with the following possible keys:
         - \c "comments": (bool) generate comments as values with ^comment^ key, default: False
         - \c "choices": (bool) generate choices as sub hashes ^choices^ key, default: False
         - \c "max_items" (int): max.number of array elements to output, default: 3
