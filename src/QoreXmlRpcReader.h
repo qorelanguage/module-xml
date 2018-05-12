@@ -4,7 +4,7 @@
 
  Qore Programming Language
 
- Copyright (C) 2003 - 2015 David Nichols
+ Copyright (C) 2003 - 2018 Qore Technologies, s.r.o.
 
  This library is free software; you can redistribute it and/or
  modify it under the terms of the GNU Lesser General Public
@@ -32,10 +32,10 @@ namespace intern { // make classes local
    class XmlRpcValue {
    private:
       QoreValue val;
-      AbstractQoreNode** vp;
+      AbstractQoreNode** vp = nullptr;
 
    public:
-      DLLLOCAL XmlRpcValue() : vp(0) {
+      DLLLOCAL XmlRpcValue() {
       }
 
       DLLLOCAL ~XmlRpcValue() {

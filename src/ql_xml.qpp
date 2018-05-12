@@ -7,7 +7,7 @@
 
   Qore Programming Language
 
-  Copyright 2003 - 2017 Qore Technologies, s.r.o.
+  Copyright 2003 - 2018 Qore Technologies, s.r.o.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -284,43 +284,43 @@ QoreXmlRelaxNGContext::QoreXmlRelaxNGContext(const char* rng, int size, Exceptio
 }
 #endif
 
-static int concat_simple_value(ExceptionSink* xsink, QoreString &str, const AbstractQoreNode* n, const MakeXmlOpts &opts) {
+static int concat_simple_value(ExceptionSink* xsink, QoreString &str, const QoreValue n, const MakeXmlOpts &opts) {
    //printd(5, "concat_simple_value() n: %p (%s) %s\n", n, n->getTypeName(), n->getType() == NT_STRING ? ((QoreStringNode*)n)->getBuffer() : "unknown");
-   if (!n)
+   if (n.isNothing())
       return 0;
 
-   qore_type_t t = n->getType();
+   qore_type_t t = n.getType();
    switch (t) {
       case NT_INT: {
-         const QoreBigIntNode* b = reinterpret_cast<const QoreBigIntNode*>(n);
+         const QoreBigIntNode* b = n.get<const QoreBigIntNode>();
          str.sprintf("%lld", b->val);
          return 0;
       }
 
       case NT_FLOAT: {
-         str.sprintf("%.9g", reinterpret_cast<const QoreFloatNode*>(n)->f);
+         str.sprintf("%.9g", n.get<const QoreFloatNode>()->f);
          return 0;
       }
 
       case NT_NUMBER: {
-         reinterpret_cast<const QoreNumberNode*>(n)->getStringRepresentation(str);
+         n.get<const QoreNumberNode>()->getStringRepresentation(str);
          return 0;
       }
 
       case NT_BOOLEAN: {
-         str.sprintf("%d", reinterpret_cast<const QoreBoolNode*>(n)->getValue());
+         str.sprintf("%d", n.getAsBool());
          return 0;
       }
 
       case NT_DATE: {
-         const DateTimeNode* date = reinterpret_cast<const DateTimeNode*>(n);
+         const DateTimeNode* date = n.get<const DateTimeNode>();
          date->format(str, opts.m_dateFormat.c_str());
          return 0;
       }
    }
 
    if (opts.m_useNumericRefs && t == NT_STRING) {
-      if (str.concatEncode(xsink, *reinterpret_cast<const QoreStringNode*>(n),
+      if (str.concatEncode(xsink, *n.get<const QoreStringNode>(),
                            CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
          return -1;
       return 0;
@@ -333,10 +333,10 @@ static int concat_simple_value(ExceptionSink* xsink, QoreString &str, const Abst
    return 0;
 }
 
-static int concat_simple_cdata_value(QoreString &str, const AbstractQoreNode* n, ExceptionSink* xsink) {
+static int concat_simple_cdata_value(QoreString &str, const QoreValue n, ExceptionSink* xsink) {
    //printd(5, "concat_simple_cdata_value() n: %p (%s) %s\n", n, n->getTypeName(), n->getType() == NT_STRING ? ((QoreStringNode*)n)->getBuffer() : "unknown");
-   if (n && n->getType() == NT_STRING) {
-      const QoreStringNode* qsn = reinterpret_cast<const QoreStringNode*>(n);
+   if (n.getType() == NT_STRING) {
+      const QoreStringNode* qsn = n.get<const QoreStringNode>();
       if (strstr(qsn->getBuffer(), "]]>")) {
          xsink->raiseException("MAKE-XML-ERROR", "CDATA text contains illegal ']]>' sequence");
          return -1;
@@ -348,10 +348,10 @@ static int concat_simple_cdata_value(QoreString &str, const AbstractQoreNode* n,
    return concat_simple_value(xsink, str, n, MakeXmlOpts());
 }
 
-static int concat_simple_comment(QoreString &str, const AbstractQoreNode* n, ExceptionSink* xsink) {
+static int concat_simple_comment(QoreString &str, const QoreValue n, ExceptionSink* xsink) {
    //printd(5, "concat_simple_comment() n: %p (%s) %s\n", n, n->getTypeName(), n->getType() == NT_STRING ? ((QoreStringNode*)n)->getBuffer() : "unknown");
-   if (n && n->getType() == NT_STRING) {
-      const QoreStringNode* qsn = reinterpret_cast<const QoreStringNode*>(n);
+   if (n.getType() == NT_STRING) {
+      const QoreStringNode* qsn = n.get<const QoreStringNode>();
       if (strstr(qsn->getBuffer(), "-->")) {
          xsink->raiseException("MAKE-XML-ERROR", "Comment text contains illegal '-->' sequence");
          return -1;
@@ -370,25 +370,25 @@ QoreStringNode* make_xml(ExceptionSink* xsink, const QoreHashNode &h, const Make
    return make_xml_intern(xsink, nullptr, &h, opts);
 }
 
-static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &str, const AbstractQoreNode* n, int indent, const MakeXmlOpts &opts) {
+static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &str, const QoreValue n, int indent, const MakeXmlOpts &opts) {
    //QORE_TRACE("add_xml_element()");
 
-   if (is_nothing(n)) {
+   if (n.isNothing()) {
       str.concat('<');
       str.concat(key);
       str.concat("/>");
       return;
    }
 
-   qore_type_t ntype = n->getType();
+   qore_type_t ntype = n.getType();
 
    if (ntype == NT_LIST) {
-      const QoreListNode* l = reinterpret_cast<const QoreListNode*>(n);
+      const QoreListNode* l = n.get<const QoreListNode>();
       // iterate through the list
       int ls = l->size();
       if (ls) {
          for (int j = 0; j < ls; j++) {
-            const AbstractQoreNode* v = l->retrieve_entry(j);
+            QoreValue v = l->retrieveEntry(j);
             // indent all but first entry if necessary
             if (j && opts.m_formatWithWhitespaces) {
                str.concat('\n');
@@ -411,31 +411,29 @@ static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &s
    str.concat(key);
 
    if (ntype == NT_HASH) {
-      const QoreHashNode* h = reinterpret_cast<const QoreHashNode*>(n);
+      const QoreHashNode* h = n.get<const QoreHashNode>();
       // inc = ignore node counter, see if special keys exists and increment counter even if they have no value
       qore_size_t inc = 0;
       int vn = 0;
       bool exists;
-      const AbstractQoreNode* value;
-      const AbstractQoreNode* v = h->getKeyValueExistence("^value^", exists);
-      if (!exists)
-         value = 0;
-      else {
+      QoreValue value;
+      QoreValue v = h->getValueKeyValueExistence("^value^", exists);
+      if (exists) {
          vn++;
-         if (is_nothing(v)) {
+         if (v.isNothing()) {
             inc++;
-            value = 0;
-         } else
+         } else {
             value = v;
+         }
          // find all ^value*^ nodes
          QoreString val;
          while (true) {
             val.sprintf("^value%d^", vn);
-            v = h->getKeyValueExistence(val.getBuffer(), exists);
+            v = h->getValueKeyValueExistence(val.getBuffer(), exists);
             if (!exists) {
                break;
             }
-            else if (is_nothing(v)) // if the node exists but there is no value, then skip
+            else if (v.isNothing()) // if the node exists but there is no value, then skip
                inc++;
             else
                value = v;
@@ -444,42 +442,40 @@ static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &s
       }
 
       int cn = 0;
-      v = h->getKeyValueExistence("^comment^", exists);
+      v = h->getValueKeyValueExistence("^comment^", exists);
       if (exists) {
          cn++;
-         if (is_nothing(v))
+         if (v.isNothing())
             inc++;
          // find all ^comment*^ nodes
          QoreString val;
          while (true) {
             val.sprintf("^comment%d^", cn);
-            v = h->getKeyValueExistence(val.getBuffer(), exists);
+            v = h->getValueKeyValueExistence(val.getBuffer(), exists);
             if (!exists) {
                break;
             }
-            else if (is_nothing(v)) // if the node exists but there is no value, then skip
+            else if (v.isNothing()) // if the node exists but there is no value, then skip
                inc++;
             cn++;
          }
       }
-      const AbstractQoreNode* attrib = h->getKeyValueExistence("^attributes^", exists);
-      if (!exists)
-         attrib = 0;
-      else
+      QoreValue attrib = h->getValueKeyValueExistence("^attributes^", exists);
+      if (exists)
          inc++;
 
       // add attributes for objects
-      if (attrib && attrib->getType() == NT_HASH) {
-         const QoreHashNode* ah = reinterpret_cast<const QoreHashNode*>(attrib);
+      if (attrib.getType() == NT_HASH) {
+         const QoreHashNode* ah = attrib.get<const QoreHashNode>();
          // add attributes to node
          ConstHashIterator hi(ah);
          while (hi.next()) {
             const char* tkey = hi.getKey();
             str.sprintf(" %s=\"", tkey);
-            const AbstractQoreNode* v = hi.getValue();
-            if (v) {
-               if (v->getType() == NT_STRING) {
-                  if (str.concatEncode(xsink, *reinterpret_cast<const QoreStringNode*>(v),
+            QoreValue v = hi.get();
+            if (!v.isNothing()) {
+               if (v.getType() == NT_STRING) {
+                  if (str.concatEncode(xsink, v.get<const QoreStringNode>(),
                                        CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
                      return;
                }
@@ -504,7 +500,7 @@ static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &s
       str.concat('>');
 
       // print value without CRLF
-      if (!is_nothing(value) && h->size() == (inc + 1)) {
+      if (!value.isNothing() && h->size() == (inc + 1)) {
          if (concat_simple_value(xsink, str, value, opts))
             return;
       }
@@ -528,7 +524,7 @@ static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &s
       str.concat('>');
 
       if (ntype == NT_OBJECT) {
-         const QoreObject *o = reinterpret_cast<const QoreObject *>(n);
+         const QoreObject *o = n.get<const QoreObject>();
          // get snapshot of data
          QoreHashNodeHolder h(o->copyData(xsink), xsink);
          if (!*xsink) {
@@ -570,14 +566,14 @@ static int make_xml(ExceptionSink* xsink, QoreString &str, const QoreHashNode &h
          continue;
 
       if (!strncmp(key, "^value", 6)) {
-         if (concat_simple_value(xsink, str, hi.getValue(), opts))
+         if (concat_simple_value(xsink, str, hi.get(), opts))
             return -1;
          continue;
       }
 
       if (!strncmp(key, "^cdata", 6)) {
          str.concat("<![CDATA[");
-         if (concat_simple_cdata_value(str, hi.getValue(), xsink))
+         if (concat_simple_cdata_value(str, hi.get(), xsink))
             return -1;
          str.concat("]]>");
          continue;
@@ -591,7 +587,7 @@ static int make_xml(ExceptionSink* xsink, QoreString &str, const QoreHashNode &h
             str.addch(' ', indent);
          }
          str.concat("<!--");
-         if (concat_simple_comment(str, hi.getValue(), xsink))
+         if (concat_simple_comment(str, hi.get(), xsink))
             return -1;
          str.concat("-->");
          done = true;
@@ -619,7 +615,7 @@ static int make_xml(ExceptionSink* xsink, QoreString &str, const QoreHashNode &h
          str.addch(' ', indent);
       }
       //printd(5, "make_xml() level %d adding member %s\n", indent / 2, node->getBuffer());
-      add_xml_element(xsink, key, str, hi.getValue(), indent, opts);
+      add_xml_element(xsink, key, str, hi.get(), indent, opts);
       done = true;
    }
 
@@ -638,14 +634,13 @@ static bool hash_ok(const QoreHashNode* h) {
          continue;
       if (++count > 1)
          break;
-      const AbstractQoreNode *n = hi.getValue();
-      if (n->getType() == NT_LIST) {
+      QoreValue n = hi.get();
+      if (n.getType() == NT_LIST) {
          // top level hash value of list type does not generate valid xml as one root element is mandatory
-         const QoreListNode *l = reinterpret_cast<const QoreListNode*>(n);
+         const QoreListNode *l = n.get<const QoreListNode>();
          if (l->size() > 1) {
             return false;
          }
-
       }
    }
    return count == 1;
@@ -723,7 +718,7 @@ static int add_xmlrpc_value_intern_hash(QoreString* str, const QoreHashNode* h, 
       str->concat("</name>");
       if (fmt)
          str->concat('\n');
-      const AbstractQoreNode* val = hi.getValue();
+      QoreValue val = hi.get();
       if (add_xmlrpc_value(str, val, indent + 4, ccs, flags, xsink))
          return -1;
       // indent
@@ -814,7 +809,7 @@ static int add_xmlrpc_value_intern(QoreString* str, const QoreValue n, int inden
          if (fmt)
             str->concat('\n');
          for (unsigned i = 0; i < l->size(); i++) {
-            if (add_xmlrpc_value(str, l->retrieve_entry(i), indent + 6, ccs, flags, xsink))
+            if (add_xmlrpc_value(str, l->retrieveEntry(i), indent + 6, ccs, flags, xsink))
                return -1;
          }
          if (fmt)
