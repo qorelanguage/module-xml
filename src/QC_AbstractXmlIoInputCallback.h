@@ -53,7 +53,7 @@ public:
 
         // unhandled exceptions will appear on stdout
         ReferenceHolder<QoreListNode> args(new QoreListNode, xsink);
-        args->push(new QoreStringNode(filename));
+        args->push(new QoreStringNode(filename), xsink);
         ValueHolder bufHolder(self->evalMethodValue("open", *args, xsink), xsink);
         //printd(5, "AbstractXmlIoInputCallback::match() '%s': %d\n", filename, (int)(bool)bufHolder);
         if (!bufHolder)
@@ -78,7 +78,7 @@ public:
 
         // unhandled exceptions will appear on stdout
         ReferenceHolder<QoreListNode> args(new QoreListNode, xsink);
-        args->push(new QoreBigIntNode(len));
+        args->push(len, xsink);
         ValueHolder bufHolder(input_stream->evalMethodValue("read", *args, xsink), xsink);
         //printd(5, "AbstractXmlIoInputCallback::read() %d: %d\n", len, (bool)bufHolder);
         if (!bufHolder)

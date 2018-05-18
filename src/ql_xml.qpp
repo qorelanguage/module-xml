@@ -285,52 +285,51 @@ QoreXmlRelaxNGContext::QoreXmlRelaxNGContext(const char* rng, int size, Exceptio
 #endif
 
 static int concat_simple_value(ExceptionSink* xsink, QoreString &str, const QoreValue n, const MakeXmlOpts &opts) {
-   //printd(5, "concat_simple_value() n: %p (%s) %s\n", n, n->getTypeName(), n->getType() == NT_STRING ? ((QoreStringNode*)n)->getBuffer() : "unknown");
-   if (n.isNothing())
-      return 0;
+    //printd(5, "concat_simple_value() n: %p (%s) %s\n", n, n->getTypeName(), n->getType() == NT_STRING ? ((QoreStringNode*)n)->getBuffer() : "unknown");
+    if (n.isNothing())
+        return 0;
 
-   qore_type_t t = n.getType();
-   switch (t) {
-      case NT_INT: {
-         const QoreBigIntNode* b = n.get<const QoreBigIntNode>();
-         str.sprintf("%lld", b->val);
-         return 0;
-      }
+    qore_type_t t = n.getType();
+    switch (t) {
+        case NT_INT: {
+            str.sprintf("%lld", n.getAsBigInt());
+            return 0;
+        }
 
-      case NT_FLOAT: {
-         str.sprintf("%.9g", n.get<const QoreFloatNode>()->f);
-         return 0;
-      }
+        case NT_FLOAT: {
+            str.sprintf("%.9g", n.getAsFloat());
+            return 0;
+        }
 
-      case NT_NUMBER: {
-         n.get<const QoreNumberNode>()->getStringRepresentation(str);
-         return 0;
-      }
+        case NT_NUMBER: {
+            n.get<const QoreNumberNode>()->getStringRepresentation(str);
+            return 0;
+        }
 
-      case NT_BOOLEAN: {
-         str.sprintf("%d", n.getAsBool());
-         return 0;
-      }
+        case NT_BOOLEAN: {
+            str.sprintf("%d", n.getAsBool());
+            return 0;
+        }
 
-      case NT_DATE: {
-         const DateTimeNode* date = n.get<const DateTimeNode>();
-         date->format(str, opts.m_dateFormat.c_str());
-         return 0;
-      }
-   }
+        case NT_DATE: {
+            const DateTimeNode* date = n.get<const DateTimeNode>();
+            date->format(str, opts.m_dateFormat.c_str());
+            return 0;
+        }
+    }
 
-   if (opts.m_useNumericRefs && t == NT_STRING) {
-      if (str.concatEncode(xsink, *n.get<const QoreStringNode>(),
-                           CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
-         return -1;
-      return 0;
-   }
+    if (opts.m_useNumericRefs && t == NT_STRING) {
+        if (str.concatEncode(xsink, *n.get<const QoreStringNode>(),
+                            CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
+            return -1;
+        return 0;
+    }
 
-   QoreStringValueHelper temp(n);
-   if (str.concatEncode(xsink, **temp, CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
-      return -1;
+    QoreStringValueHelper temp(n);
+    if (str.concatEncode(xsink, **temp, CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
+        return -1;
 
-   return 0;
+    return 0;
 }
 
 static int concat_simple_cdata_value(QoreString &str, const QoreValue n, ExceptionSink* xsink) {
@@ -417,7 +416,7 @@ static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &s
       int vn = 0;
       bool exists;
       QoreValue value;
-      QoreValue v = h->getValueKeyValueExistence("^value^", exists);
+      QoreValue v = h->getKeyValueExistence("^value^", exists);
       if (exists) {
          vn++;
          if (v.isNothing()) {
@@ -429,7 +428,7 @@ static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &s
          QoreString val;
          while (true) {
             val.sprintf("^value%d^", vn);
-            v = h->getValueKeyValueExistence(val.getBuffer(), exists);
+            v = h->getKeyValueExistence(val.getBuffer(), exists);
             if (!exists) {
                break;
             }
@@ -442,7 +441,7 @@ static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &s
       }
 
       int cn = 0;
-      v = h->getValueKeyValueExistence("^comment^", exists);
+      v = h->getKeyValueExistence("^comment^", exists);
       if (exists) {
          cn++;
          if (v.isNothing())
@@ -451,7 +450,7 @@ static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &s
          QoreString val;
          while (true) {
             val.sprintf("^comment%d^", cn);
-            v = h->getValueKeyValueExistence(val.getBuffer(), exists);
+            v = h->getKeyValueExistence(val.getBuffer(), exists);
             if (!exists) {
                break;
             }
@@ -460,7 +459,7 @@ static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &s
             cn++;
          }
       }
-      QoreValue attrib = h->getValueKeyValueExistence("^attributes^", exists);
+      QoreValue attrib = h->getKeyValueExistence("^attributes^", exists);
       if (exists)
          inc++;
 
@@ -906,46 +905,46 @@ QoreStringNode* make_xmlrpc_call(ExceptionSink* xsink, const QoreEncoding* ccs, 
 }
 
 QoreStringNode* make_xmlrpc_call_args(ExceptionSink* xsink, const QoreEncoding* ccs, int offset, const QoreValueList* params, int flags) {
-   const QoreStringNode* p0 = HARD_QORE_VALUE_STRING(params, offset);
+    const QoreStringNode* p0 = HARD_QORE_VALUE_STRING(params, offset);
 
-   bool fmt = XGF_ADD_FORMATTING & flags;
+    bool fmt = XGF_ADD_FORMATTING & flags;
 
-   QoreStringNodeHolder str(new QoreStringNode(ccs));
-   str->sprintf("<?xml version=\"1.0\" encoding=\"%s\"?>%s<methodCall>%s<methodName>", ccs->getCode(), fmt ? "\n" : "", fmt ? "\n  " : "");
-   if (str->concatEncode(xsink, *p0, CE_XML | (XGF_ENCODE_MASK & flags)))
-      return 0;
+    QoreStringNodeHolder str(new QoreStringNode(ccs));
+    str->sprintf("<?xml version=\"1.0\" encoding=\"%s\"?>%s<methodCall>%s<methodName>", ccs->getCode(), fmt ? "\n" : "", fmt ? "\n  " : "");
+    if (str->concatEncode(xsink, *p0, CE_XML | (XGF_ENCODE_MASK & flags)))
+        return 0;
 
-   str->sprintf("</methodName>%s", fmt ? "\n" : "");
+    str->sprintf("</methodName>%s", fmt ? "\n" : "");
 
-   const QoreValue p1 = get_param_value(params, offset + 1);
-   if (p1.getType() == NT_LIST) {
-      const QoreListNode* l = p1.get<const QoreListNode>();
-      if (l->size()) {
-         str->sprintf("%s<params>%s", fmt ? "  " : "", fmt ? "\n" : "");
+    const QoreValue p1 = get_param_value(params, offset + 1);
+    if (p1.getType() == NT_LIST) {
+        const QoreListNode* l = p1.get<const QoreListNode>();
+        if (l->size()) {
+            str->sprintf("%s<params>%s", fmt ? "  " : "", fmt ? "\n" : "");
 
-         for (unsigned int i = 0 ; i < l->size(); ++i) {
-            const AbstractQoreNode* p = l->retrieve_entry(i);
-            str->sprintf("%s<param>%s", fmt ? "    " : "", fmt ? "\n" : "");
-            if (add_xmlrpc_value(*str, p, fmt ? 6 : 0, ccs, flags, xsink))
-               return 0;
-            str->sprintf("%s</param>%s", fmt ? "    " : "", fmt ? "\n" : "");
-         }
-         str->sprintf("%s</params>%s", fmt ? "  " : "", fmt ? "\n" : "");
-      }
-   }
-   else if (!p1.isNullOrNothing()) {
-      str->sprintf("<params>%s", fmt ? "\n" : "");
-      str->sprintf("%s<param>%s", fmt ? "    " : "", fmt ? "\n" : "");
-      if (add_xmlrpc_value(*str, p1, fmt ? 6 : 0, ccs, 0, xsink))
-         return 0;
-      str->sprintf("%s</param>%s", fmt ? "    " : "", fmt ? "\n" : "");
-      str->sprintf("%s</params>%s", fmt ? "  " : "", fmt ? "\n" : "");
-   }
-   else
-      str->sprintf("%s<params/>%s", fmt ? "  " : "", fmt ? "\n" : "");
-   str->concat("</methodCall>");
+            for (unsigned int i = 0 ; i < l->size(); ++i) {
+                QoreValue p = l->retrieveEntry(i);
+                str->sprintf("%s<param>%s", fmt ? "    " : "", fmt ? "\n" : "");
+                if (add_xmlrpc_value(*str, p, fmt ? 6 : 0, ccs, flags, xsink))
+                return 0;
+                str->sprintf("%s</param>%s", fmt ? "    " : "", fmt ? "\n" : "");
+            }
+            str->sprintf("%s</params>%s", fmt ? "  " : "", fmt ? "\n" : "");
+        }
+    }
+    else if (!p1.isNullOrNothing()) {
+        str->sprintf("<params>%s", fmt ? "\n" : "");
+        str->sprintf("%s<param>%s", fmt ? "    " : "", fmt ? "\n" : "");
+        if (add_xmlrpc_value(*str, p1, fmt ? 6 : 0, ccs, 0, xsink))
+            return 0;
+        str->sprintf("%s</param>%s", fmt ? "    " : "", fmt ? "\n" : "");
+        str->sprintf("%s</params>%s", fmt ? "  " : "", fmt ? "\n" : "");
+    }
+    else
+        str->sprintf("%s<params/>%s", fmt ? "  " : "", fmt ? "\n" : "");
+    str->concat("</methodCall>");
 
-   return str.release();
+    return str.release();
 }
 
 // NOTE: the libxml2 library requires all input to be in UTF-8 encoding
@@ -1054,7 +1053,7 @@ static AbstractQoreNode* make_xmlrpc_response_args(ExceptionSink* xsink, const Q
          const QoreListNode* l = arg.get<QoreListNode>();
          // now loop through the params
          for (unsigned int i = 0; i < l->size(); ++i) {
-            const AbstractQoreNode* p = l->retrieve_entry(i);
+            QoreValue p = l->retrieveEntry(i);
             if (fmt)
                str->concat("    <param>\n");
             else
@@ -2680,7 +2679,7 @@ auto get_xml_value(auto n) [flags=CONSTANT] {
     switch (n.getType()) {
         case NT_HASH: {
             const QoreHashNode* h = n.get<const QoreHashNode>();
-            const QoreValue v = h->getValueKeyValue("^value^");
+            const QoreValue v = h->getKeyValue("^value^");
             if (v.isNothing()) {
                 return QoreValue();
             }
