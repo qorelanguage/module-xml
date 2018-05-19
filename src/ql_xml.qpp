@@ -1292,9 +1292,9 @@ QoreHashNode* parse_xmlrpc_response(ExceptionSink* xsink, const QoreString* msg,
 
    QoreHashNode* h = new QoreHashNode;
    if (fault)
-      h->setKeyValue("fault", v.getValueNode(), 0);
+      h->setKeyValue("fault", v.getValue(), 0);
    else
-      h->setKeyValue("params", v.getValueNode(), 0);
+      h->setKeyValue("params", v.getValue(), 0);
    return h;
 }
 
@@ -1397,108 +1397,108 @@ static AbstractQoreNode* parse_xml_with_relaxng_intern(ExceptionSink* xsink, boo
 }
 
 static QoreHashNode* parse_xmlrpc_call(const QoreStringNode* xml, const QoreStringNode* encoding, ExceptionSink* xsink) {
-   const QoreEncoding* qe = encoding ? QEM.findCreate(encoding) : QCS_DEFAULT;
+    const QoreEncoding* qe = encoding ? QEM.findCreate(encoding) : QCS_DEFAULT;
 
-   //printd(5, "parse_xmlrpc_call() c: %d str: %s\n", p0->getBuffer()[0], p0->getBuffer());
+    //printd(5, "parse_xmlrpc_call() c: %d str: %s\n", p0->getBuffer()[0], p0->getBuffer());
 
-   TempEncodingHelper str(xml, QCS_UTF8, xsink);
-   if (!str)
-      return 0;
+    TempEncodingHelper str(xml, QCS_UTF8, xsink);
+    if (!str)
+        return 0;
 
-   QoreXmlRpcReader reader(*str, QORE_XML_PARSER_OPTIONS, xsink);
-   if (!reader)
-      return 0;
+    QoreXmlRpcReader reader(*str, QORE_XML_PARSER_OPTIONS, xsink);
+    if (!reader)
+        return 0;
 
-   if (reader.read(xsink) != 1)
-      return 0;
+    if (reader.read(xsink) != 1)
+        return 0;
 
-   int nt;
-   // get "methodCall" element
-   if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_ELEMENT)
-      return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'methodCall' element", xsink);
+    int nt;
+    // get "methodCall" element
+    if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_ELEMENT)
+        return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'methodCall' element", xsink);
 
-   if (reader.checkXmlRpcMemberName("methodCall", xsink))
-      return 0;
+    if (reader.checkXmlRpcMemberName("methodCall", xsink))
+        return 0;
 
-   // get "methodName" element
-   if (reader.readXmlRpc("expecting methodName element", xsink))
-      return 0;
+    // get "methodName" element
+    if (reader.readXmlRpc("expecting methodName element", xsink))
+        return 0;
 
-   if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_ELEMENT)
-      return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'methodName' element", xsink);
+    if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_ELEMENT)
+        return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'methodName' element", xsink);
 
-   if (reader.checkXmlRpcMemberName("methodName", xsink))
-      return 0;
+    if (reader.checkXmlRpcMemberName("methodName", xsink))
+        return 0;
 
-   // get method name string
-   if (reader.readXmlRpc("expecting method name", xsink))
-      return 0;
+    // get method name string
+    if (reader.readXmlRpc("expecting method name", xsink))
+        return 0;
 
-   if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_TEXT)
-      return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting method name", xsink);
+    if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_TEXT)
+        return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting method name", xsink);
 
-   const char* method_name = reader.constValue();
-   if (!method_name)
-      return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting method name", xsink);
+    const char* method_name = reader.constValue();
+    if (!method_name)
+        return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting method name", xsink);
 
-   ReferenceHolder<QoreHashNode> h(new QoreHashNode, xsink);
-   h->setKeyValue("methodName", new QoreStringNode(method_name), 0);
+    ReferenceHolder<QoreHashNode> h(new QoreHashNode, xsink);
+    h->setKeyValue("methodName", new QoreStringNode(method_name), 0);
 
-   // get methodName close tag
-   if (reader.readXmlRpc("expecting methodName close element", xsink))
-      return 0;
+    // get methodName close tag
+    if (reader.readXmlRpc("expecting methodName close element", xsink))
+        return 0;
 
-   if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_END_ELEMENT)
-      return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'methodName' close element", xsink);
+    if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_END_ELEMENT)
+        return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'methodName' close element", xsink);
 
-   // get "params" element
-   if (reader.readXmlRpc("expecting params element", xsink))
-      return 0;
+    // get "params" element
+    if (reader.readXmlRpc("expecting params element", xsink))
+        return 0;
 
-   if ((nt = reader.readXmlRpcNode(xsink)) == -1)
-      return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", xsink);
+    if ((nt = reader.readXmlRpcNode(xsink)) == -1)
+        return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", xsink);
 
-   // if the methodCall end element was not found
-   if (nt != XML_READER_TYPE_END_ELEMENT) {
-      if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_ELEMENT)
-         return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'params' element", xsink);
+    // if the methodCall end element was not found
+    if (nt != XML_READER_TYPE_END_ELEMENT) {
+        if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_ELEMENT)
+            return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'params' element", xsink);
 
-      if (reader.checkXmlRpcMemberName("params", xsink))
-         return 0;
-
-      // get 'param' element or close params
-      if (reader.readXmlRpc("expecting param element", xsink))
-         return 0;
-
-      if ((nt = reader.readXmlRpcNode(xsink)) == -1)
-         return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", xsink);
-
-      Qore::Xml::intern::XmlRpcValue v;
-      if (reader.depth()) {
-         if (nt != XML_READER_TYPE_END_ELEMENT) {
-            if (nt != XML_READER_TYPE_ELEMENT)
-               return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'params' element", xsink);
-
-            if (reader.getParams(&v, qe, xsink))
-               return 0;
-         }
-
-         // get methodCall close tag
-         if (reader.readXmlRpc("expecting methodCall close tag", xsink))
+        if (reader.checkXmlRpcMemberName("params", xsink))
             return 0;
-      }
 
-      if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_END_ELEMENT) {
-         return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'methodCall' close element", xsink);
-      }
+        // get 'param' element or close params
+        if (reader.readXmlRpc("expecting param element", xsink))
+            return 0;
 
-      if (reader.checkXmlRpcMemberName("methodCall", xsink, true))
-         return 0;
+        if ((nt = reader.readXmlRpcNode(xsink)) == -1)
+            return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", xsink);
 
-      h->setKeyValue("params", v.getValueNode(), xsink);
-   }
+        Qore::Xml::intern::XmlRpcValue v;
+        if (reader.depth()) {
+            if (nt != XML_READER_TYPE_END_ELEMENT) {
+                if (nt != XML_READER_TYPE_ELEMENT)
+                    return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'params' element", xsink);
 
-   return h.release();
+                if (reader.getParams(&v, qe, xsink))
+                    return 0;
+            }
+
+            // get methodCall close tag
+            if (reader.readXmlRpc("expecting methodCall close tag", xsink))
+                return 0;
+        }
+
+        if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_END_ELEMENT) {
+            return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting 'methodCall' close element", xsink);
+        }
+
+        if (reader.checkXmlRpcMemberName("methodCall", xsink, true))
+            return 0;
+
+        h->setKeyValue("params", v.getValue(), xsink);
+    }
+
+    return h.release();
 }
 
 static QoreValue parse_xmlrpc_value(const QoreStringNode* xml, const QoreStringNode* encoding, ExceptionSink* xsink) {

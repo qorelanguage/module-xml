@@ -134,7 +134,7 @@ int QoreXmlRpcReader::getStruct(Qore::Xml::intern::XmlRpcValue *v, const QoreEnc
       if (readXmlRpc(xsink))
          break;
 
-      v->setReference(h->getKeyValueReference(member.getBuffer()));
+      v->setReference(&h->getKeyValueReference(member.getBuffer()));
 
       // if if was not an empty value element
       if (member_depth < depth()) {
@@ -203,7 +203,7 @@ int QoreXmlRpcReader::getParams(Qore::Xml::intern::XmlRpcValue *v, const QoreEnc
       if (checkXmlRpcMemberName("param", xsink))
          return -1;
 
-      v->setReference(l->getEntryReference(index++));
+      v->setReference(&l->getEntryReference(index++));
 
       // get next value tag or param close tag
       if (readXmlRpc(xsink))
@@ -513,7 +513,7 @@ int QoreXmlRpcReader::getArray(Qore::Xml::intern::XmlRpcValue *v, const QoreEnco
          if (checkXmlRpcMemberName("value", xsink))
             return -1;
 
-         v->setReference(l->getEntryReference(index++));
+         v->setReference(&l->getEntryReference(index++));
 
          if (readXmlRpc(xsink))
             return -1;

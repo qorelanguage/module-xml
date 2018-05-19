@@ -32,19 +32,15 @@ namespace intern { // make classes local
     class XmlRpcValue {
     private:
         QoreValue val;
-        QoreValue& vp;
+        QoreValue* vp = nullptr;
         bool is_set = false;
 
     public:
-        DLLLOCAL XmlRpcValue() : vp(val) {
+        DLLLOCAL XmlRpcValue() {
         }
 
         DLLLOCAL ~XmlRpcValue() {
             val.discard(0);
-        }
-
-        DLLLOCAL AbstractQoreNode* getValueNode() {
-            return val.takeNode();
         }
 
         DLLLOCAL QoreValue getValue() {
@@ -55,14 +51,16 @@ namespace intern { // make classes local
 
         DLLLOCAL void set(QoreValue v) {
             if (is_set)
-                vp = v;
+                *vp = v;
             else
                 discard(val.assignAndSanitize(v), 0);
         }
 
-        DLLLOCAL void setReference(QoreValue& v) {
+        DLLLOCAL void setReference(QoreValue* v) {
             vp = v;
-            is_set = true;
+            if (!is_set) {
+                is_set = true;
+            }
         }
     };
 

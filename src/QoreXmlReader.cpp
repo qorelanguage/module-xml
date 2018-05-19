@@ -197,7 +197,7 @@ AbstractQoreNode* QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEnco
                                 int c = 1;
                                 while (true) {
                                     ns.sprintf("%s^%d", name, c);
-                                    if (!h->existsKey(ns.getBuffer()))
+                                    if (!h->existsKey(ns.c_str()))
                                         break;
                                     c++;
                                     ns.clear();
