@@ -120,6 +120,10 @@ public:
 
     DLLLOCAL virtual const char* getName() const { return "SaxIterator"; }
 
+    DLLLOCAL virtual const QoreTypeInfo* getElementType() const {
+        return autoTypeInfo;
+    }
+
     DLLLOCAL int setOptions(const QoreHashNode* opts) {
         return xml_parse_options = getOptions(opts);
     }
