@@ -286,7 +286,7 @@ hash result = xrc.callArgsWithInfo(\info, "method.name", arg_list);@endcode
 */
 hash XmlRpcClient::callArgsWithInfo(reference info, string[doc] method, any[doc] args) {
    // get arguments
-   ReferenceHolder<QoreValueList> xargs(args->copyListFrom(1), xsink);
+   ReferenceHolder<QoreListNode> xargs(args->copyListFrom(1), xsink);
 
    // create the outgoing message in XML-RPC call format
    QoreStringNode *msg = make_xmlrpc_call_args(xsink, client->getEncoding(), 0, *xargs);
@@ -331,7 +331,7 @@ hash result = xrc.callWithInfo(\info, "method.name", arg1, arg2);@endcode
 */
 hash XmlRpcClient::callWithInfo(reference info, string[doc] method, ...) {
    // get arguments
-   ReferenceHolder<QoreValueList> xargs(args->copyListFrom(1), xsink);
+   ReferenceHolder<QoreListNode> xargs(args->copyListFrom(1), xsink);
 
    // create the outgoing message in XML-RPC call format
    QoreStringNode *msg = make_xmlrpc_call(xsink, client->getEncoding(), 0, *xargs);

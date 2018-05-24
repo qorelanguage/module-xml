@@ -54,7 +54,7 @@ void QoreXmlReader::processOpts(const QoreHashNode* opts, ExceptionSink* xsink) 
     while (i.next()) {
         const char* key = i.getKey();
         if (!strcmp(key, "xsd")) {
-            QoreValue n = i.getValue();
+            QoreValue n = i.get();
             if (n.getType() != NT_STRING) {
                 xsink->raiseException("XMLREADER-XSD-ERROR", "expecting type 'string' with option 'xsd'; got type '%s' instead", n.getTypeName());
                 return;
