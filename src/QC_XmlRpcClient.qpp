@@ -33,45 +33,45 @@ typedef ReferenceHolder<QoreHttpClientObject> safe_httpclient_t;
 
 class HTTPInfoRefHelper {
 protected:
-   const ReferenceNode *ref;
-   ExceptionSink *xsink;
-   ReferenceHolder<QoreHashNode> info;
+    const ReferenceNode *ref;
+    ExceptionSink *xsink;
+    ReferenceHolder<QoreHashNode> info;
 
 public:
-   DLLLOCAL HTTPInfoRefHelper(const ReferenceNode *n_ref, QoreStringNode *msg, ExceptionSink *n_xsink) : ref(n_ref), xsink(n_xsink), info(new QoreHashNode, xsink) {
-      info->setKeyValue("request", msg, xsink);
-   }
-   DLLLOCAL ~HTTPInfoRefHelper() {
-      // we have to create a temporary ExceptionSink if there is
-      // an active exception, otherwise writing back the reference will fail
-      ExceptionSink *txsink = *xsink ? new ExceptionSink : xsink;
+    DLLLOCAL HTTPInfoRefHelper(const ReferenceNode *n_ref, QoreStringNode *msg, ExceptionSink *n_xsink) : ref(n_ref), xsink(n_xsink), info(new QoreHashNode, xsink) {
+        info->setKeyValue("request", msg, xsink);
+    }
+    DLLLOCAL ~HTTPInfoRefHelper() {
+        // we have to create a temporary ExceptionSink if there is
+        // an active exception, otherwise writing back the reference will fail
+        ExceptionSink *txsink = *xsink ? new ExceptionSink : xsink;
 
-      // write info hash to reference
-      AutoVLock vl(txsink);
-      QoreTypeSafeReferenceHelper rh(ref, vl, txsink);
-      if (!rh)
-         return;
+        // write info hash to reference
+        AutoVLock vl(txsink);
+        QoreTypeSafeReferenceHelper rh(ref, vl, txsink);
+        if (!rh)
+            return;
 
-      if (rh.assign(info.release(), txsink))
-         return;
+        if (rh.assign(info.release()))
+            return;
 
-      if (txsink != xsink)
-         xsink->assimilate(txsink);
-   }
-   DLLLOCAL QoreHashNode *operator*() {
-      return *info;
-   }
+        if (txsink != xsink)
+            xsink->assimilate(txsink);
+    }
+    DLLLOCAL QoreHashNode *operator*() {
+        return *info;
+    }
 };
 
 static void set_xrc_defaults(QoreHttpClientObject& client) {
-   // set options for XML-RPC communication
-   client.setDefaultPath("RPC2");
-   client.setDefaultHeaderValue("Content-Type", "text/xml;charset=utf-8");
-   client.setDefaultHeaderValue("Accept", "text/xml");
-   client.setDefaultHeaderValue("User-Agent", "Qore-XML-RPC-Client/" PACKAGE_VERSION);
+    // set options for XML-RPC communication
+    client.setDefaultPath("RPC2");
+    client.setDefaultHeaderValue("Content-Type", "text/xml;charset=utf-8");
+    client.setDefaultHeaderValue("Accept", "text/xml");
+    client.setDefaultHeaderValue("User-Agent", "Qore-XML-RPC-Client/" PACKAGE_VERSION);
 
-   client.addProtocol("xmlrpc", 80, false);
-   client.addProtocol("xmlrpcs", 443, true);
+    client.addProtocol("xmlrpc", 80, false);
+    client.addProtocol("xmlrpcs", 443, true);
 }
 
 static QoreHashNode *make_xmlrpc_call(QoreHttpClientObject* client, QoreStringNode *msg, QoreHashNode *info, ExceptionSink *xsink) {
