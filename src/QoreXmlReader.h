@@ -112,7 +112,7 @@ protected:
       return 0;
    }
 
-   DLLLOCAL AbstractQoreNode* getXmlData(ExceptionSink* xsink, const QoreEncoding* data_ccsid, int pflags = XPF_NONE, int min_depth = -1);
+   DLLLOCAL QoreValue getXmlData(ExceptionSink* xsink, const QoreEncoding* data_ccsid, int pflags = XPF_NONE, int min_depth = -1);
 
    DLLLOCAL void init(const char* enc, int options, const QoreHashNode* opts, ExceptionSink* xsink) {
       assert(!xml);

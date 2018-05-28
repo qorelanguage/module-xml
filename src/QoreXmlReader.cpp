@@ -99,19 +99,19 @@ QoreHashNode* QoreXmlReader::parseXmlData(const QoreEncoding* data_ccsid, int pf
     if (read(xsink) != 1)
         return 0;
 
-    AbstractQoreNode* rv = getXmlData(xsink, data_ccsid, pflags, depth());
+    QoreValue rv = getXmlData(xsink, data_ccsid, pflags, depth());
 
     if (!rv) {
         if (!*xsink)
             xsink->raiseExceptionArg("PARSE-XML-EXCEPTION", xml ? new QoreStringNode(*xml) : 0, "parse error parsing XML string");
         return 0;
     }
-    assert(rv->getType() == NT_HASH);
+    assert(rv.getType() == NT_HASH);
 
-    return reinterpret_cast<QoreHashNode*>(rv);
+    return rv.get<QoreHashNode>();
 }
 
-AbstractQoreNode* QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* data_ccsid, int pflags, int min_depth) {
+QoreValue QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* data_ccsid, int pflags, int min_depth) {
     Qore::Xml::intern::xml_stack xstack;
 
     QORE_TRACE("getXMLData()");
@@ -215,11 +215,11 @@ AbstractQoreNode* QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEnco
                     const char* aname = constName();
                     QoreStringNode* value = getValue(data_ccsid, xsink);
                     if (!value)
-                        return 0;
+                        return QoreValue();
                     h->setKeyValue(aname, value, xsink);
                 }
                 if (*xsink)
-                    return 0;
+                    return QoreValue();
 
                 // make new new a hash and assign "^attributes^" key
                 QoreHashNode* nv = new QoreHashNode;
@@ -236,7 +236,7 @@ AbstractQoreNode* QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEnco
             if (str) {
                 QoreStringNodeHolder val(getValue(data_ccsid, xsink));
                 if (!val)
-                    return 0;
+                    return QoreValue();
 
                 QoreValue n = xstack.getValue();
                 if (!n.isNothing()) {
@@ -274,7 +274,7 @@ AbstractQoreNode* QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEnco
             if (str) {
                 QoreStringNode* val = getValue(data_ccsid, xsink);
                 if (!val)
-                    return 0;
+                    return QoreValue();
 
                 QoreValue n = xstack.getValue();
                 if (n.getType() == NT_HASH) {
@@ -307,7 +307,7 @@ AbstractQoreNode* QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEnco
             if (str) {
                 QoreStringNode* val = getValue(data_ccsid, xsink);
                 if (!val)
-                    return 0;
+                    return QoreValue();
 
                 QoreValue n = xstack.getValue();
                 if (n.getType() == NT_HASH) {
@@ -340,5 +340,5 @@ AbstractQoreNode* QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEnco
             break;
         }
     }
-    return rc ? 0 : xstack.takeValue().takeNode();
+    return rc ? QoreValue() : xstack.takeValue();
 }
