@@ -1,24 +1,24 @@
 /* -*- mode: c++; indent-tabs-mode: nil -*- */
 /*
- QoreXmlRpcReader.h
+    QoreXmlRpcReader.h
 
- Qore Programming Language
+    Qore Programming Language
 
- Copyright (C) 2003 - 2015 David Nichols
+    Copyright (C) 2003 - 2018 Qore Technologies, s.r.o.
 
- This library is free software; you can redistribute it and/or
- modify it under the terms of the GNU Lesser General Public
- License as published by the Free Software Foundation; either
- version 2.1 of the License, or (at your option) any later version.
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
 
- This library is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- Lesser General Public License for more details.
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
 
- You should have received a copy of the GNU Lesser General Public
- License along with this library; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #ifndef _QORE_QOREXMLRPCREADER_H
@@ -29,123 +29,120 @@
 namespace Qore {
 namespace Xml {
 namespace intern { // make classes local
-   class XmlRpcValue {
-   private:
-      QoreValue val;
-      AbstractQoreNode** vp;
+    class XmlRpcValue {
+    private:
+        QoreValue val;
+        QoreValue* vp = nullptr;
+        bool is_set = false;
 
-   public:
-      DLLLOCAL XmlRpcValue() : vp(0) {
-      }
+    public:
+        DLLLOCAL XmlRpcValue() {
+        }
 
-      DLLLOCAL ~XmlRpcValue() {
-         val.discard(0);
-      }
+        DLLLOCAL ~XmlRpcValue() {
+            val.discard(0);
+        }
 
-      DLLLOCAL AbstractQoreNode* getValueNode() {
-         return val.takeNode();
-      }
+        DLLLOCAL QoreValue getValue() {
+            QoreValue rv;
+            rv.swap(val);
+            return rv;
+        }
 
-      DLLLOCAL QoreValue getValue() {
-         QoreValue rv;
-         rv.swap(val);
-         return rv;
-      }
+        DLLLOCAL void set(QoreValue v) {
+            if (is_set)
+                *vp = v;
+            else
+                discard(val.assignAndSanitize(v), 0);
+        }
 
-      DLLLOCAL void set(QoreValue v) {
-         if (vp)
-            *vp = v.takeNode();
-         else
-            discard(val.assignAndSanitize(v), 0);
-      }
-
-      DLLLOCAL void setPtr(AbstractQoreNode** v) {
-         vp = v;
-      }
-   };
+        DLLLOCAL void setReference(QoreValue* v) {
+            vp = v;
+            if (!is_set) {
+                is_set = true;
+            }
+        }
+    };
 
    class xml_node {
    public:
-      AbstractQoreNode** node;
+      QoreValue& node;
       xml_node* next;
       int depth;
       int vcount;
       int cdcount;
       int commentcount;
 
-      DLLLOCAL xml_node(AbstractQoreNode** n, int d)
+      DLLLOCAL xml_node(QoreValue& n, int d)
          : node(n), next(0), depth(d), vcount(0), cdcount(0), commentcount(0) {
       }
    };
 
-   class xml_stack {
-   private:
-      xml_node* tail;
-      AbstractQoreNode* val;
+    class xml_stack {
+    private:
+        xml_node* tail = nullptr;
+        QoreValue val;
 
-   public:
-      DLLLOCAL xml_stack() {
-         tail = 0;
-         val = 0;
-         push(&val, -1);
-      }
+    public:
+        DLLLOCAL xml_stack() {
+            push(val, -1);
+        }
 
-      DLLLOCAL ~xml_stack() {
-         if (val)
-            val->deref(0);
+        DLLLOCAL ~xml_stack() {
+            val.discard(nullptr);
 
-         while (tail) {
-            //printd(5, "xml_stack::~xml_stack(): deleting: %p (%d), next: %p\n", tail, tail->depth, tail->next);
-            xml_node* n = tail->next;
-            delete tail;
-            tail = n;
-         }
-      }
+            while (tail) {
+                //printd(5, "xml_stack::~xml_stack(): deleting: %p (%d), next: %p\n", tail, tail->depth, tail->next);
+                xml_node* n = tail->next;
+                delete tail;
+                tail = n;
+            }
+        }
 
-      DLLLOCAL void checkDepth(int depth) {
-         while (tail && depth && tail->depth >= depth) {
-            //printd(5, "xml_stack::checkDepth(%d): deleting: %p (%d), new tail: %p\n", depth, tail, tail->depth, tail->next);
-            xml_node* n = tail->next;
-            delete tail;
-            tail = n;
-         }
-      }
+        DLLLOCAL void checkDepth(int depth) {
+            while (tail && depth && tail->depth >= depth) {
+                //printd(5, "xml_stack::checkDepth(%d): deleting: %p (%d), new tail: %p\n", depth, tail, tail->depth, tail->next);
+                xml_node* n = tail->next;
+                delete tail;
+                tail = n;
+            }
+        }
 
-      DLLLOCAL void push(AbstractQoreNode** node, int depth) {
-         xml_node* sn = new xml_node(node, depth);
-         sn->next = tail;
-         tail = sn;
-      }
-      DLLLOCAL AbstractQoreNode* getNode() {
-         return *tail->node;
-      }
-      DLLLOCAL void setNode(AbstractQoreNode* n) {
-         (*tail->node) = n;
-      }
-      DLLLOCAL AbstractQoreNode* getVal() {
-         AbstractQoreNode* rv = val;
-         val = 0;
-         return rv;
-      }
-      DLLLOCAL int getValueCount() const {
-         return tail->vcount;
-      }
-      DLLLOCAL void incValueCount() {
-         tail->vcount++;
-      }
-      DLLLOCAL int getCDataCount() const {
-         return tail->cdcount;
-      }
-      DLLLOCAL void incCDataCount() {
-         tail->cdcount++;
-      }
-      DLLLOCAL int getCommentCount() const {
-         return tail->commentcount;
-      }
-      DLLLOCAL void incCommentCount() {
-         tail->commentcount++;
-      }
-   };
+        DLLLOCAL void push(QoreValue& node, int depth) {
+            xml_node* sn = new xml_node(node, depth);
+            sn->next = tail;
+            tail = sn;
+        }
+        DLLLOCAL QoreValue getValue() {
+            return tail->node;
+        }
+        DLLLOCAL void setNode(QoreValue n) {
+            tail->node = n;
+        }
+        DLLLOCAL QoreValue takeValue() {
+            QoreValue rv = val;
+            val = QoreValue();
+            return rv;
+        }
+        DLLLOCAL int getValueCount() const {
+            return tail->vcount;
+        }
+        DLLLOCAL void incValueCount() {
+            tail->vcount++;
+        }
+        DLLLOCAL int getCDataCount() const {
+            return tail->cdcount;
+        }
+        DLLLOCAL void incCDataCount() {
+            tail->cdcount++;
+        }
+        DLLLOCAL int getCommentCount() const {
+            return tail->commentcount;
+        }
+        DLLLOCAL void incCommentCount() {
+            tail->commentcount++;
+        }
+    };
 }
 }
 }

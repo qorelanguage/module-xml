@@ -4345,7 +4345,8 @@ public class WSDL::WebService inherits WSDL::XsdBase {
           - \c "binding": the binding of the port
      */
     list<hash<WSDL::ServiceInfo>> listServices() {
-        return cast<list<hash<WSDL::ServiceInfo>>>(services.values());
+        return map cast<hash<WSDL::ServiceInfo>>($1), services.iterator();
+        #return cast<list<hash<WSDL::ServiceInfo>>>(services.values());
     }
 
     #! returns a hash describing the requested service
