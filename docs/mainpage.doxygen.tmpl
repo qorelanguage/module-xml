@@ -329,6 +329,15 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @section xmlreleasenotes Release Notes
 
+    @subsection xml142 xml Module Version 1.4.2
+    <b>Changes and Bug Fixes in This Release</b>
+    - <a href="../../WSDL/html/index.html">WSDL</a> module changes:
+      - added support for \c token and \c normalizedString types
+      - fixed handling of XSD attribute names with non-word characters
+        (<a href="https://github.com/qorelanguage/qore/issues/2856">issue 2856</a>)
+      - fixed handling of \c simpleType definitions with \c union members
+        (<a href="https://github.com/qorelanguage/qore/issues/2855">issue 2855</a>)
+
     @subsection xml141 xml Module Version 1.4.1
     - <a href="../../SoapHandlerDL/html/index.html">SoapHandler</a> module changes:
       - fixed a bug where the URI path was not respected when resolving SOAP calls

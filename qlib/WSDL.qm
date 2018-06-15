@@ -40,7 +40,7 @@
 %disable-warning unreferenced-variable
 
 module WSDL {
-    version = "0.3.7";
+    version = "0.3.8";
     desc = "WSDL module providing functionality for SOAP";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -75,6 +75,13 @@ module WSDL {
     - <a href="../../SoapHandler/html/index.html">SoapHandler user module</a>
 
     @section wsdlrelnotes WSDL Module Release Notes
+
+    @subsection wsdl_0_3_8 WSDL v0.3.8
+    - added support for \c token and \c normalizedString types
+    - fixed handling of XSD attribute names with non-word characters
+      (<a href="https://github.com/qorelanguage/qore/issues/2856">issue 2856</a>)
+    - fixed handling of \c simpleType definitions with \c union members
+      (<a href="https://github.com/qorelanguage/qore/issues/2855">issue 2855</a>)
 
     @subsection wsdl_0_3_7 WSDL v0.3.7
     - implemented supoprt for handling SOAP faults in response messages with SOAP bindings
@@ -839,6 +846,24 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
                 # used for HTTP binding only
                 val = binary(val);
                 break;
+
+            case "token":
+                if (!val.strp()) {
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("type %y only accepts values that are convertible to strings; type %y supplied", type, val.type());
+                }
+                # XML processor should remove line feeds, carriage returns, tabs, leading and trailing spaces, and multiple spaces
+                val = trim(val.toString());
+                val =~ s/  +/ /g;
+                break;
+
+            case "normalizedString":
+                if (!val.strp()) {
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("type %y only accepts values that are convertible to strings; type %y supplied", type, val.type());
+                }
+                # XML processor should remove line feeds, carriage returns, and tab characters
+                val = val.toString();
+                val =~ s/[\n\r\t]//g;
+                break;
         }
 
         #printf("DEBUG: FORCE: type: %y, nstype: %y, val: %y\n", type, nstype, val);
@@ -880,6 +905,8 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
 
         switch (type) {
             case "string":
+            case "token":
+            case "normalizedString":
             case "anyURI":
                 return nsc.opt_empty_string_is_nothing ? val : string(val);
 
@@ -1270,6 +1297,9 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
     public {
         hash<auto> enum;
         hash<auto> typeinfo;
+        list<hash<auto>> union;
+        list<XsdAbstractType> unionTypes;
+        XsdSimpleType unionSimpleType;
         XsdAbstractType type;
         #any type;
         bool usedocns;
@@ -1283,7 +1313,7 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
         WSDL::XsdBase::removeNS(\st);
 
         if (st.restriction) {
-            *hash<auto> r = st.restriction;
+            hash<auto> r = st.restriction;
 
             *string base = r."^attributes^".base;
             if (!base)
@@ -1297,8 +1327,36 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
             if (r.enumeration)
                 enum = map {$1."^attributes^".value: True}, r.enumeration;
         }
-        else
-            throw "XSD-SIMPLETYPE-ERROR", sprintf("missing restriction element in simpleType %y", name);
+        else if (st.union) {
+            hash<auto> u = st.union;
+            *string memberTypes = u."^attributes^".memberTypes;
+            if (memberTypes) {
+                foreach string str in (memberTypes.split(" ")) {
+                    XsdAbstractType type;
+                    hash<auto> typeinfo;
+                    if (nsc.doType(str, \typeinfo, \type)) {
+                        unionTypes += type;
+                    }
+                    else {
+                        union += typeinfo;
+                    }
+                }
+            }
+            WSDL::XsdBase::removeNS(\u);
+            if (u.simpleType) {
+                unionSimpleType = new XsdSimpleType(u.simpleType, nsc, unresolved, n_usedocns);
+            }
+
+            if (union) {
+                unresolved.add(self);
+            }
+        }
+        else if (st.list) {
+            throw "XSD-SIMPLETYPE-ERROR", sprintf("unsupported list definition in simpleType %y", name);
+        }
+        else {
+            throw "XSD-SIMPLETYPE-ERROR", sprintf("missing restriction, union, or list element in simpleType %y", name);
+        }
 
         #printf("DEBUG: st: %y\n", self); exit();
     }
@@ -1314,13 +1372,42 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
             if (val.size() == 1 && val.firstKey() == "^value^")
                 val = val."^value^";
         }
-        if (enum && !enum{val})
+        if (enum && !enum{val}) {
             throw "SOAP-SERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y is not in the enumeration list<auto> (%y)", val, name, enum.keys());
+        }
+
+        if (unionTypes) {
+            # exception list
+            list<auto> exl;
+            foreach XsdAbstractType t in (unionTypes) {
+                try {
+                    return rh + t.serialize(nsc, val, omitType);
+                }
+                catch (hash<ExceptionInfo> ex) {
+                    exl += ex;
+                }
+            }
+            throw "SOAP-SERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y could not be serialized with union types: %y", val, name, (map sprintf("type %y: %s: %s", unionTypes[$#].getName(), $1.err, $1.desc), exl));
+        }
 
         return rh + type.serialize(nsc, val, omitType);
     }
 
     auto deserialize(string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto val) {
+        if (unionTypes) {
+            # exception list
+            list<auto> exl;
+            foreach XsdAbstractType t in (unionTypes) {
+                try {
+                    return t.deserialize(en, tmap, mrh, val);
+                }
+                catch (hash<ExceptionInfo> ex) {
+                    exl += ex;
+                }
+            }
+            throw "SOAP-DESERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y could not be deserialized with union types: %y", val, name, (map sprintf("type %y: %s: %s", unionTypes[$#].getName(), $1.err, $1.desc), exl));
+        }
+
         auto v = type.deserialize(en, tmap, mrh, val);
 
         if (enum && !enum{v})
@@ -4359,7 +4446,12 @@ public class WSDL::WebService inherits WSDL::XsdBase {
     }
 
     private resolveType(XsdSimpleType t) {
-        throw "WSDL-TYPE-ERROR", sprintf("cannot resolve simpleType: %y type %y", t.name, t.typeinfo);
+        if (!t.union) {
+            throw "WSDL-TYPE-ERROR", sprintf("cannot resolve simpleType: %y type %y", t.name, t.typeinfo);
+        }
+        foreach hash<auto> typeinfo in (t.union) {
+            t.unionTypes += resolveType(typeinfo);
+        }
     }
 
     private resolveType(XsdElement xe) {
