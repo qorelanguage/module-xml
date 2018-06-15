@@ -540,7 +540,7 @@ public class WSDL::XsdBase {
     static removeNS(reference v) {
         foreach hash<auto> h in (\v) {
             foreach string k in (keys h) {
-                (*string ns, *string name) = k =~ x/(\w+):(\w+)/;
+                (*string ns, *string name) = k =~ x/([^:]+):([^:]+)/;
                 if (ns) {
                     switch (h{k}.typeCode()) {
                         case NT_HASH: h{k}.ns = ns; break;
@@ -561,7 +561,7 @@ public class WSDL::XsdBase {
     static removeNS2(reference v) {
         foreach hash<auto> h in (\v) {
             foreach string k in (keys h) {
-                (*string ns, *string name) = k =~ x/(\w+):(\w+)/;
+                (*string ns, *string name) = k =~ x/([^:]+):([^:]+)/;
                 if (ns) {
                     switch (h{k}.typeCode()) {
                         case NT_HASH: h{k}.".ns" = ns; break;
@@ -620,7 +620,7 @@ public class WSDL::XsdNamedData inherits WSDL::XsdData {
             name = a.name;
         else if (a.ref) {
             # remove namespace
-            (*string ns, *string n_name) = a.ref =~ x/(\w+):(\w+)/;
+            (*string ns, *string n_name) = a.ref =~ x/([^:]+):([^:]+)/;
             name = n_name ?? a.ref;
         }
         else
@@ -864,7 +864,7 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
         if (val.typeCode() == NT_HASH && val.hasKey("^value^")) {
             if (val."^attributes^"."xsi:type") {
                 type = val."^attributes^"."xsi:type";
-                string t = (type =~ x/\w+:(\w+)/)[0];
+                string t = (type =~ x/[^:]+:([^:]+)/)[0];
                 if (exists t)
                     type = t;
 
@@ -1396,7 +1396,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 *string base = d.restriction."^attributes^".base;
 
                 # FIXME: handle namespace
-                (*string ns, *string tn) = (base =~ x/(\w+):(\w+)/);
+                (*string ns, *string tn) = (base =~ x/([^:]+):([^:]+)/);
                 if (exists tn) {
                     if (tn == "Array") {
                         # FIXME check that namespace is SOAP encoding
@@ -1406,7 +1406,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                             throw WSDL_ERROR, sprintf("cannot parse complexType restriction: %y", d.restriction);
 
                         # FIXME: handle multiple dimensions?
-                        (*string ans, *string atn) = aa.arrayType =~ x/(\w+):(\w+)\[\]$/;
+                        (*string ans, *string atn) = aa.arrayType =~ x/([^:]+):([^:]+)\[\]$/;
                         if (exists atn) {
                             array.val = atn;
                             array.ns  = ans;
@@ -1923,12 +1923,12 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
 
             *WSMessage msg = messages.(msghash.message.val);
             if (!msg)
-                throw WSDL_ERROR, sprintf("missing definition for input message %y required by operation %y", msghash.name.val, name);
+                throw WSDL_ERROR, sprintf("missing definition for input message %y required by operation %y", msghash.name.val ?? msghash.name ?? msghash.message.val, name);
             input := msg;
 
             #printf("DBG: WSOperation::constructor() name: %y msghash: %y\n", name, msghash);
             if (msghash.name)
-                input_name = msghash.name.val ? msghash.name.val : msghash.name;
+                input_name = msghash.name.val ?? msghash.name;
         }
 
         if (p.output) {
@@ -1936,7 +1936,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
 
             *WSMessage msg = messages.(msghash.message.val);
             if (!msg)
-                throw WSDL_ERROR, sprintf("missing definition for output message %y required by operation %y", msghash.name.val, name);
+                throw WSDL_ERROR, sprintf("missing definition for output message %y required by operation %y", msghash.name.val ?? msghash.name ?? msghash.message.val, name);
 
             output := msg;
             if (msghash.name)
@@ -2135,7 +2135,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     #! processes a hash of raw deserialized XML data and removes any namespace prefix from keys (saved to a \c "ns" key in the hash vale assigned to the key) and returns the processed version of the hash
     static private hash<auto> processNSValue(hash<auto> h) {
         foreach string k in (keys h) {
-            (*string ns, *string name) = h{k} =~ x/(\w+):(\w+)/;
+            (*string ns, *string name) = h{k} =~ x/([^:]+):([^:]+)/;
             if (!name)
                 h{k}.val = h{k};
             else {
@@ -2217,7 +2217,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
             if (pmap{part.name})
                 throw WSDL_ERROR, sprintf("duplicate part name %y in message %y", part.name, name);
             if (part.element) {
-                (*string ns, *string ename) = part.element =~ x/(\w+):(\w+)/;
+                (*string ns, *string ename) = part.element =~ x/([^:]+):([^:]+)/;
                 if (!ename)
                     ename = part.element;
                 if (args{ename})
@@ -3458,7 +3458,7 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
         {
             *hash<auto> ba = data."^attributes^";
 
-            (*string ns, *string prt) = ba.type =~ x/(?:(\w+):)?(\w+)/;
+            (*string ns, *string prt) = ba.type =~ x/(?:([^:]+):)?([^:]+)/;
             if (!prt)
                 throw WSDL_ERROR, sprintf("missing port type for binding %y", name);
             port = prt;
@@ -3872,7 +3872,7 @@ public class WSDL::Namespaces {
 
     addNamespaces(hash<auto> nsh, *NamespacePrefixHelper nph) {
         foreach string k in (keys nsh) {
-            *string ns = (k =~ x/xmlns:(\w+)/)[0];
+            *string ns = (k =~ x/xmlns:([^:]+)/)[0];
 
             if (!ns)
                 continue;
@@ -4063,7 +4063,7 @@ public class WSDL::Namespaces {
 
     bool doType(string t, reference<hash> typeinfo, reference<XsdAbstractType> rtype) {
         #printf("DEBUG: XsdBase::doType(%y)\n", t);
-        (*string ns, *string type) = t =~ x/(\w+):(\w+)/;
+        (*string ns, *string type) = t =~ x/([^:]+):([^:]+)/;
         if (!type) {
             #printf("DEBUG: XsdBase::doType(%y) xsd: %y\n", t, default_ns);
             if (default_ns == XSD_NS) {
@@ -4087,7 +4087,7 @@ public class WSDL::Namespaces {
 
     hash<auto> getTypeHash(string t) {
         #printf("DEBUG: XsdBase::doType(%y)\n", t);
-        (*string ns, *string type) = t =~ x/(\w+):(\w+)/;
+        (*string ns, *string type) = t =~ x/([^:]+):([^:]+)/;
         if (!type) {
             #printf("DEBUG: XsdBase::doType(%y) xsd: %y\n", t, default_ns);
             return ("val": t);
@@ -4454,7 +4454,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
                         n_nsc.merge(nsc);
 
                     # verify that the top-level key indicates an XSD schema definition
-                    (*string ns, *string mem) = (sk =~ x/^(\w+):(\w+)$/);
+                    (*string ns, *string mem) = (sk =~ x/^([^:]+):([^:]+)$/);
                     if (ns && !nsc.isSchema(ns))
                         throw WSDL_ERROR, sprintf("expecting imported schema definition to be in XSD namespace %y, got %y: %y instead", XSD_NS, ns, nsc.getInputNamespaceUri(ns));
 
@@ -4548,7 +4548,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
 
                 if (!pa.binding)
                     throw WSDL_ERROR, sprintf("service %y port %y has no binding", svcname, name);
-                (*string ns, *string bind) = pa.binding =~ x/(?:(\w+):)?(\w+)/;
+                (*string ns, *string bind) = pa.binding =~ x/(?:([^:]+):)?([^:]+)/;
                 if (!bind)
                     throw WSDL_ERROR, sprintf("cannot parse service %y port %y binding: %y", svcname, name, pa.binding);
 
