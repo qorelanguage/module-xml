@@ -78,6 +78,9 @@ module WSDL {
 
     @subsection wsdl_0_3_8 WSDL v0.3.8
     - added support for \c token and \c normalizedString types
+      (<a href="https://github.com/qorelanguage/qore/issues/2859">issue 2859</a>)
+    - fixed @ref WSDLLib::getWSDL() when passed a WSDL string with no XML preamble
+      (<a href="https://github.com/qorelanguage/qore/issues/2857">issue 2857</a>)
     - fixed handling of XSD attribute names with non-word characters
       (<a href="https://github.com/qorelanguage/qore/issues/2856">issue 2856</a>)
     - fixed handling of \c simpleType definitions with \c union members
@@ -361,7 +364,7 @@ public class WSDL::WSDLLib {
         is performed on the path string
      */
     static string getWSDL(string wsdl, *HTTPClient http_client, *hash<auto> http_headers, *reference new_def_path) {
-        if (wsdl =~ /^<\?xml/)
+        if (wsdl =~ /^</)
             return wsdl;
         return WSDLLib::getFileFromURL(wsdl, "file", http_client, http_headers, NOTHING, NOTHING, \new_def_path);
     }
@@ -3573,6 +3576,17 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
                     throw WSDL_ERROR, sprintf("invalid '\"style\" attribute %y in binding %y; expected one of: %y", bba.style, name, SoapStyleMap.keys());
                 if (!ds)
                     docstyle = False;
+            }
+
+            hash<string, string> nsh;
+            # issue #2858: add any XML namespaces to namespace object here
+            foreach hash<auto> h in (bba.pairIterator()) {
+                if (h.key =~ /^xmlns:/) {
+                    nsh{h.key} = h.value;
+                }
+            }
+            if (nsh) {
+                nsc.addNamespaces(nsh);
             }
         }
 
