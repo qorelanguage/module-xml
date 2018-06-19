@@ -337,6 +337,20 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     - updated the <a href="../../WSDL/html/index.html">WSDL</a> module with serialization support for the \c WebService class
       (<a href="https://github.com/qorelanguage/qore/issues/2793">issue 2793</a>)
 
+    @subsection xml142 xml Module Version 1.4.2
+    <b>Changes and Bug Fixes in This Release</b>
+    - <a href="../../WSDL/html/index.html">WSDL</a> module changes:
+      - added support for \c token and \c normalizedString types
+        (<a href="https://github.com/qorelanguage/qore/issues/2859">issue 2859</a>)
+      - fixed handling namespace declarations in the SOAP binding element
+        (<a href="https://github.com/qorelanguage/qore/issues/2858">issue 2858</a>)
+      - fixed @ref WSDLLib::getWSDL() when passed a WSDL string with no XML preamble
+        (<a href="https://github.com/qorelanguage/qore/issues/2857">issue 2857</a>)
+      - fixed handling of XSD attribute names with non-word characters
+        (<a href="https://github.com/qorelanguage/qore/issues/2856">issue 2856</a>)
+      - fixed handling of \c simpleType definitions with \c union members
+        (<a href="https://github.com/qorelanguage/qore/issues/2855">issue 2855</a>)
+
     @subsection xml141 xml Module Version 1.4.1
     - <a href="../../SoapHandlerDL/html/index.html">SoapHandler</a> module changes:
       - fixed a bug where the URI path was not respected when resolving SOAP calls
