@@ -70,6 +70,8 @@ module SoapHandler {
     @section soaphandler_relnotes SoapHandler Release History
 
     @subsection soaphandler_0_2_7 SoapHandler 0.2.7
+    - fixed a bug where HTTP request headers were not reported correctly in log callbacks
+      (<a href="https://github.com/qorelanguage/qore/issues/2874">issue 2874</a>)
     - fixed a bug where duplicate \c soapAction values would cause an invalid error
       to be thrown even if there were unique paths for each operation
       (<a href="https://github.com/qorelanguage/qore/issues/2871">issue 2871</a>)
@@ -819,7 +821,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                         #printf("hdr=%N\n", hdr);
                     }
                     hash<auto> msg = WSDLLib::parseMultiPartSOAPMessage(hdr + ("body" : body));
-                    msglog(cx, ('reason': 'request', 'header': msg.header, 'method': hdr.method, 'body': msg.body));
+                    msglog(cx, ('reason': 'request', 'header': hdr, 'method': hdr.method, 'body': msg.body));
                     args = WSDLLib::parseSOAPMessage(msg);
                     if (WSDLLib::isSOAPMessage(msg)) {
                         # it is SOAP message (or XML content)
