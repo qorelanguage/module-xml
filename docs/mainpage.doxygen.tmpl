@@ -331,6 +331,10 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @subsection xml142 xml Module Version 1.4.2
     <b>Changes and Bug Fixes in This Release</b>
+    - <a href="../../SoapHandler/html/index.html">SoapHandler</a> module changes:
+      - fixed a bug where duplicate \c soapAction values would cause an invalid
+        error to be thrown even if there were unique paths for each operation
+        (<a href="https://github.com/qorelanguage/qore/issues/2871">issue 2871</a>)
     - <a href="../../WSDL/html/index.html">WSDL</a> module changes:
       - added support for \c token and \c normalizedString types
         (<a href="https://github.com/qorelanguage/qore/issues/2859">issue 2859</a>)

@@ -50,7 +50,7 @@
 %strict-args
 
 module SoapHandler {
-    version = "0.2.6";
+    version = "0.2.7";
     desc = "SoapHandler module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -68,6 +68,11 @@ module SoapHandler {
     This module provides the @ref SoapHandler::SoapHandler "SoapHandler" class which can be used to provide an RPC handler for the HttpServer class provided by the HttpServer module.
 
     @section soaphandler_relnotes SoapHandler Release History
+
+    @subsection soaphandler_0_2_7 SoapHandler 0.2.7
+    - fixed a bug where duplicate \c soapAction values would cause an invalid error
+      to be thrown even if there were unique paths for each operation
+      (<a href="https://github.com/qorelanguage/qore/issues/2871">issue 2871</a>)
 
     @subsection soaphandler_0_2_6 SoapHandler 0.2.6
     - <b>Compatibility Warnings</b>
@@ -315,7 +320,7 @@ public namespace SoapHandler {
                 on_exit rwl.writeUnlock();
 
                 # verify if the operation mapping can be added first
-                if (!method.althpath && sa && sam{sa}.operation && sam{sa}.operation != method.operation) {
+                if (!method.altpath && sa && sam{sa}.operation && sam{sa}.operation != method.operation) {
                     throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
                 }
                 if (method.altpath && wsph{method.altpath} && wsph{method.altpath} != ws) {
