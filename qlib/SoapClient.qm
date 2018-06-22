@@ -467,31 +467,49 @@ public namespace SoapClient {
                 body = seh.func(body);
             }
 
+            int http_status_code;
             hash<auto> rh;
             try {
                 #printf("SoapClient::makeCallIntern: msg: %y\n", msg);
                 rh = send(body, msg.method, msg.path, hdr, True, \info);
                 info."response-body" = rh.body;
-                #printf("response: %y\n", rh);
+                http_status_code = rh.status_code;
             }
             catch (hash<ExceptionInfo> ex) {
+                http_status_code = ex.arg.status_code;
                 # allow fault responses returned with a 500-series status code to be processed as a SOAP fault so that error information is returned in the exception
                 #printf("response exception: %s\n", get_exception_string(ex));
-                if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ((ex.arg.status_code == 400 || (ex.arg.status_code >= 500 && ex.arg.status_code < 600)) && ex.arg.body =~ /<\?xml.*Fault/s)) {
+                if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ((http_status_code == 400 ||
+                    (http_status_code >= 500 && http_status_code < 600))
+                    && ex.arg.body =~ /<\?xml.*Fault/s)) {
                     info."response-body" = ex.arg.body;
                     rh = ex.arg;
                 }
                 else {
                     if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR") {
-                        msglog(('reason': 'error', 'code': ex.arg.status_code, 'header': ex.arg.header, 'body': ex.arg.body));
+                        msglog({
+                            "reason": "error",
+                            "code": http_status_code,
+                            "header": ex.arg.header,
+                            "body": ex.arg.body,
+                        });
                     }
                     rethrow;
                 }
             }
             hash<auto> rmsg = WSDLLib::parseMultiPartSOAPMessage(rh);
-            msglog(('reason': 'response', 'header': rmsg.header, 'content-type': rmsg."content-type", 'body': rmsg.body));
             *hash<auto> pdata = WSDLLib::parseSOAPMessage(rmsg);
             #printf("DEBUG ans: %s\n", rh);
+
+            hash<auto> msg_hash = {
+                "code": http_status_code,
+                "header": rmsg.header,
+                "content-type": rmsg."content-type",
+                "body": rmsg.body,
+            };
+            on_success msglog({"reason": "response"} + msg_hash);
+            on_error msglog({"reason": "error"} + msg_hash);
+
             return op.deserializeResponse(pdata, binding);
         }
 
@@ -773,6 +791,7 @@ private nothing msglog(hash msg) {
         *hash getDefaultOptions() {
             return HttpConnection::DefaultOptions;
         }
+hash<ConnectionConstructorInfo> getConstructorInfoImpl() {throw "ERR";}
 
         #! static constructor
         static SoapConnection make(string name, string desc, string url, bool monitor, *hash<auto> opts, hash<auto> urlh) {

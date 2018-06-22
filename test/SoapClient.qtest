@@ -196,9 +196,9 @@ class SoapClientTest inherits QUnit::Test {
 
         cleanMsgLog();
 
-        assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("getInfo", ("GetInfo": ("tickerSymbol": "ERR"))));
+        assertThrows("SOAP-SERVER-FAULT-RESPONSE", \sc.callOperation(), ("getInfo", ("GetInfo": ("tickerSymbol": "ERR"))));
         assertEq("error", sc.msglogs[1].reason);
-        assertEq(500, sc.msglogs[1].code);
+        assertEq(400, sc.msglogs[1].code);
         assertEq(True, sc.msglogs[1].body =~ /Fault/);
         assertEq("application/soap+xml,text/xml,application/xml", sc.msglogs[0]."accept");
         assertEq(server.soap.msglogs[0].('reason', 'code', 'body'), sc.msglogs[0].('reason', 'code', 'body'));
@@ -253,7 +253,7 @@ class SoapClientTest inherits QUnit::Test {
 
             cleanMsgLog();
             server.rdata = ("payload": "xxx");
-            assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("getBinary", ()));
+            assertThrows("SOAP-DESERIALIZATION-ERROR", \sc.callOperation(), ("getBinary", ()));
         } catch (hash<ExceptionInfo> ex) {
             printf("Exception: %s\n", get_exception_string(ex));
             rethrow;

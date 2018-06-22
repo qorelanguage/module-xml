@@ -614,8 +614,8 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                     try {
                         auto header = remove rv."^header^";
                         h += method.operation.serializeFault(ex.err, ex.desc ?? "no description provided", ex.arg, header, NOTHING, NOTHING, NOTHING, NOTHING, method.binding);
-                        msglog(cx, {"reason": "response", "header": h.hdr, "body": h.body});
                         h.code = reqsoap12 ? 400 : 500;
+                        msglog(cx, {"reason": "error", "code": h.code, "header": h.hdr, "body": h.body});
                         return h;
                     }
                     catch (hash<ExceptionInfo> ex) {
@@ -633,7 +633,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                 try {
                     auto header = remove rv."^header^";
                     h += method.operation.serializeResponse(rv, header, NOTHING, NOTHING, reqsoap12, NOTHING, method.binding);
-                    msglog(cx, ('reason': 'response', 'header': h.hdr, 'body': h.body));
+                    msglog(cx, ('reason': 'response', 'code': 200, 'header': h.hdr, 'body': h.body));
                 }
                 catch (hash<ExceptionInfo> ex) {
                     if (method.err_func)
