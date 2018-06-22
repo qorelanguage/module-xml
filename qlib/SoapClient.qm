@@ -791,7 +791,6 @@ private nothing msglog(hash msg) {
         *hash getDefaultOptions() {
             return HttpConnection::DefaultOptions;
         }
-hash<ConnectionConstructorInfo> getConstructorInfoImpl() {throw "ERR";}
 
         #! static constructor
         static SoapConnection make(string name, string desc, string url, bool monitor, *hash<auto> opts, hash<auto> urlh) {
