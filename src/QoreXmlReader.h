@@ -1,24 +1,24 @@
 /* -*- mode: c++; indent-tabs-mode: nil -*- */
 /*
- QoreXmlReader.h
+    QoreXmlReader.h
 
- Qore Programming Language
+    Qore Programming Language
 
- Copyright (C) 2003 - 2017 Qore Technologies, s.r.o.
+    Copyright (C) 2003 - 2018 Qore Technologies, s.r.o.
 
- This library is free software; you can redistribute it and/or
- modify it under the terms of the GNU Lesser General Public
- License as published by the Free Software Foundation; either
- version 2.1 of the License, or (at your option) any later version.
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
 
- This library is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- Lesser General Public License for more details.
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
 
- You should have received a copy of the GNU Lesser General Public
- License along with this library; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #ifndef _QORE_QOREXMLREADER_H
@@ -42,7 +42,7 @@ public:
         assert(!xml_io_callback);
 
         bool found = false;
-        QoreValue v = opts->getValueKeyValueExistence("xml_input_io", found);
+        QoreValue v = opts->getKeyValueExistence("xml_input_io", found);
         if (found) {
             if (v.getType() != NT_OBJECT) {
                 xsink->raiseException("XMLREADER-XSD-ERROR", "expecting type 'object' with option 'xml_input_io'; got type '%s' instead", v.getTypeName());
@@ -112,7 +112,7 @@ protected:
       return 0;
    }
 
-   DLLLOCAL AbstractQoreNode* getXmlData(ExceptionSink* xsink, const QoreEncoding* data_ccsid, int pflags = XPF_NONE, int min_depth = -1);
+   DLLLOCAL QoreValue getXmlData(ExceptionSink* xsink, const QoreEncoding* data_ccsid, int pflags = XPF_NONE, int min_depth = -1);
 
    DLLLOCAL void init(const char* enc, int options, const QoreHashNode* opts, ExceptionSink* xsink) {
       assert(!xml);

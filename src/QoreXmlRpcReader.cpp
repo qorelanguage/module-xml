@@ -1,24 +1,24 @@
 /* -*- indent-tabs-mode: nil -*- */
 /*
- QoreXmlRpcReader.cpp
+    QoreXmlRpcReader.cpp
 
- Qore Programming Language
+    Qore Programming Language
 
- Copyright (C) 2003 - 2015 David Nichols
+    Copyright (C) 2003 - 2018 Qore Technologies, s.r.o.
 
- This library is free software; you can redistribute it and/or
- modify it under the terms of the GNU Lesser General Public
- License as published by the Free Software Foundation; either
- version 2.1 of the License, or (at your option) any later version.
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
 
- This library is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- Lesser General Public License for more details.
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
 
- You should have received a copy of the GNU Lesser General Public
- License along with this library; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "QoreXmlRpcReader.h"
@@ -134,7 +134,7 @@ int QoreXmlRpcReader::getStruct(Qore::Xml::intern::XmlRpcValue *v, const QoreEnc
       if (readXmlRpc(xsink))
          break;
 
-      v->setPtr(h->getKeyValuePtr(member.getBuffer()));
+      v->setReference(&h->getKeyValueReference(member.getBuffer()));
 
       // if if was not an empty value element
       if (member_depth < depth()) {
@@ -203,7 +203,7 @@ int QoreXmlRpcReader::getParams(Qore::Xml::intern::XmlRpcValue *v, const QoreEnc
       if (checkXmlRpcMemberName("param", xsink))
          return -1;
 
-      v->setPtr(l->get_entry_ptr(index++));
+      v->setReference(&l->getEntryReference(index++));
 
       // get next value tag or param close tag
       if (readXmlRpc(xsink))
@@ -513,7 +513,7 @@ int QoreXmlRpcReader::getArray(Qore::Xml::intern::XmlRpcValue *v, const QoreEnco
          if (checkXmlRpcMemberName("value", xsink))
             return -1;
 
-         v->setPtr(l->get_entry_ptr(index++));
+         v->setReference(&l->getEntryReference(index++));
 
          if (readXmlRpc(xsink))
             return -1;
