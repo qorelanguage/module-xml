@@ -2163,8 +2163,8 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         - \c path: the path part of URL. Used when urlEncoded is defined
         - \c method: the HTTP request method
     */
-    hash<auto> serializeRequest(auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string bname) {
-        return getBinding(bname).serializeMessage(self, input, True, nsc.hasSoap12(), h, header, enc, nsh, xml_opts, req_soapaction);
+    hash<auto> serializeRequest(auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string bname, *hash<auto> http_headers) {
+        return getBinding(bname).serializeMessage(self, input, True, nsc.hasSoap12(), h, header, enc, nsh, xml_opts, req_soapaction, NOTHING, http_headers);
     }
 
     #! serializes a SOAP response to an XML string for the operation
@@ -2175,13 +2175,14 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         @param soap12 set to True if the response should use SOAP 1.2 encoding
         @param xml_opts optional XML generation options
         @param bname SOAP binding name, leave empty to get the first assigned binding
+        @param http_headers HTTP headers to serialize in the response
 
         @return a hash with keys:
         - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary). Target content type is evaluated from WSDL or in case of ambiguity
         using "^attributes^"."^content-type^". Provided content type must match allowed types in WSDL.
         - \c hdr: hash of HTTP headers
     */
-    hash<auto> serializeResponse(auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *bool soap12, *int xml_opts, *string bname) {
+    hash<auto> serializeResponse(auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *bool soap12, *int xml_opts, *string bname, *hash<auto> http_headers) {
         if (exists soap12) {
             if (soap12) {
                 if (!nsc.hasSoap12())
@@ -2195,7 +2196,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         else
             soap12 = nsc.hasSoap12();
 
-        return getBinding(bname).serializeMessage(self, output, False, soap12, h, header, enc, nsh, xml_opts);
+        return getBinding(bname).serializeMessage(self, output, False, soap12, h, header, enc, nsh, xml_opts, NOTHING, NOTHING, http_headers);
     }
 
     #! parses a hash representing a parsed XML request (parsed with @ref parse_xml() "parse_xml(XPF_PRESERVE_ORDER)") for the operation and returns the corresponding Qore data structure
@@ -2747,8 +2748,8 @@ public class WSDL::OperationalBinding inherits WSDL::XsdNamedData {
         self.output = output;
     }
 
-    hash<auto> serializeMessage(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc = "UTF-8", *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg) {
-        return serializeMessageImpl(op, msg, request, soap12, h, header, enc, nsh, xml_opts, req_soapaction, faultmsg);
+    hash<auto> serializeMessage(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc = "UTF-8", *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg, *hash<auto> http_headers) {
+        return serializeMessageImpl(op, msg, request, soap12, h, header, enc, nsh, xml_opts, req_soapaction, faultmsg, http_headers);
     }
 
     auto deserializeMessage(WSOperation op, hash<auto> o, bool request) {
@@ -2759,7 +2760,7 @@ public class WSDL::OperationalBinding inherits WSDL::XsdNamedData {
         return deserializeRequestPathImpl(op, path);
     }
 
-    abstract hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg);
+    abstract hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg, *hash<auto> http_headers);
 
     abstract auto deserializeMessageImpl(WSOperation op, hash<auto> o, bool request);
 
@@ -2775,7 +2776,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         self.soapTransport = soapTransport;
     }
 
-    hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg) {
+    hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg, *hash<auto> http_headers) {
         hash<auto> rv;
 
         if (request) {
@@ -2807,7 +2808,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         */
 
         if (req_soapaction) {
-            rv.hdr += ("SOAPAction": req_soapaction);
+            rv.hdr += {"SOAPAction": req_soapaction};
             if (soap12) {
                 ct += sprintf(";action=%s", req_soapaction);
             }
@@ -2822,6 +2823,8 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         }
 
         rv.hdr."Accept" = WSDLLib::SoapMimeTypes.join(",");
+
+        rv.hdr += http_headers;
 
         return rv;
     }
@@ -3119,7 +3122,7 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
         self.location = location;
     }
 
-    hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg) {
+    hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg, *hash<auto> http_headers) {
         hash<auto> rv;
 
         if (request) {
@@ -3198,6 +3201,8 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
         if (rv.accept) {
             rv.hdr."Accept" = rv.accept;
         }
+
+        rv.hdr += http_headers;
 
         return rv;
     }
