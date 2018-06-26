@@ -84,11 +84,11 @@ class TestSoapServer inherits HttpServer {
     hash getInfo(hash cx, hash h) {
         if (h.tickerSymbol == "ERR")
             throw "ERR", "ERR";
-        return (
+        return {
             "body": ResponseBody,
             "docs": h.tickerSymbol,
             "logo": binary(cx.http_header.soapaction),
-            );
+        };
     }
 
     *hash generalInputOnly(hash cx, hash h) {
@@ -110,7 +110,6 @@ class TestSoapServer inherits HttpServer {
         if (verbose > 2)
             vprintf(fmt + "\n", argv);
     }
-
 }
 
 class TestSoapClient inherits SoapClient {
@@ -152,7 +151,7 @@ class SoapClientTest inherits QUnit::Test {
         on_exit server.stop();
         serverPort = server.getListenerInfo(0).port;
         # when dual IPv4/IPv6 stack then may resolve gethostname() with unsupposed IP address where server is not listening
-        url = sprintf("http://%s:%d", m_options.host ? m_options.host : gethostname(), serverPort);
+        url = sprintf("http://user:pass@%s:%d", m_options.host ? m_options.host : gethostname(), serverPort);
 
         # add test cases
         addTestCase("SoapClientTest", \soapClientTest());
@@ -168,13 +167,14 @@ class SoapClientTest inherits QUnit::Test {
         sc.msglogs = ();
         server.soap.msglogs = ();
     }
+
     soapClientTest() {
         #printf("url: %y\n", url);
         sc = new TestSoapClient(("wsdl": WsdlUrl, "port": "SoapPort", "url": url));
 
         cleanMsgLog();
 
-        hash h = sc.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": ""));
+        hash h = sc.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": "", "http_header": {"Test": "X-Test"}));
         assertEq(99.9, h.body.result);
         assertEq("ABC", h.docs);
         assertEq(binary(), h.logo);
@@ -184,6 +184,8 @@ class SoapClientTest inherits QUnit::Test {
         assertEq(True, sc.msglogs[1].body =~ /GetInfoResult/);
         assertEq(server.soap.msglogs[0].('reason', 'code', 'body'), sc.msglogs[0].('reason', 'code', 'body'));
         assertEq(server.soap.msglogs[1].('reason', 'code', 'body'), sc.msglogs[1].('reason', 'code', 'body'));
+        assertEq("X-Test", server.soap.msglogs[0].header.test);
+        assertEq("Basic dXNlcjpwYXNz", server.soap.msglogs[0].header.authorization);
 
         cleanMsgLog();
 
@@ -194,9 +196,9 @@ class SoapClientTest inherits QUnit::Test {
 
         cleanMsgLog();
 
-        assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("getInfo", ("GetInfo": ("tickerSymbol": "ERR"))));
+        assertThrows("SOAP-SERVER-FAULT-RESPONSE", \sc.callOperation(), ("getInfo", ("GetInfo": ("tickerSymbol": "ERR"))));
         assertEq("error", sc.msglogs[1].reason);
-        assertEq(500, sc.msglogs[1].code);
+        assertEq(400, sc.msglogs[1].code);
         assertEq(True, sc.msglogs[1].body =~ /Fault/);
         assertEq("application/soap+xml,text/xml,application/xml", sc.msglogs[0]."accept");
         assertEq(server.soap.msglogs[0].('reason', 'code', 'body'), sc.msglogs[0].('reason', 'code', 'body'));
@@ -251,8 +253,8 @@ class SoapClientTest inherits QUnit::Test {
 
             cleanMsgLog();
             server.rdata = ("payload": "xxx");
-            assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("getBinary", ()));
-        } catch (ex) {
+            assertThrows("SOAP-DESERIALIZATION-ERROR", \sc.callOperation(), ("getBinary", ()));
+        } catch (hash<ExceptionInfo> ex) {
             printf("Exception: %s\n", get_exception_string(ex));
             rethrow;
         }
@@ -309,7 +311,7 @@ class SoapClientTest inherits QUnit::Test {
             assertEq(hi.payload."^attributes^"."^content-type^", sc.msglogs[0].header."Content-Type");
             assertEq(hi, server.mdata);
 
-        } catch (ex) {
+        } catch (hash<ExceptionInfo> ex) {
             printf("Exception: %s\n", get_exception_string(ex));
             rethrow;
         }

@@ -50,7 +50,7 @@
 %strict-args
 
 module SoapHandler {
-    version = "0.2.6";
+    version = "0.2.7";
     desc = "SoapHandler module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -68,6 +68,13 @@ module SoapHandler {
     This module provides the @ref SoapHandler::SoapHandler "SoapHandler" class which can be used to provide an RPC handler for the HttpServer class provided by the HttpServer module.
 
     @section soaphandler_relnotes SoapHandler Release History
+
+    @subsection soaphandler_0_2_7 SoapHandler 0.2.7
+    - fixed a bug where HTTP request headers were not reported correctly in log callbacks
+      (<a href="https://github.com/qorelanguage/qore/issues/2874">issue 2874</a>)
+    - fixed a bug where duplicate \c soapAction values would cause an invalid error
+      to be thrown even if there were unique paths for each operation
+      (<a href="https://github.com/qorelanguage/qore/issues/2871">issue 2871</a>)
 
     @subsection soaphandler_0_2_6 SoapHandler 0.2.6
     - <b>Compatibility Warnings</b>
@@ -315,7 +322,7 @@ public namespace SoapHandler {
                 on_exit rwl.writeUnlock();
 
                 # verify if the operation mapping can be added first
-                if (!method.althpath && sa && sam{sa}.operation && sam{sa}.operation != method.operation) {
+                if (!method.altpath && sa && sam{sa}.operation && sam{sa}.operation != method.operation) {
                     throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
                 }
                 if (method.altpath && wsph{method.altpath} && wsph{method.altpath} != ws) {
@@ -607,8 +614,8 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                     try {
                         auto header = remove rv."^header^";
                         h += method.operation.serializeFault(ex.err, ex.desc ?? "no description provided", ex.arg, header, NOTHING, NOTHING, NOTHING, NOTHING, method.binding);
-                        msglog(cx, {"reason": "response", "header": h.hdr, "body": h.body});
                         h.code = reqsoap12 ? 400 : 500;
+                        msglog(cx, {"reason": "error", "code": h.code, "header": h.hdr, "body": h.body});
                         return h;
                     }
                     catch (hash<ExceptionInfo> ex) {
@@ -626,7 +633,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                 try {
                     auto header = remove rv."^header^";
                     h += method.operation.serializeResponse(rv, header, NOTHING, NOTHING, reqsoap12, NOTHING, method.binding);
-                    msglog(cx, ('reason': 'response', 'header': h.hdr, 'body': h.body));
+                    msglog(cx, ('reason': 'response', 'code': 200, 'header': h.hdr, 'body': h.body));
                 }
                 catch (hash<ExceptionInfo> ex) {
                     if (method.err_func)
@@ -814,7 +821,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                         #printf("hdr=%N\n", hdr);
                     }
                     hash<auto> msg = WSDLLib::parseMultiPartSOAPMessage(hdr + ("body" : body));
-                    msglog(cx, ('reason': 'request', 'header': msg.header, 'method': hdr.method, 'body': msg.body));
+                    msglog(cx, ('reason': 'request', 'header': hdr, 'method': hdr.method, 'body': msg.body));
                     args = WSDLLib::parseSOAPMessage(msg);
                     if (WSDLLib::isSOAPMessage(msg)) {
                         # it is SOAP message (or XML content)

@@ -331,7 +331,18 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @subsection xml142 xml Module Version 1.4.2
     <b>Changes and Bug Fixes in This Release</b>
+    - <a href="../../SoapClient/html/index.html">SoapClient</a> module changes:
+      - fixed bugs handling HTTP header values in SOAP calls
+        (<a href="https://github.com/qorelanguage/qore/issues/2873">issue 2873</a>)
+    - <a href="../../SoapHandler/html/index.html">SoapHandler</a> module changes:
+      - fixed a bug where HTTP request headers were not reported correctly in log callbacks
+        (<a href="https://github.com/qorelanguage/qore/issues/2874">issue 2874</a>)
+      - fixed a bug where duplicate \c soapAction values would cause an invalid
+        error to be thrown even if there were unique paths for each operation
+        (<a href="https://github.com/qorelanguage/qore/issues/2871">issue 2871</a>)
     - <a href="../../WSDL/html/index.html">WSDL</a> module changes:
+      - fixed bugs handling HTTP header values in SOAP calls
+        (<a href="https://github.com/qorelanguage/qore/issues/2873">issue 2873</a>)
       - added support for \c token and \c normalizedString types
         (<a href="https://github.com/qorelanguage/qore/issues/2859">issue 2859</a>)
       - fixed handling namespace declarations in the SOAP binding element
