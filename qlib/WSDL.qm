@@ -81,8 +81,6 @@ module WSDL {
       (<a href="https://github.com/qorelanguage/qore/issues/2900">issue 2900</a>)
     - fixed bugs handling array types
       (<a href="https://github.com/qorelanguage/qore/issues/2899">issue 2899</a>)
-    - fixed bugs handling array types
-      (<a href="https://github.com/qorelanguage/qore/issues/2899">issue 2899</a>)
     - added support for \c token and \c normalizedString types
       (<a href="https://github.com/qorelanguage/qore/issues/2859">issue 2859</a>)
     - fixed @ref WSDLLib::getWSDL() when passed a WSDL string with no XML preamble
