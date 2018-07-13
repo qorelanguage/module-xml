@@ -141,6 +141,10 @@ class SoapTest inherits QUnit::Test {
                         "st:issue2899_3": {
                             "soapenc:element": ("str", "str",),
                         },
+                        "issue2899_4": {
+                            "st:i2899_2_e1": "str",
+                            "st:i2899_2_e2": "str",
+                        },
                         "logo": "dGVzdA==",
                     ),
                 ),
@@ -224,6 +228,10 @@ class SoapTest inherits QUnit::Test {
            <soapenc:element>str</soapenc:element>
            <soapenc:element>str</soapenc:element>
          </sim:issue2899_3>
+         <issue2899_4>
+            <sim:i2899_2_e1>str</sim:i2899_2_e1>
+            <sim:i2899_2_e2>str</sim:i2899_2_e2>
+         </issue2899_4>
          <logo>dGVzdA==</logo>
       </sim:setInfo>
    </soap:Body>
@@ -565,6 +573,10 @@ class SoapTest inherits QUnit::Test {
                     "str",
                     "str",
                 ),
+            },
+            "issue2899_4": {
+                "i2899_2_e1": "str",
+                "i2899_2_e2": "str",
             },
             "logo": binary("test"),
         );
