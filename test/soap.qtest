@@ -133,12 +133,14 @@ class SoapTest inherits QUnit::Test {
                             ),
                         },
                         "st:issue2899_2": {
+                            "^attributes^": {"soapenc:arrayType": "st:i2899_2[]"},
                             "soapenc:element": (
                                 {"st:i2899_2_e1": "str", "st:i2899_2_e2": "str",},
                                 {"st:i2899_2_e1": "str", "st:i2899_2_e2": "str",},
                             ),
                         },
                         "st:issue2899_3": {
+                            "^attributes^": {"soapenc:arrayType": "xsd:string[]"},
                             "soapenc:element": ("str", "str",),
                         },
                         "issue2899_4": {
@@ -1019,7 +1021,7 @@ class SoapTest inherits QUnit::Test {
     compareSoapValue(string assert, string loc, auto v1, auto v2, NsMap nh1, NsMap nh2) {
         if (v1.typeCode() == NT_STRING) {
             # check if value is a namespace-prefixed string and processing accordingly if so
-            if ((*string nv1, *string kv1) = (v1 =~ x/^(\w+):(\w+)$/)) {
+            if ((*string nv1, *string kv1) = (v1 =~ x/^(\w+):(\w+(\[\])?)$/)) {
                 *string uri1 = nh1.pmap{nv1};
                 if (!exists uri1)
                     throw "SOAP-NAMESPACE-ERROR", sprintf("%s (%s) namespace prefix in %y in the expected value is not defined", assert, loc, v1);

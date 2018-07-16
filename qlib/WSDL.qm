@@ -1099,13 +1099,18 @@ public class WSDL::XsdArrayType inherits WSDL::XsdAbstractType {
             }
 
             default: {
-                if (val.typeCode() == NT_HASH && val.size() == 1) {
-                    string nsp = nsc.getOutputNamespacePrefix(SOAP_ENCODING);
-                    #printf("DEBUG: serialize: %N\n", {val.firstKey(): (map $1, val.firstValue())});
-                    return {(nsp + ":" + val.firstKey()): (map elementType.serialize(nsc, $1, omitType), val.firstValue())};
+                string snsp = nsc.getOutputNamespacePrefix(SOAP_ENCODING);
+                /*if (True) throw "X";*/ if (val.typeCode() == NT_HASH && val.size() == 1) {
+                    return {
+                        "^attributes^": {snsp + ":arrayType": elementType.getNameWithNS() + "[]"},
+                        snsp + ":" + val.firstKey(): map elementType.serialize(nsc, $1, omitType), val.firstValue(),
+                    };
                 }
                 else {
-                    return map elementType.serialize(nsc, $1, omitType), val;
+                    return {
+                        "^attributes^": {snsp + ":arrayType": elementType.getNameWithNS() + "[]"},
+                        "^value^": (map elementType.serialize(nsc, $1, omitType), val),
+                    };
                 }
             }
         }
@@ -1290,7 +1295,8 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
             throw SOAP_SERIALIZATION_ERROR, sprintf("missing element %y value for %s::%s (minOccurs: %d, type %y)", name, typename, key, minOccurs, type.getName());
         }
 
-        *hash<auto> pf;
+        # NOTE: pf must be an untyped hash
+        hash pf;
         if ((!omitType || type != self.type) && type.hasRealName())
             pf = ("^attributes^": ("xsi:type": !usedocns ? type.getName() : type.getNameWithNS()));
 
@@ -1313,7 +1319,20 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
             throw SOAP_SERIALIZATION_ERROR, sprintf("only one element passed to element %y of type %y, but minOccurs = %d", name, type.getName(), minOccurs);
 
         #printf("DEBUG: element %y type %s: %y omitType: %y h: %y\n", name, type.className(), type.name, omitType, h);
-        return (pf + type.serialize(nsc, h, omitType));
+        # issue #2899: combine return value in a hash if necessary
+        auto rv = type.serialize(nsc, h, omitType);
+        if (!pf) {
+            return rv;
+        }
+        if (rv.typeCode() != NT_HASH) {
+            pf."^value^" = rv;
+        }
+        else {
+            foreach hash hh in (rv.pairIterator()) {
+                pf{hh.key} += hh.value;
+            }
+        }
+        return pf;
     }
 
     auto deserialize(hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto val, bool present) {
@@ -1779,8 +1798,9 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
     }
 
     *hash<auto> serialize(Namespaces nsc, auto h, *softbool omitType) {
-        if (exists array)
+        if (exists array) {
             return array.serialize(nsc, h, omitType);
+        }
 
         # process attributes first
         *hash<auto> ah;
