@@ -2557,6 +2557,8 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
             }
         }
 
+        # issue #2902: ignore XML attributes
+        remove val."^attributes^";
         if (val && !exists part)
             throw SOAP_DESERIALIZATION_ERROR, sprintf("additional keys %y included in %y message hash", val.keys(), name);
 
@@ -3115,41 +3117,46 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         # remove namespace prefixes from body element keys
         WSDL::XsdBase::removeNS2(\mrh.body);
 
-        if (body.multiRef) {
-            foreach auto mr in (body.multiRef)
-                mrh.mrh.(mr."^attributes^".id) = mr;
+        # issue #2902: get all multiref elements with an "id" tag
+        foreach hash<auto> hh in (body.pairIterator()) {
+            if (!exists hh.value."^attributes^".id) {
+                continue;
+            }
+            hash<auto> h = remove body{hh.key};
+            string id = remove h."^attributes^".id;
+            # FIXME: process root & type
+            mrh.mrh{id} = h;
+        }
 
-            # resolve interior references to multiRefs
-            foreach string id in (keys mrh.mrh) {
-                foreach string key in (keys mrh.mrh{id}) {
-                    if (key == "^attributes^")
-                        continue;
+        # resolve interior references to multiRefs
+        foreach string id in (keys mrh.mrh) {
+            foreach string key in (keys mrh.mrh{id}) {
+                if (key == "^attributes^")
+                    continue;
 
-                    #printf("multiRef id: %y key: %y val: %y\n", id, key, mrh.mrh{id}{key});
+                #printf("multiRef id: %y key: %y val: %y\n", id, key, mrh.mrh{id}{key});
 
-                    if (mrh.mrh{id}{key}.typeCode() == NT_LIST) {
-                        foreach auto e in (\mrh.mrh{id}{key}) {
-                            auto href = substr(e."^attributes^".href, 1);
-                            if (exists href) {
-                                if (!exists mrh.mrh{href})
-                                    throw "INVALID-MULTIREF", sprintf("multiRef id: %y does not exist", href);
-                                e = mrh.mrh{href};
-                            }
-                        }
-                    }
-                    else if (mrh.mrh{id}{key}.typeCode() == NT_HASH) {
-                        auto href = substr(mrh.mrh{id}{key}."^attributes^".href, 1);
+                if (mrh.mrh{id}{key}.typeCode() == NT_LIST) {
+                    foreach auto e in (\mrh.mrh{id}{key}) {
+                        auto href = substr(e."^attributes^".href, 1);
                         if (exists href) {
                             if (!exists mrh.mrh{href})
                                 throw "INVALID-MULTIREF", sprintf("multiRef id: %y does not exist", href);
-                            mrh.mrh{id}{key} = mrh.mrh{href};
+                            e = mrh.mrh{href};
                         }
                     }
                 }
+                else if (mrh.mrh{id}{key}.typeCode() == NT_HASH) {
+                    auto href = substr(mrh.mrh{id}{key}."^attributes^".href, 1);
+                    if (exists href) {
+                        if (!exists mrh.mrh{href})
+                            throw "INVALID-MULTIREF", sprintf("multiRef id: %y does not exist", href);
+                        mrh.mrh{id}{key} = mrh.mrh{href};
+                    }
+                }
             }
-
-            delete body.multiRef;
         }
+
         #printf("mrh: %y\n", mrh.mrh);
         #printf("operation: %y\n", self);
 

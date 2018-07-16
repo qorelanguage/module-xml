@@ -254,8 +254,45 @@ class SoapTest inherits QUnit::Test {
                         ),
                     ),
                 ),
+
             ),
         );
+
+        const TestRes_2 = {
+            "soap:Envelope": SoapEnvAttr + {
+                "soap:Body": {
+                    "st:setInfoResponse": {
+                        "st:SetInfoResult": {
+                            "^attributes^": {
+                                "href": "#id0",
+                            },
+                        },
+                        "st:issue663": (
+                            "st:i663list": NOTHING,
+                        ),
+                    },
+                    "mref": {
+                        "^attributes^": {
+                            "id": "id0",
+                            "enc:root": "0",
+                            "xsi:type": "xsd:string",
+                        },
+                        "^value^": "test",
+                    },
+                },
+            },
+        };
+
+/*
+<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:enc=\"http://schemas.xmlsoap.org/soap/encoding/\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:ns=\"capeconnect:cc-authenticate:CCAuthenticate\">
+  <env:Body>
+    <ns:loginResponse env:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">
+      <return href=\"#id0\"/>
+    </ns:loginResponse>
+    <mref id=\"id0\" enc:root=\"0\" xsi:type=\"xsd:string\">19297984974123474891531747043513</mref>
+  </env:Body>
+</env:Envelope>
+*/
 
         const RMap = (
             "body": "SetInfoResult",
@@ -697,6 +734,10 @@ class SoapTest inherits QUnit::Test {
         if (!exists eh.issue663.i663list)
             eh.issue663.i663list = ();
         assertEq(Res_1, eh);
+
+        # issue #2902
+        eh = op.deserializeResponse(TestRes_2);
+        assertEq("test", eh.body);
 
         op = ws.getOperation("noInput");
         h = op.serializeRequest();
