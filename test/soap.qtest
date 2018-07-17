@@ -53,6 +53,7 @@ class SoapTest inherits QUnit::Test {
                 "xmlns:soap": "http://www.w3.org/2003/05/soap-envelope",
                 "xmlns:xsd": "http://www.w3.org/2001/XMLSchema",
                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+                "xmlns:soapenc": "http://schemas.xmlsoap.org/soap/encoding/",
                 "xmlns:st": "http://qore.org/simpletest",
                 "xmlns:st1": "http://qore.org/simpletest1",
             ),
@@ -125,6 +126,25 @@ class SoapTest inherits QUnit::Test {
                         ),
                         "st:issue2855_1": "2018-06-15",
                         "st:issue2855_2": "small",
+                        "st:issue2899_1": {
+                            "st:item": (
+                                {"st:i2899_2_e1": "str", "st:i2899_2_e2": "str",},
+                                {"st:i2899_2_e1": "str", "st:i2899_2_e2": "str",},
+                            ),
+                        },
+                        "st:issue2899_2": {
+                            "soapenc:element": (
+                                {"st:i2899_2_e1": "str", "st:i2899_2_e2": "str",},
+                                {"st:i2899_2_e1": "str", "st:i2899_2_e2": "str",},
+                            ),
+                        },
+                        "st:issue2899_3": {
+                            "soapenc:element": ("str", "str",),
+                        },
+                        "issue2899_4": {
+                            "st:i2899_2_e1": "str",
+                            "st:i2899_2_e2": "str",
+                        },
                         "logo": "dGVzdA==",
                     ),
                 ),
@@ -138,7 +158,7 @@ class SoapTest inherits QUnit::Test {
             ),
         );
 
-        const SoapUiReq_1 = "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:sim=\"http://qore.org/simpletest\" xmlns:sim1=\"http://qore.org/simpletest1\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">
+        const SoapUiReq_1 = "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:sim=\"http://qore.org/simpletest\" xmlns:sim1=\"http://qore.org/simpletest1\"  xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">
    <soap:Header/>
    <soap:Body>
       <sim:setInfo>
@@ -184,6 +204,34 @@ class SoapTest inherits QUnit::Test {
          </sim:issue2754>
          <sim:issue2855_1>2018-06-15</sim:issue2855_1>
          <sim:issue2855_2>small</sim:issue2855_2>
+         <sim:issue2899_1 soapenc:arrayType=\"sim:i2899_2[]\" soapenc:offset=\"0\">
+            <sim:item>
+               <sim:i2899_2_e1>str</sim:i2899_2_e1>
+               <sim:i2899_2_e2>str</sim:i2899_2_e2>
+            </sim:item>
+            <sim:item>
+               <sim:i2899_2_e1>str</sim:i2899_2_e1>
+               <sim:i2899_2_e2>str</sim:i2899_2_e2>
+            </sim:item>
+         </sim:issue2899_1>
+         <sim:issue2899_2 soapenc:arrayType=\"sim:i2899_2[]\" soapenc:offset=\"0\">
+           <sim:element>
+             <soapenc:i2899_2_e1>str</soapenc:i2899_2_e1>
+             <soapenc:i2899_2_e2>str</soapenc:i2899_2_e2>
+           </sim:element>
+           <sim:element>
+             <soapenc:i2899_2_e1>str</soapenc:i2899_2_e1>
+             <soapenc:i2899_2_e2>str</soapenc:i2899_2_e2>
+           </sim:element>
+         </sim:issue2899_2>
+         <sim:issue2899_3 soapenc:arrayType=\"xsd:string[]\" soapenc:offset=\"0\">
+           <soapenc:element>str</soapenc:element>
+           <soapenc:element>str</soapenc:element>
+         </sim:issue2899_3>
+         <issue2899_4>
+            <sim:i2899_2_e1>str</sim:i2899_2_e1>
+            <sim:i2899_2_e2>str</sim:i2899_2_e2>
+         </issue2899_4>
          <logo>dGVzdA==</logo>
       </sim:setInfo>
    </soap:Body>
@@ -206,8 +254,45 @@ class SoapTest inherits QUnit::Test {
                         ),
                     ),
                 ),
+
             ),
         );
+
+        const TestRes_2 = {
+            "soap:Envelope": SoapEnvAttr + {
+                "soap:Body": {
+                    "st:setInfoResponse": {
+                        "st:SetInfoResult": {
+                            "^attributes^": {
+                                "href": "#id0",
+                            },
+                        },
+                        "st:issue663": (
+                            "st:i663list": NOTHING,
+                        ),
+                    },
+                    "mref": {
+                        "^attributes^": {
+                            "id": "id0",
+                            "enc:root": "0",
+                            "xsi:type": "xsd:string",
+                        },
+                        "^value^": "test",
+                    },
+                },
+            },
+        };
+
+/*
+<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:enc=\"http://schemas.xmlsoap.org/soap/encoding/\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:ns=\"capeconnect:cc-authenticate:CCAuthenticate\">
+  <env:Body>
+    <ns:loginResponse env:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">
+      <return href=\"#id0\"/>
+    </ns:loginResponse>
+    <mref id=\"id0\" enc:root=\"0\" xsi:type=\"xsd:string\">19297984974123474891531747043513</mref>
+  </env:Body>
+</env:Envelope>
+*/
 
         const RMap = (
             "body": "SetInfoResult",
@@ -516,8 +601,30 @@ class SoapTest inherits QUnit::Test {
             ),
             "issue2855_1": 2018-06-15,
             "issue2855_2": "small",
+            "issue2899_1": {
+                "item": (
+                    {"i2899_2_e1": "str", "i2899_2_e2": "str"},
+                    {"i2899_2_e1": "str", "i2899_2_e2": "str"},
+                ),
+            },
+            "issue2899_2": {
+                "element": (
+                    {"i2899_2_e1": "str", "i2899_2_e2": "str"},
+                    {"i2899_2_e1": "str", "i2899_2_e2": "str"},
+                ),
+            },
+            "issue2899_3": {
+                "element": (
+                    "str",
+                    "str",
+                ),
+            },
+            "issue2899_4": {
+                "i2899_2_e1": "str",
+                "i2899_2_e2": "str",
+            },
             "logo": binary("test"),
-            );
+        );
 
         # negative test w/o attributes
         assertThrows("SOAP-SERIALIZATION-ERROR", \op.serializeRequest(), req, "attr-ser-neg");
@@ -530,6 +637,7 @@ class SoapTest inherits QUnit::Test {
         hash h = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING, "TEST");
         assertEq("TEST", h.hdr.SOAPAction);
         hash xh = parse_xml(h.body);
+        #printf("body: %y\n", h.body);
         compareSoapMsgs("attr-ser", Req_1, xh);
 
         {
@@ -634,6 +742,10 @@ class SoapTest inherits QUnit::Test {
         if (!exists eh.issue663.i663list)
             eh.issue663.i663list = ();
         assertEq(Res_1, eh);
+
+        # issue #2902
+        eh = op.deserializeResponse(TestRes_2);
+        assertEq("test", eh.body);
 
         op = ws.getOperation("noInput");
         h = op.serializeRequest();
@@ -912,10 +1024,10 @@ class SoapTest inherits QUnit::Test {
         }
     }
 
-    compareSoapValue(string assert, string loc, any v1, any v2, NsMap nh1, NsMap nh2) {
+    compareSoapValue(string assert, string loc, auto v1, auto v2, NsMap nh1, NsMap nh2) {
         if (v1.typeCode() == NT_STRING) {
             # check if value is a namespace-prefixed string and processing accordingly if so
-            if ((*string nv1, *string kv1) = (v1 =~ x/^(\w+):(\w+)$/)) {
+            if ((*string nv1, *string kv1) = (v1 =~ x/^(\w+):(\w+(\[\])?)$/)) {
                 *string uri1 = nh1.pmap{nv1};
                 if (!exists uri1)
                     throw "SOAP-NAMESPACE-ERROR", sprintf("%s (%s) namespace prefix in %y in the expected value is not defined", assert, loc, v1);
@@ -928,6 +1040,14 @@ class SoapTest inherits QUnit::Test {
             }
             else
                 assertEq(v1, v2, sprintf("%s (%s) values match", assert, loc));
+            return;
+        }
+
+        if (v1.typeCode() == NT_LIST) {
+            if (v2.typeCode() != NT_LIST || v2.size() != v1.size()) {
+                assertEq(v1, v2, sprintf("%s (%s)", assert, loc));
+            }
+            map compareSoapValue(assert, sprintf("%s[%d]", loc, $#), $1, v2[$#], nh1, nh2), v1;
             return;
         }
 
