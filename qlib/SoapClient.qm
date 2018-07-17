@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.8.13
+%requires qore >= 0.9
 
 # requires XML functionality
 %requires(reexport) xml
@@ -35,7 +35,7 @@
 %requires(reexport) Mime >= 1.1
 
 # provides a connection class
-%requires(reexport) ConnectionProvider
+%requires(reexport) ConnectionProvider >= 1.1
 
 # do not use $ for vars
 %new-style
@@ -50,7 +50,7 @@
 %enable-all-warnings
 
 module SoapClient {
-    version = "0.2.5";
+    version = "0.3";
     desc = "SoapClient module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -106,6 +106,11 @@ any result = sc.call("SubmitDocument", msg);
     - \c "timeout"
 
     @section soapclientrelnotes SoapClient Release Notes
+
+    @subsection soapclient_0_3 SoapClient v0.3
+    - added the @ref SoapClient::SoapConnection::getConstructorInfo() "SoapConnection::getConstructorInfo()"
+      method to allow connections to be created dynamically, potentially in another process from a network
+      call (<a href="https://github.com/qorelanguage/qore/issues/2628">issue 2628</a>)
 
     @subsection soapclient_0_2_5 SoapClient v0.2.5
     - added support for logging content of SOAP messages
@@ -788,6 +793,22 @@ private nothing msglog(hash msg) {
             if (connect)
                 sc.connect();
             return sc;
+        }
+
+        #! returns a hash that can be used to contruct the object dynamically
+        /** @since %SoapClient 0.3
+        */
+        private hash<ConnectionConstructorInfo> getConstructorInfoImpl() {
+            string my_pre_code = "args[0] += rtopts.(\"log\", \"dbglog\");";
+            string my_post_code = "if (connect) {obj.connect();}";
+
+            return new hash<ConnectionConstructorInfo>({
+                "module": "SoapClient",
+                "class_name": "SoapClient::SoapClient",
+                "args": real_opts,
+                "pre_processing": my_pre_code,
+                "post_processing": my_post_code,
+            });
         }
 
         #! gets options
