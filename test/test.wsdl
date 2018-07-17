@@ -224,6 +224,39 @@
           </s:simpleType>
         </s:union>
       </s:simpleType>
+      <s:element name="issue2899_1" type="tns:i2899_1"/>
+      <s:complexType name="i2899_1">
+        <s:complexContent>
+          <s:restriction base="soapenc:Array">
+            <s:sequence>
+              <s:element maxOccurs="unbounded" minOccurs="1" name="item" type="tns:i2899_2"/>
+            </s:sequence>
+            <s:attribute ref="soapenc:arrayType" wsdl:arrayType="tns:i2899_2[]"/>
+          </s:restriction>
+        </s:complexContent>
+      </s:complexType>
+      <s:complexType name="i2899_2">
+        <s:sequence>
+          <s:element name="i2899_2_e1" minOccurs="1" maxOccurs="1" type="s:string" />
+          <s:element name="i2899_2_e2" minOccurs="0" maxOccurs="1" type="s:string" />
+        </s:sequence>
+      </s:complexType>
+      <s:element name="issue2899_2" type="tns:i2899_3"/>
+      <s:complexType name="i2899_3">
+        <s:complexContent>
+          <s:restriction base="soapenc:Array">
+            <s:attribute ref="soapenc:arrayType" wsdl:arrayType="tns:i2899_2[]"/>
+          </s:restriction>
+        </s:complexContent>
+      </s:complexType>
+      <s:element name="issue2899_3" type="tns:i2899_5"/>
+      <s:complexType name="i2899_5">
+        <s:complexContent>
+          <s:restriction base="soapenc:Array">
+            <s:attribute ref="soapenc:arrayType" wsdl:arrayType="xsd:string[]"/>
+          </s:restriction>
+        </s:complexContent>
+      </s:complexType>
     </s:schema>
     <s:schema xmlns:tns1="http://qore.org/simpletest1" elementFormDefault="qualified" targetNamespace="http://qore.org/simpletest1">
       <s:element name="issue86" type="tns1:issue86_1" />
@@ -256,6 +289,10 @@
     <wsdl:part name="issue2754" element="tns:issue2754" />
     <wsdl:part name="issue2855_1" element="tns:issue2855_1"/>
     <wsdl:part name="issue2855_2" element="tns:issue2855_2"/>
+    <wsdl:part name="issue2899_1" element="tns:issue2899_1"/>
+    <wsdl:part name="issue2899_2" element="tns:issue2899_2"/>
+    <wsdl:part name="issue2899_3" element="tns:issue2899_3"/>
+    <wsdl:part name="issue2899_4" type="tns:i2899_2"/>
     <wsdl:part name="logo" type="s:base64Binary" />
   </wsdl:message>
   <wsdl:message name="m4">

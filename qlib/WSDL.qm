@@ -77,6 +77,10 @@ module WSDL {
     @section wsdlrelnotes WSDL Module Release Notes
 
     @subsection wsdl_0_3_8 WSDL v0.3.8
+    - fixed a bug handling complexTypes as part types
+      (<a href="https://github.com/qorelanguage/qore/issues/2900">issue 2900</a>)
+    - fixed bugs handling array types
+      (<a href="https://github.com/qorelanguage/qore/issues/2899">issue 2899</a>)
     - added support for \c token and \c normalizedString types
       (<a href="https://github.com/qorelanguage/qore/issues/2859">issue 2859</a>)
     - fixed @ref WSDLLib::getWSDL() when passed a WSDL string with no XML preamble
@@ -1046,11 +1050,38 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
     }
 }
 
-#! class for XSD array types; currently only supports "binary"; used, for example with HTTP MultiPart messages
+#! class for XSD array types; currently only supports single dimensional arrays
 public class WSDL::XsdArrayType inherits WSDL::XsdAbstractType {
-    constructor(string t, Namespaces nsc) : XsdAbstractType(t, "ns1", nsc) {
-        if (t != "binary")
-            throw "XSD-ARRAYTYPE-ERROR", sprintf("don't know how to handle arrays of type %y", t);
+    private {
+        bool finalized;
+    }
+
+    public {
+        *hash<auto> typeinfo;
+        XsdAbstractType elementType;
+    }
+
+    constructor(string t, string ns, string arrayType, Namespaces nsc, XsdLateResolverHelper unresolved) : XsdAbstractType(t, ns, nsc) {
+        # remove [] from the end of the string
+        arrayType =~ s/\[\]$//;
+        if (!nsc.doType(arrayType, \typeinfo, \elementType)) {
+            unresolved.add(self);
+        }
+        else {
+            finalized = True;
+        }
+    }
+
+    finalize(hash<string, XsdAbstractType> tmap, Namespaces nsc) {
+        if (finalized) {
+            return;
+        }
+        finalized = True;
+
+        XsdAbstractType t = tmap_get(tmap, typeinfo.val);
+        if (t.hasCallableMethod("finalize")) {
+            cast<object>(t).finalize(tmap, nsc);
+        }
     }
 
     auto serialize(Namespaces nsc, auto val, *softbool omitType) {
@@ -1065,7 +1096,22 @@ public class WSDL::XsdArrayType inherits WSDL::XsdAbstractType {
             }
 
             default: {
-                throw SOAP_SERIALIZATION_ERROR, sprintf("don't know how to handle type %y", name);
+                # this must be an untyped hash
+                hash rv;
+                if (!omitType) {
+                    rv."^attributes^" = {"soapenc:arrayType": elementType.getNameWithNS() + "[]"};
+                }
+                if (val.typeCode() == NT_HASH && val.size() == 1) {
+                    rv += {
+                        "soapenc:" + val.firstKey(): map elementType.serialize(nsc, $1, omitType), val.firstValue(),
+                    };
+                }
+                else {
+                    rv += {
+                        "^value^": (map elementType.serialize(nsc, $1, omitType), val),
+                    };
+                }
+                return rv;
             }
         }
     }
@@ -1079,7 +1125,16 @@ public class WSDL::XsdArrayType inherits WSDL::XsdAbstractType {
             }
 
             default: {
-                throw SOAP_DESERIALIZATION_ERROR, sprintf("don't know how to handle type %y", name);
+                # remove any namespace marker from value
+                *string ns = remove val.".ns";
+                softint attr = val.hasKey("^attributes^");
+                #printf("val: %N\n", val);
+                if (val.typeCode() == NT_HASH && val.size() == (1 + attr)) {
+                    # get element name
+                    string ename = (map $1, keys val, $1 != "^attributes^")[0];
+                    return {ename: (map elementType.deserialize(en, tmap, mrh, $1), val{ename})};
+                }
+                return map elementType.deserialize(en, tmap, mrh, $1), val;
             }
         }
     }
@@ -1240,7 +1295,8 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
             throw SOAP_SERIALIZATION_ERROR, sprintf("missing element %y value for %s::%s (minOccurs: %d, type %y)", name, typename, key, minOccurs, type.getName());
         }
 
-        *hash<auto> pf;
+        # NOTE: pf must be an untyped hash
+        hash pf;
         if ((!omitType || type != self.type) && type.hasRealName())
             pf = ("^attributes^": ("xsi:type": !usedocns ? type.getName() : type.getNameWithNS()));
 
@@ -1263,7 +1319,20 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
             throw SOAP_SERIALIZATION_ERROR, sprintf("only one element passed to element %y of type %y, but minOccurs = %d", name, type.getName(), minOccurs);
 
         #printf("DEBUG: element %y type %s: %y omitType: %y h: %y\n", name, type.className(), type.name, omitType, h);
-        return (pf + type.serialize(nsc, h, omitType));
+        # issue #2899: combine return value in a hash if necessary
+        auto rv = type.serialize(nsc, h, omitType);
+        if (!pf) {
+            return rv;
+        }
+        if (rv.typeCode() != NT_HASH) {
+            pf."^value^" = rv;
+        }
+        else {
+            foreach hash hh in (rv.pairIterator()) {
+                pf{hh.key} += hh.value;
+            }
+        }
+        return pf;
     }
 
     auto deserialize(hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto val, bool present) {
@@ -1430,6 +1499,7 @@ public hashdecl WSDL::ChoiceInfo {
 public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
     public {
         *XsdArrayType array;
+        *string arrayType;
         *string restriction;
         *string extension;
 
@@ -1495,16 +1565,29 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                         if (!exists aa.arrayType)
                             throw WSDL_ERROR, sprintf("cannot parse complexType restriction: %y", d.restriction);
 
-                        # FIXME: handle multiple dimensions?
-                        (*string ans, *string atn) = aa.arrayType =~ x/([^:]+):([^:]+)\[\]$/;
-                        if (exists atn) {
-                            array.val = atn;
-                            array.ns  = ans;
-                        }
-                        else
-                            array.val = aa.arrayType;
-
                         delete d.restriction.attribute;
+
+                        # issue #2899: check for an array element
+                        if (d.restriction.sequence) {
+                            auto seq = d.restriction.sequence;
+                            WSDL::XsdBase::removeNS(\seq);
+
+                            auto sa = seq.element."^attributes^";
+                            # according to https://access.redhat.com/documentation/en-US/Fuse_ESB/4.4.1/html/Writing_WSDL_Contracts/files/WSDLDefiningArrays.html
+                            # if defining an element of an array, the element's maxOccurs attribute must be set to "unbounded"
+                            if (sa.maxOccurs != "unbounded") {
+                                throw "WSDL_ERROR", sprintf("array elements must have maxOccurs = \"unbounded\"; array type %y has maxOccurs = %y",
+                                    aa.arrayType, sa.maxOccurs);
+                            }
+                            arrayType = aa.arrayType;
+
+                            elementmap = parseElements(seq.element, unresolved, nsc);
+                            cx_type = XET_SEQUENCE;
+                        }
+                        else {
+                            array = new XsdArrayType(name, ns ?? "unknown", aa.arrayType, nsc, unresolved);
+                        }
+
                         #printf("DEBUG: ans: %y atn: %y aa: %y\n", ans, atn, aa);
                         return;
                     }
@@ -1576,14 +1659,6 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             # combine base type and new type
             elementmap = cast<hash<string, XsdElement>>(cast<XsdComplexType>(t).elementmap + elementmap);
             #printf("DEBUG: extended %s (%s) with %s (%y) elements: %y\n", name, self.uniqueHash(), extension, cast<XsdComplexType>(t).elementmap.keys(), elementmap.keys());
-        }
-
-        # process array info
-        if (array) {
-            *string et = array.val;
-            if (!et)
-                throw WSDL_ERROR, sprintf("can't parse array type %y", array);
-            array = new XsdArrayType(et, nsc);
         }
     }
 
@@ -1725,8 +1800,9 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
     }
 
     *hash<auto> serialize(Namespaces nsc, auto h, *softbool omitType) {
-        if (exists array)
+        if (exists array) {
             return array.serialize(nsc, h, omitType);
+        }
 
         # process attributes first
         *hash<auto> ah;
@@ -1821,6 +1897,12 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             rh."^attributes^" += ("xsi:type": "ns1:" + name) + ah;
         else if (ah)
             rh."^attributes^" += ah;
+
+        # issue #2899: if encoding elements of an array type, include the array type attribute
+        if (arrayType && !omitType) {
+            rh."^attributes^"."soapenc:arrayType" = arrayType;
+        }
+
         #printf("DEBUG complex type %s returning %y from %y\n", name, rh, h);
         return rh;
     }
@@ -2327,8 +2409,8 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
                     throw WSDL_ERROR, sprintf("part name collides with element %y in message %y, ", part.name, name);
                 hash<auto> h;
                 args{part.name} = cast<hash<ArgInfo>>(part{("name", "part")});
-                if (!nsc.doType(part.type, \h, \args{part.name}.type))
-                    throw WSDL_ERROR, sprintf("cannot resolve type %y for element %y in message %y, ", part.type, part.name, name);
+                if (!nsc.doType(part.type, \h, \args{part.name}.type, tmap))
+                    throw WSDL_ERROR, sprintf("cannot resolve type %y for element %y in message %y", part.type, part.name, name);
                 pmap{part.name} = part.name;
             }
         }
@@ -2362,7 +2444,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
             hv = args{key}.type.serialize(nsc, v, !encoded);
             ons = args{key}.type.getOutputNamespacePrefix();
         }
-        #printf("DEBUG: arg %s got %y from %y (%y)\n", k, hv, v, exists args{key}.element ? args{key}.element : args{key}.type);
+        #printf("DEBUG: arg %s got %y from %y (%y)\n", part, hv, v, exists args{key}.element ? args{key}.element : args{key}.type);
         return hv;
     }
 
@@ -2503,6 +2585,8 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
             }
         }
 
+        # issue #2902: ignore XML attributes
+        remove val."^attributes^";
         if (val && !exists part)
             throw SOAP_DESERIALIZATION_ERROR, sprintf("additional keys %y included in %y message hash", val.keys(), name);
 
@@ -2606,7 +2690,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
     #! find part in value, remove that value from the hash
     /**
         @param ename element/type name
-        @param reference to hash, supposed structure is [msgname.](partname|elemname) = value to support more message data in one hash
+        @param v reference to hash, supposed structure is [msgname.](partname|elemname) = value to support more message data in one hash
         @param removeFound if True found values are removed from the hash
 
         @return resolved value, if not found then returns NOTHING
@@ -2617,7 +2701,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         auto rv;
         string k;
         # there is no unique part namespace as it may contain more messages in one hash, so let's do a little heuristic
-        if (v.hasKey(name)) {
+        if (v.typeCode() == NT_HASH && v.hasKey(name)) {
             if (args{ename}.part && exists v{name}{args{ename}.part}) {
                 k = args{ename}.part;
             } else if (exists v{name}{ename}) {
@@ -2636,7 +2720,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         if (!k) {
             if (args{ename}.part && exists v{args{ename}.part}) {
                 k = args{ename}.part;
-            } else if (v.hasKey(ename)) {
+            } else if (v.typeCode() == NT_HASH && v.hasKey(ename)) {
                 k = ename;
             }
             if (k) {
@@ -2721,6 +2805,10 @@ class WSDL::XsdLateResolverHelper {
 
     static bool isResolved(XsdComplexType t) {
         return t.simpleType instanceof XsdAbstractType;
+    }
+
+    static bool isResolved(XsdArrayType t) {
+        return t.elementType instanceof XsdAbstractType;
     }
 
     static bool isResolved(auto t) {
@@ -3057,41 +3145,46 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         # remove namespace prefixes from body element keys
         WSDL::XsdBase::removeNS2(\mrh.body);
 
-        if (body.multiRef) {
-            foreach auto mr in (body.multiRef)
-                mrh.mrh.(mr."^attributes^".id) = mr;
+        # issue #2902: get all multiref elements with an "id" tag
+        foreach hash<auto> hh in (body.pairIterator()) {
+            if (!exists hh.value."^attributes^".id) {
+                continue;
+            }
+            hash<auto> h = remove body{hh.key};
+            string id = remove h."^attributes^".id;
+            # FIXME: issue #2902: process root & type
+            mrh.mrh{id} = h;
+        }
 
-            # resolve interior references to multiRefs
-            foreach string id in (keys mrh.mrh) {
-                foreach string key in (keys mrh.mrh{id}) {
-                    if (key == "^attributes^")
-                        continue;
+        # resolve interior references to multiRefs
+        foreach string id in (keys mrh.mrh) {
+            foreach string key in (keys mrh.mrh{id}) {
+                if (key == "^attributes^")
+                    continue;
 
-                    #printf("multiRef id: %y key: %y val: %y\n", id, key, mrh.mrh{id}{key});
+                #printf("multiRef id: %y key: %y val: %y\n", id, key, mrh.mrh{id}{key});
 
-                    if (mrh.mrh{id}{key}.typeCode() == NT_LIST) {
-                        foreach auto e in (\mrh.mrh{id}{key}) {
-                            auto href = substr(e."^attributes^".href, 1);
-                            if (exists href) {
-                                if (!exists mrh.mrh{href})
-                                    throw "INVALID-MULTIREF", sprintf("multiRef id: %y does not exist", href);
-                                e = mrh.mrh{href};
-                            }
-                        }
-                    }
-                    else if (mrh.mrh{id}{key}.typeCode() == NT_HASH) {
-                        auto href = substr(mrh.mrh{id}{key}."^attributes^".href, 1);
+                if (mrh.mrh{id}{key}.typeCode() == NT_LIST) {
+                    foreach auto e in (\mrh.mrh{id}{key}) {
+                        auto href = substr(e."^attributes^".href, 1);
                         if (exists href) {
                             if (!exists mrh.mrh{href})
                                 throw "INVALID-MULTIREF", sprintf("multiRef id: %y does not exist", href);
-                            mrh.mrh{id}{key} = mrh.mrh{href};
+                            e = mrh.mrh{href};
                         }
                     }
                 }
+                else if (mrh.mrh{id}{key}.typeCode() == NT_HASH) {
+                    auto href = substr(mrh.mrh{id}{key}."^attributes^".href, 1);
+                    if (exists href) {
+                        if (!exists mrh.mrh{href})
+                            throw "INVALID-MULTIREF", sprintf("multiRef id: %y does not exist", href);
+                        mrh.mrh{id}{key} = mrh.mrh{href};
+                    }
+                }
             }
-
-            delete body.multiRef;
         }
+
         #printf("mrh: %y\n", mrh.mrh);
         #printf("operation: %y\n", self);
 
@@ -3952,6 +4045,17 @@ public class WSDL::Namespaces {
 
         #! base type map
         hash<string, XsdBaseType> base_types;
+
+        #! maps namespaces to default prefixes
+        const DefaultPrefixes = {
+            SOAP_ENCODING: "soapenc",
+            XSD_NS: "xsd",
+            XSI_NS: "xsi",
+            SOAP_11_ENV: "soapenv",
+            SOAP_12_ENV: "soapenv",
+            MIME_NS: "mime",
+            HTTP_NS: "http",
+        };
     }
 
     #! creates the object with the WSDL definitions attribute hash
@@ -4130,8 +4234,8 @@ public class WSDL::Namespaces {
 
     #! registers a namespace internally
     private string registerNamespaceIntern(string n_ns) {
-        # create namespace prefix
-        string nsa = sprintf("ns%d", nsn++);
+        # see if ns gets a default prefix or create namespace prefix
+        string nsa = DefaultPrefixes{n_ns} ?? sprintf("ns%d", nsn++);
         # register namespace in forward and reverse maps
         ns{nsa} = n_ns;
         nsr{n_ns} = nsa;
@@ -4167,7 +4271,7 @@ public class WSDL::Namespaces {
         return rv;
     }
 
-    bool doType(string t, reference<hash> typeinfo, reference<XsdAbstractType> rtype) {
+    bool doType(string t, reference<hash> typeinfo, reference<XsdAbstractType> rtype, *hash<string, XsdAbstractType> tmap) {
         #printf("DEBUG: XsdBase::doType(%y)\n", t);
         (*string ns, *string type) = t =~ x/([^:]+):([^:]+)/;
         if (!type) {
@@ -4177,7 +4281,7 @@ public class WSDL::Namespaces {
                 return True;
             }
 
-            typeinfo = ("val": t);
+            typeinfo = {"val": t};
             return False;
         }
 
@@ -4187,7 +4291,11 @@ public class WSDL::Namespaces {
             return True;
         }
 
-        typeinfo = ("ns": getOutputNamespacePrefix(getInputNamespaceUri(ns)), "val": type);
+        if (tmap && (rtype = tmap_try_get(cast<hash<string, XsdAbstractType>>(tmap), type))) {
+            return True;
+        }
+
+        typeinfo = {"ns": getOutputNamespacePrefix(getInputNamespaceUri(ns)), "val": type};
         return False;
     }
 
@@ -4500,6 +4608,10 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         #printf("resolveType(XsdComplexType), %y\n", ct.simpleTypeInfo);
     }
 
+    private resolveType(XsdArrayType t) {
+        t.elementType = resolveType(t.typeinfo);
+    }
+
     private XsdAbstractType resolveType(hash<auto> v) {
         XsdAbstractType rv;
         if (exists v.ns && nsc.isSchema(v.ns)) {
@@ -4627,6 +4739,9 @@ public class WSDL::WebService inherits WSDL::XsdBase {
 
         # finalize complex types
         map cast<XsdComplexType>($1).finalize(tmap, nsc), tmap.iterator(), $1 instanceof XsdComplexType;
+
+        # finalize array types
+        map cast<XsdArrayType>($1).finalize(tmap, nsc), tmap.iterator(), $1 instanceof XsdArrayType;
 
         # finalize complex types in elements
         map (map cast<XsdComplexType>($1.type).finalize(tmap, nsc), $1.iterator(), $1.type instanceof XsdComplexType), emap.iterator();
