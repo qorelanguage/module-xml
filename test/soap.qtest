@@ -133,14 +133,12 @@ class SoapTest inherits QUnit::Test {
                             ),
                         },
                         "st:issue2899_2": {
-                            "^attributes^": {"soapenc:arrayType": "st:i2899_2[]"},
                             "soapenc:element": (
                                 {"st:i2899_2_e1": "str", "st:i2899_2_e2": "str",},
                                 {"st:i2899_2_e1": "str", "st:i2899_2_e2": "str",},
                             ),
                         },
                         "st:issue2899_3": {
-                            "^attributes^": {"soapenc:arrayType": "xsd:string[]"},
                             "soapenc:element": ("str", "str",),
                         },
                         "issue2899_4": {

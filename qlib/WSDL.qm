@@ -1070,9 +1070,6 @@ public class WSDL::XsdArrayType inherits WSDL::XsdAbstractType {
         else {
             finalized = True;
         }
-
-        #if (t != "binary")
-        #    throw "XSD-ARRAYTYPE-ERROR", sprintf("don't know how to handle arrays of type %y", t);
     }
 
     finalize(hash<string, XsdAbstractType> tmap, Namespaces nsc) {
@@ -1099,19 +1096,22 @@ public class WSDL::XsdArrayType inherits WSDL::XsdAbstractType {
             }
 
             default: {
-                string snsp = nsc.getOutputNamespacePrefix(SOAP_ENCODING);
-                /*if (True) throw "X";*/ if (val.typeCode() == NT_HASH && val.size() == 1) {
-                    return {
-                        "^attributes^": {snsp + ":arrayType": elementType.getNameWithNS() + "[]"},
-                        snsp + ":" + val.firstKey(): map elementType.serialize(nsc, $1, omitType), val.firstValue(),
+                # this must be an untyped hash
+                hash rv;
+                if (!omitType) {
+                    rv."^attributes^" = {"soapenc:arrayType": elementType.getNameWithNS() + "[]"};
+                }
+                if (val.typeCode() == NT_HASH && val.size() == 1) {
+                    rv += {
+                        "soapenc:" + val.firstKey(): map elementType.serialize(nsc, $1, omitType), val.firstValue(),
                     };
                 }
                 else {
-                    return {
-                        "^attributes^": {snsp + ":arrayType": elementType.getNameWithNS() + "[]"},
+                    rv += {
                         "^value^": (map elementType.serialize(nsc, $1, omitType), val),
                     };
                 }
+                return rv;
             }
         }
     }
@@ -1499,7 +1499,7 @@ public hashdecl WSDL::ChoiceInfo {
 public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
     public {
         *XsdArrayType array;
-        *string arrayElement;
+        *string arrayType;
         *string restriction;
         *string extension;
 
@@ -1573,14 +1573,16 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                             WSDL::XsdBase::removeNS(\seq);
 
                             auto sa = seq.element."^attributes^";
+                            # according to https://access.redhat.com/documentation/en-US/Fuse_ESB/4.4.1/html/Writing_WSDL_Contracts/files/WSDLDefiningArrays.html
+                            # if defining an element of an array, the element's maxOccurs attribute must be set to "unbounded"
                             if (sa.maxOccurs != "unbounded") {
                                 throw "WSDL_ERROR", sprintf("array elements must have maxOccurs = \"unbounded\"; array type %y has maxOccurs = %y",
                                     aa.arrayType, sa.maxOccurs);
                             }
+                            arrayType = aa.arrayType;
 
                             elementmap = parseElements(seq.element, unresolved, nsc);
                             cx_type = XET_SEQUENCE;
-                            #throw "WSDL_ERROR", sprintf("seq: %y; elementmap: %N", seq, elementmap);
                         }
                         else {
                             array = new XsdArrayType(name, ns ?? "unknown", aa.arrayType, nsc, unresolved);
@@ -1895,6 +1897,12 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             rh."^attributes^" += ("xsi:type": "ns1:" + name) + ah;
         else if (ah)
             rh."^attributes^" += ah;
+
+        # issue #2899: if encoding elements of an array type, include the array type attribute
+        if (arrayType && !omitType) {
+            rh."^attributes^"."soapenc:arrayType" = arrayType;
+        }
+
         #printf("DEBUG complex type %s returning %y from %y\n", name, rh, h);
         return rh;
     }
@@ -2436,7 +2444,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
             hv = args{key}.type.serialize(nsc, v, !encoded);
             ons = args{key}.type.getOutputNamespacePrefix();
         }
-        #printf("DEBUG: arg %s got %y from %y (%y)\n", k, hv, v, exists args{key}.element ? args{key}.element : args{key}.type);
+        #printf("DEBUG: arg %s got %y from %y (%y)\n", part, hv, v, exists args{key}.element ? args{key}.element : args{key}.type);
         return hv;
     }
 
@@ -2682,7 +2690,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
     #! find part in value, remove that value from the hash
     /**
         @param ename element/type name
-        @param reference to hash, supposed structure is [msgname.](partname|elemname) = value to support more message data in one hash
+        @param v reference to hash, supposed structure is [msgname.](partname|elemname) = value to support more message data in one hash
         @param removeFound if True found values are removed from the hash
 
         @return resolved value, if not found then returns NOTHING
@@ -2693,7 +2701,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         auto rv;
         string k;
         # there is no unique part namespace as it may contain more messages in one hash, so let's do a little heuristic
-        if (v.hasKey(name)) {
+        if (v.typeCode() == NT_HASH && v.hasKey(name)) {
             if (args{ename}.part && exists v{name}{args{ename}.part}) {
                 k = args{ename}.part;
             } else if (exists v{name}{ename}) {
@@ -2712,7 +2720,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         if (!k) {
             if (args{ename}.part && exists v{args{ename}.part}) {
                 k = args{ename}.part;
-            } else if (v.hasKey(ename)) {
+            } else if (v.typeCode() == NT_HASH && v.hasKey(ename)) {
                 k = ename;
             }
             if (k) {
@@ -4037,6 +4045,17 @@ public class WSDL::Namespaces {
 
         #! base type map
         hash<string, XsdBaseType> base_types;
+
+        #! maps namespaces to default prefixes
+        const DefaultPrefixes = {
+            SOAP_ENCODING: "soapenc",
+            XSD_NS: "xsd",
+            XSI_NS: "xsi",
+            SOAP_11_ENV: "soapenv",
+            SOAP_12_ENV: "soapenv",
+            MIME_NS: "mime",
+            HTTP_NS: "http",
+        };
     }
 
     #! creates the object with the WSDL definitions attribute hash
@@ -4215,8 +4234,8 @@ public class WSDL::Namespaces {
 
     #! registers a namespace internally
     private string registerNamespaceIntern(string n_ns) {
-        # create namespace prefix
-        string nsa = sprintf("ns%d", nsn++);
+        # see if ns gets a default prefix or create namespace prefix
+        string nsa = DefaultPrefixes{n_ns} ?? sprintf("ns%d", nsn++);
         # register namespace in forward and reverse maps
         ns{nsa} = n_ns;
         nsr{n_ns} = nsa;
