@@ -3152,7 +3152,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
             }
             hash<auto> h = remove body{hh.key};
             string id = remove h."^attributes^".id;
-            # FIXME: process root & type
+            # FIXME: issue #2902: process root & type
             mrh.mrh{id} = h;
         }
 
