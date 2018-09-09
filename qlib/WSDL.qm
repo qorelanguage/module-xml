@@ -78,7 +78,8 @@ module WSDL {
 
     @subsection wsdl_0_4 WSDL v0.4
     - added support for serializing and deserilizing WebService objects
-      (<a href="https://github.com/qorelanguage/qore/issues/2793">issue 2793</a>)
+      (<a href="https://github.com/qorelanguage/qore/issues/2793">issue 2793</a> and
+      <a href="https://github.com/qorelanguage/qore/issues/1598">issue 1598</a>)
 
     @subsection wsdl_0_3_8 WSDL v0.3.8
     - fixed a bug handling complexTypes as part types
@@ -554,7 +555,7 @@ class WsdlLibPriv {
 }
 
 #! base class with helper methods for XSD data processing
-public class WSDL::XsdBase {
+public class WSDL::XsdBase inherits Qore::Serializable {
     static removeNS(reference v) {
         foreach hash<auto> h in (\v) {
             foreach string k in (keys h) {
@@ -4381,7 +4382,7 @@ public hashdecl WSDL::OperationInfo {
 #! main class representing a parsed WSDL file
 /** This is the main class for handling SOAP communication and is based on a WSDL file
 */
-public class WSDL::WebService inherits WSDL::XsdBase {
+public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
     public {
         #! the WSDL string
         string wsdl;
@@ -4390,31 +4391,31 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         *hash<auto> opts;
 
         #! namespace container
-        Namespaces nsc;
+        transient Namespaces nsc;
 
         #! list of services in this WSDL
-        list<string> wsdl_services();
+        transient list<string> wsdl_services();
 
         #! a hash of element names to XsdElement objects for top-level document-style bindings
-        hash<string, XsdElement> idocmap();
+        transient hash<string, XsdElement> idocmap();
 
         #! map of elements
-        hash<string, hash<string, XsdElement>> emap();
+        transient hash<string, hash<string, XsdElement>> emap();
 
         #! hash of messages names to messages
-        hash<string, WSMessage> messages();
+        transient hash<string, WSMessage> messages();
 
         #! map of types
-        hash<string, XsdAbstractType> tmap();
+        transient hash<string, XsdAbstractType> tmap();
 
         #! hash of port names to port type information hashes
-        hash<string, hash<PortTypeInfo>> portType();
+        transient hash<string, hash<PortTypeInfo>> portType();
 
         #! optional closure/call reference to try to resolve import declarations
-        *code try_import;
+        transient *code try_import;
 
         #! default path for retrieving XSD references
-        *string def_path;
+        transient *string def_path;
     }
 
     private {
@@ -4438,51 +4439,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         @since 0.3.7 added the \c "compat_empty_string_is_nothing" and \c "compat_allow_any_header" options for backwards compatibility
     */
     constructor(string str, *hash<auto> opts) {
-        hash<auto> h = parse_xml(str);
-
-        # save WSDL text
-        wsdl = str;
-
-        # save options
-        self.opts = opts;
-
-        try_import = opts.try_import;
-        def_path = opts.def_path;
-
-        # remove namespace (normally "wsdl:") prefix from keys if present
-        WSDL::XsdBase::removeNS(\h);
-        WSDL::XsdBase::removeNS(\h.definitions);
-        nsc = new Namespaces(h.definitions."^attributes^");
-        if (opts.compat_empty_string_is_nothing || global_compat_empty_string_is_nothing) {
-            nsc.opt_empty_string_is_nothing = True;
-        }
-        if (opts.compat_allow_any_header || global_compat_allow_any_header) {
-            nsc.opt_allow_any_header = True;
-        }
-        #getNSPrefixes(h.definitions."^attributes^");
-        #printf("%y\n", h.definitions.types);
-
-        if (exists h.definitions.types)
-            parseTypes(h.definitions.types, opts.http_client instanceof HTTPClient ? opts.http_client : NOTHING, opts.http_headers);
-
-        if (exists h.definitions.message)
-            parseMessages(h.definitions.message);
-
-        if (exists h.definitions.portType)
-            parsePortType(h.definitions.portType);
-
-        if (exists h.definitions.binding)
-            parseBinding(h.definitions.binding);
-
-        if (exists h.definitions.service)
-            parseService(h.definitions.service);
-    }
-
-    #! allows the WebService to be serialized for sending over the network
-    /** @return a hash that can be used in a deserialize() call
-    */
-    hash<auto> serialize() {
-        return self{"wsdl", "opts"};
+        doInit(str, opts);
     }
 
     #! returns the given operation or throws an exception if it cannot be found; operations are searched in portTypes in the order they are declared
@@ -4913,11 +4870,60 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         return stream.getData();
     }
 
+    #! supports the constructor and deserialization
+    /** @since %WSDL 0.4
+    */
+    private:internal doInit(string str, *hash<auto> opts) {
+        hash<auto> h = parse_xml(str);
+
+        # save WSDL text
+        wsdl = str;
+
+        # save options
+        self.opts = opts;
+
+        try_import = opts.try_import;
+        def_path = opts.def_path;
+
+        # remove namespace (normally "wsdl:") prefix from keys if present
+        WSDL::XsdBase::removeNS(\h);
+        WSDL::XsdBase::removeNS(\h.definitions);
+        nsc = new Namespaces(h.definitions."^attributes^");
+        if (opts.compat_empty_string_is_nothing || global_compat_empty_string_is_nothing) {
+            nsc.opt_empty_string_is_nothing = True;
+        }
+        if (opts.compat_allow_any_header || global_compat_allow_any_header) {
+            nsc.opt_allow_any_header = True;
+        }
+        #getNSPrefixes(h.definitions."^attributes^");
+        #printf("%y\n", h.definitions.types);
+
+        if (exists h.definitions.types) {
+            parseTypes(h.definitions.types, opts.http_client instanceof HTTPClient ? opts.http_client : NOTHING, opts.http_headers);
+        }
+
+        if (exists h.definitions.message) {
+            parseMessages(h.definitions.message);
+        }
+
+        if (exists h.definitions.portType) {
+            parsePortType(h.definitions.portType);
+        }
+
+        if (exists h.definitions.binding) {
+            parseBinding(h.definitions.binding);
+        }
+
+        if (exists h.definitions.service) {
+            parseService(h.definitions.service);
+        }
+    }
+
     #! can be used to create a WebService object from a hash created with serialize()
     /** @return a WebService object from the argument hash created with serialize()
     */
-    static WebService deserialize(hash<auto> sws) {
-        return new WebService(sws.wsdl, sws.opts);
+    private:internal deserializeMembers(hash<auto> members) {
+        doInit(members.wsdl, members.opts);
     }
 }
 
