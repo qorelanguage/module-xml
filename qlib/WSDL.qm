@@ -4390,6 +4390,9 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         #! options used in the constructor
         *hash<auto> opts;
 
+        #! flag if the object has a "try_import" closure or call reference
+        bool has_try_import = False;
+
         #! namespace container
         transient Namespaces nsc;
 
@@ -4415,6 +4418,8 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         transient *code try_import;
 
         #! default path for retrieving XSD references
+        /** @note there is no need to serialize \c def_path as it will be set with the saved options
+        */
         transient *string def_path;
     }
 
@@ -4883,6 +4888,10 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         self.opts = opts;
 
         try_import = opts.try_import;
+        if (try_import) {
+            has_try_import = True;
+        }
+
         def_path = opts.def_path;
 
         # remove namespace (normally "wsdl:") prefix from keys if present
