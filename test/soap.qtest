@@ -553,10 +553,12 @@ class SoapTest inherits QUnit::Test {
             "firstName": "Fred",
         };
         hash<auto> h = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING);
-        #printf("h: %N\n", h);
-        hash<auto> example_req = parse_xml(h.body);
+        hash<auto> test_req = parse_xml(h.body);
         hash<auto> soapui_req = parse_xml(SoapUiExampleRequest);
-        compareSoapMsgs("example-req", soapui_req, example_req);
+        compareSoapMsgs("example-req", soapui_req, test_req);
+
+        auto response = op.deserializeRequest(test_req);
+        assertEq("Fred", response);
     }
 
     *hash parseMessage(hash msg, WSOperation op, bool request) {
