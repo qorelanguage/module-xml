@@ -526,14 +526,39 @@ class SoapTest inherits QUnit::Test {
                 ),
             ),
             );
+
+        const SoapUiExampleRequest = "<soapenv:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:hel=\"http://www.examples.com/wsdl/HelloService.wsdl\">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <hel:sayHello soapenv:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">
+         <firstName xsi:type=\"xsd:string\">Fred</firstName>
+      </hel:sayHello>
+   </soapenv:Body>
+</soapenv:Envelope>";
     }
 
     constructor() : QUnit::Test("SoapTest", "1.0") {
+        addTestCase("issue 3029", \issue3029());
         addTestCase("WSDLLib", \wsdlLibTest());
         addTestCase("SoapTestCase", \soapTestCase());
         addTestCase("Test1", \test1());
         addTestCase("multi", \multiTest());
         set_return_value(main());
+    }
+
+    issue3029() {
+        WebService ws(ReadOnlyFile::readTextFile(get_script_dir() + "/example.wsdl"));
+        WSOperation op = ws.getOperation("sayHello");
+        hash<auto> req = {
+            "firstName": "Fred",
+        };
+        hash<auto> h = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING);
+        hash<auto> test_req = parse_xml(h.body);
+        hash<auto> soapui_req = parse_xml(SoapUiExampleRequest);
+        compareSoapMsgs("example-req", soapui_req, test_req);
+
+        auto response = op.deserializeRequest(test_req);
+        assertEq("Fred", response);
     }
 
     *hash parseMessage(hash msg, WSOperation op, bool request) {
