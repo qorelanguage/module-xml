@@ -1,21 +1,21 @@
 /* -*- mode: c++; indent-tabs-mode: nil -*- */
 /*
  QoreXPath.h
- 
+
  Qore Programming Language
- 
- Copyright 2003 - 2010 David Nichols
- 
+
+ Copyright 2003 - 2018 Qore Technologies, s.r.o.
+
  This library is free software; you can redistribute it and/or
  modify it under the terms of the GNU Lesser General Public
  License as published by the Free Software Foundation; either
  version 2.1 of the License, or (at your option) any later version.
- 
+
  This library is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  Lesser General Public License for more details.
- 
+
  You should have received a copy of the GNU Lesser General Public
  License along with this library; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
@@ -49,7 +49,7 @@ public:
 
       if (ptr->nodesetval && ptr->nodesetval->nodeNr)
          for (int i = 0, e = ptr->nodesetval->nodeNr; i < e; ++i)
-            l->push(new QoreObject(QC_XMLNODE, getProgram(), new QoreXmlNodeData(ptr->nodesetval->nodeTab[i], doc)));
+            l->push(new QoreObject(QC_XMLNODE, getProgram(), new QoreXmlNodeData(ptr->nodesetval->nodeTab[i], doc)), nullptr);
 
       return l;
    }
@@ -64,7 +64,7 @@ public:
    DLLLOCAL QoreXPath(QoreXmlDocData *n_doc, ExceptionSink *xsink) : doc(n_doc) {
       ptr = xmlXPathNewContext(doc->getDocPtr());
       if (!ptr)
-         xsink->raiseException("XPATH-CONSTRUCTOR-ERROR", "failed to create XPath context from XmlDoc object");      
+         xsink->raiseException("XPATH-CONSTRUCTOR-ERROR", "failed to create XPath context from XmlDoc object");
    }
    DLLLOCAL ~QoreXPath() {
       if (ptr)

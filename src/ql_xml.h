@@ -6,7 +6,7 @@
 
     Qore Programming Language
 
-    Copyright 2003 - 2017 Qore Technologies, s.r.o.
+    Copyright 2003 - 2018 Qore Technologies, s.r.o.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -36,8 +36,8 @@ class MakeXmlOpts;
 DLLLOCAL void init_xml_constants(QoreNamespace& ns);
 
 DLLLOCAL QoreStringNode* make_xml(ExceptionSink* xsink, const QoreHashNode &h, const MakeXmlOpts &opts);
-DLLLOCAL QoreStringNode* make_xmlrpc_call(ExceptionSink* xsink, const QoreEncoding* ccs, int offset, const QoreValueList* args, int flags = 0);
-DLLLOCAL QoreStringNode* make_xmlrpc_call_args(ExceptionSink* xsink, const QoreEncoding* ccs, int offset, const QoreValueList* args, int flags = 0);
+DLLLOCAL QoreStringNode* make_xmlrpc_call(ExceptionSink* xsink, const QoreEncoding* ccs, int offset, const QoreListNode* args, int flags = 0);
+DLLLOCAL QoreStringNode* make_xmlrpc_call_args(ExceptionSink* xsink, const QoreEncoding* ccs, int offset, const QoreListNode* args, int flags = 0);
 // ccsid is the output encoding for strings
 DLLLOCAL QoreHashNode* parse_xmlrpc_response(ExceptionSink* xsink, const QoreString* msg, const QoreEncoding* ccsid, int flags = 0);
 DLLLOCAL void init_xml_functions(QoreNamespace& ns);

@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.8.13
+%requires qore >= 0.9
 
 # requires XML functionality
 %requires xml
@@ -40,7 +40,7 @@
 %disable-warning unreferenced-variable
 
 module WSDL {
-    version = "0.3.8";
+    version = "0.4";
     desc = "WSDL module providing functionality for SOAP";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -75,6 +75,10 @@ module WSDL {
     - <a href="../../SoapHandler/html/index.html">SoapHandler user module</a>
 
     @section wsdlrelnotes WSDL Module Release Notes
+
+    @subsection wsdl_0_4 WSDL v0.4
+    - added support for serializing and deserilizing WebService objects
+      (<a href="https://github.com/qorelanguage/qore/issues/2793">issue 2793</a>)
 
     @subsection wsdl_0_3_8 WSDL v0.3.8
     - fixed a bug handling complexTypes as part types
@@ -4390,6 +4394,9 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         #! the WSDL string
         string wsdl;
 
+        #! options used in the constructor
+        *hash<auto> opts;
+
         #! namespace container
         Namespaces nsc;
 
@@ -4444,6 +4451,9 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         # save WSDL text
         wsdl = str;
 
+        # save options
+        self.opts = opts;
+
         try_import = opts.try_import;
         def_path = opts.def_path;
 
@@ -4474,6 +4484,13 @@ public class WSDL::WebService inherits WSDL::XsdBase {
 
         if (exists h.definitions.service)
             parseService(h.definitions.service);
+    }
+
+    #! allows the WebService to be serialized for sending over the network
+    /** @return a hash that can be used in a deserialize() call
+    */
+    hash<auto> serialize() {
+        return self{"wsdl", "opts"};
     }
 
     #! returns the given operation or throws an exception if it cannot be found; operations are searched in portTypes in the order they are declared
@@ -4550,7 +4567,8 @@ public class WSDL::WebService inherits WSDL::XsdBase {
           - \c "binding": the binding of the port
      */
     list<hash<WSDL::ServiceInfo>> listServices() {
-        return cast<list<hash<WSDL::ServiceInfo>>>(services.values());
+        return map cast<hash<WSDL::ServiceInfo>>($1), services.iterator();
+        #return cast<list<hash<WSDL::ServiceInfo>>>(services.values());
     }
 
     #! returns a hash describing the requested service
@@ -4901,6 +4919,13 @@ public class WSDL::WebService inherits WSDL::XsdBase {
         StringOutputStream stream();
         getReport(stream, wsdl_name);
         return stream.getData();
+    }
+
+    #! can be used to create a WebService object from a hash created with serialize()
+    /** @return a WebService object from the argument hash created with serialize()
+    */
+    static WebService deserialize(hash<auto> sws) {
+        return new WebService(sws.wsdl, sws.opts);
     }
 }
 
