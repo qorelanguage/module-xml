@@ -2468,8 +2468,9 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         foreach string part in (parts ?? keys pmap) {
             string ons;
             auto hv = serializeRpcValue(part, encoded, \h, \ons);
-            if (!exists hv)
+            if (!exists hv) {
                 continue;
+            }
             string k = pmap{part};
             /* FIXME: handle multipart messages
             #printf("DEBUG: WSMessage::serialize() k: %y args: %y, parts: %y\n", k, keys args, msginfo.parts);
@@ -2485,11 +2486,11 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         }
 
         if (rh) {
-            if (encoded)
-                rh."^attributes^" += (
+            if (encoded) {
+                rh."^attributes^" += {
                     "soapenv:encodingStyle": SOAP_ENCODING,
-                    "xmlns:soapenc": SOAP_ENCODING,
-                );
+                };
+            }
 
             # issue #2804: do not wrap the fault data with the request name
             if (fault) {
@@ -2553,11 +2554,11 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
             }
         }
 
-        if (encoded && rh)
-            rh."^attributes^" += (
+        if (encoded && rh) {
+            rh."^attributes^" += {
                 "soapenv:encodingStyle": SOAP_ENCODING,
-                "xmlns:soapenc": SOAP_ENCODING,
-            );
+            };
+        }
 
         #printf("DEBUG: message %s: pmap: %y rh: %y\n", name, pmap, rh);
 
@@ -2923,6 +2924,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         # setup namespaces for SOAP envelope
         #printf("DEBUG: serializeSoapMessage: io:%s, h: %y, header: %y, soap12:%y\n", io, val, header, soap12);
         # make sure that rh stays hash<auto> instead of hash<string, string>
+
         hash<auto> rh = hash(soap12 ? WSDL::ENVELOPE_12_NS : WSDL::ENVELOPE_11_NS);
         string soapenvEnvelope = rh.firstKey();
         rh{soapenvEnvelope}."^attributes^" += op.nsc.getOutputNamespaceHash(nsh);
@@ -2941,15 +2943,18 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         #printf("DEBUG: op: %y io: %y op{io}: %s %d %y\n", op.keys(), io, op{io}.type(), op{io}.typeCode(), boolean(op{io}));
         *hash<auto> body;
         if (msg) {
+            bool encoded = bmd.body.encoded;
             if (docstyle) {
-                bool encoded = bmd.body.encoded;
                 # bmd.body.encoded == False = literal encoding
                 #printf("parts: %y, args: %y\n", bmd.body.parts, msg.args.keys());
                 body = msg.serializeDocument(bmd.body.parts, bmd, mpm, encoded, \val, fault);
             }
             else {
                 string mname = (request ? op.output_name : op.input_name) ?? (op.name + (request ? "" : "Response"));
-                body = msg.serializeRpc(bmd.body.parts, bmd, mpm, mname, bmd.body.encoded, \val, fault);
+                body = msg.serializeRpc(bmd.body.parts, bmd, mpm, mname, encoded, \val, fault);
+            }
+            if (encoded) {
+                rh{soapenvEnvelope}."^attributes^"."xmlns:soapenc" = SOAP_ENCODING;
             }
             #printf("DEBUG: body: %N\nval: %N\n", body, val);
         }
@@ -2969,7 +2974,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
                     h = hdr.msg.serializeDocument(hdr.part, NOTHING, NOTHING, hdr.encoded, \val, False);
                 }
                 if (h) {
-                    remove h."^attributes^".("soapenv:encodingStyle", "xmlns:soapenc");
+                    remove h."^attributes^".("soapenv:encodingStyle");
                     outh += h;
                 }
             }
@@ -4067,8 +4072,11 @@ public class WSDL::Namespaces {
     constructor(hash<auto> nsh, *Namespaces nsc) {
         nsn = nsc ? nsc.nsn : 1;
 
-        if (nsh.targetNamespace)
+        if (nsh.targetNamespace) {
             target_ns = nsh.targetNamespace;
+            # issue #3029: add target namespace to output namespace hash by default
+            ns.ns1 = target_ns;
+        }
 
         # set default namespace for unprefixed definitions
         if (nsh.xmlns)

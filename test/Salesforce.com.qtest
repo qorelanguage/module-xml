@@ -76,7 +76,7 @@ class SalesforceTest inherits QUnit::Test {
         doInfo("creating WSDL %y: ", getOption("wsdl"));
         WebService wsdl(WSDLLib::getFileFromURL(getOption("wsdl")));
         doInfo("done: %y\n", now_us() - now);
-        opts = (
+        opts = {
             "wsdl": wsdl,
             "username": getOption("user"),
             "password": getOption("pass"),
@@ -89,7 +89,9 @@ class SalesforceTest inherits QUnit::Test {
                 if (m_options.verbose > 5)
                     printf("DEBUG: %s\n", vsprintf(fmt, argv));
             },
-            );
+            "connect_timeout": 15s,
+            "timeout": 15s,
+        };
 
         now = now_us();
         sc = new SalesforceSoapClient(opts);
@@ -97,7 +99,8 @@ class SalesforceTest inherits QUnit::Test {
             sc.login();
         }
         catch (hash<ExceptionInfo> ex) {
-            if (ex.err == "SOAP-SERVER-FAULT-RESPONSE" && ex.arg.faultcode == "INVALID_LOGIN") {
+            if ((ex.err == "SOAP-SERVER-FAULT-RESPONSE" && ex.arg.faultcode == "INVALID_LOGIN")
+                || (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ex.desc =~ /Service Unavailable/)) {
                 delete sc;
                 return;
             }
