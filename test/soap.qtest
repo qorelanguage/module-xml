@@ -564,8 +564,8 @@ class SoapTest inherits QUnit::Test {
 
     issue2793() {
         WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"));
-        hash<auto> sws = ws1.serialize();
-        WebService ws2 = WebService::deserialize(sws);
+        binary bin = ws1.serialize();
+        WebService ws2 = Serializable::deserialize(bin);
         assertTrue(ws2.getOperation("setInfo") instanceof WSOperation);
     }
 
