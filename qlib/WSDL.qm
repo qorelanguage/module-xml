@@ -4731,7 +4731,6 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         # finalize array types
         map cast<XsdArrayType>($1).finalize(tmap, nsc), tmap.iterator(), $1 instanceof XsdArrayType;
 
-        # finalize complex types in elements
         map (map cast<XsdComplexType>($1.type).finalize(tmap, nsc), $1.iterator(), $1.type instanceof XsdComplexType), emap.iterator();
 
         map resolveType($1), unresolved.getList();
@@ -4897,6 +4896,7 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
 
         try_import = opts.try_import;
         if (try_import) {
+            remove self.opts.try_import;
             has_try_import = True;
         }
 
@@ -4940,6 +4940,14 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
     /** @return a WebService object from the argument hash created with serialize()
     */
     private:internal deserializeMembers(hash<auto> members) {
+        # initialize empty transient members
+        wsdl_services = ();
+        idocmap = {};
+        emap = {};
+        messages = {};
+        tmap = {};
+        portType = {};
+
         doInit(members.wsdl, members.opts);
     }
 }
