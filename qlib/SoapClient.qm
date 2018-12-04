@@ -741,15 +741,37 @@ private nothing msglog(hash msg) {
             };
         }
 
-        #! creates the SoapConnection object
+        #! DEPRECATED: creates the SoapConnection object
         /** @param name the name of the connection
             @param desc connection description
             @param url connection URL
             @param monitor monitoring flag
             @param n_opts connection options
             @param urlh broken down URL hash (as returned by @ref Qore::parse_url())
+
+            @deprecated since Qore 0.9
         */
-        constructor(string name, string desc, string url, bool monitor, *hash<auto> n_opts, hash<auto> urlh) : HttpBasedConnection(name, desc, url, monitor, n_opts, urlh) {
+        deprecated
+        constructor(string name, string desc, string url, bool monitor, *hash<auto> n_opts, hash<auto> urlh)
+            : HttpBasedConnection(name, desc, url, {"monitor": monitor}, n_opts ?? {}) {
+            constructorInit();
+        }
+
+        #! creates the SoapConnection object
+        /** @param name the name of the connection
+            @param description connection description
+            @param url connection URL (potentially with password info)
+            @param attributes various attributes. See below
+            @param options connection options
+
+            See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
+         */
+        constructor(string name, string description, string url, hash attributes = {}, hash options = {})
+            : HttpBasedConnection(name, description, url, attributes, options) {
+            constructorInit();
+        }
+
+        private:internal constructorInit() {
             # do environment variable substitution in wsdl option if applicable
             if (!opts.wsdl) {
                 # check if we have a local path to the WSDL
@@ -821,9 +843,16 @@ private nothing msglog(hash msg) {
             return HttpConnection::DefaultOptions;
         }
 
-        #! static constructor
+        #! DEPRECATED: static constructor
+        /** @deprecated since Qore 0.9 in favor of new constructor and Qore::Reflection
+         */
+        deprecated
         static SoapConnection make(string name, string desc, string url, bool monitor, *hash<auto> opts, hash<auto> urlh) {
-            return new SoapConnection(name, desc, url, monitor, opts, urlh);
+            hash attributes = {
+                "monitor": monitor,
+            };
+
+            return new SoapConnection(name, desc, url, attributes, opts ?? {});
         }
     }
 }

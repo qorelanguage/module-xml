@@ -94,15 +94,32 @@ public namespace XmlRpcConnection {
             hash real_opts;
         }
 
-        #! creates the XmlRpcConnection object
+        #! DEPRECATED: creates the XmlRpcConnection object
         /** @param name the name of the connection
             @param desc connection description
             @param url connection URL (potentially with password info)
             @param monitor monitoring flag
             @param opts connection options
             @param urlh broken down URL hash (as returned by @ref Qore::parse_url())
+
+            @deprecated since Qore 0.9
         */
-        constructor(string name, string desc, string url, bool monitor, *hash opts, hash urlh) : HttpBasedConnection(name, desc, url, monitor, opts, urlh) {
+        constructor(string name, string desc, string url, bool monitor, *hash opts, hash urlh)
+            : HttpBasedConnection(name, desc, url, {"monitor": monitor}, opts ?? {}) {
+            real_opts = ("url": real_url) + opts;
+        }
+
+        #! creates the XmlRpcConnection object
+        /** @param name the name of the connection
+            @param description connection description
+            @param url connection URL (potentially with password info)
+            @param attributes various attributes. See below
+            @param options connection options
+
+            See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
+         */
+        constructor(string name, string description, string url, hash attributes = {}, hash options = {})
+            : HttpBasedConnection(name, description, url, attributes, options) {
             real_opts = ("url": real_url) + opts;
         }
 
@@ -152,9 +169,16 @@ public namespace XmlRpcConnection {
             return "xmlrpc";
         }
 
-        #! static constructor
+        #! DEPRECATED: static constructor
+        /** @deprecated since Qore 0.9 in favor of new constructor and Qore::Reflection
+         */
+        deprecated
         static XmlRpcConnection make(string name, string desc, string url, bool monitor, *hash opts, hash urlh) {
-            return new XmlRpcConnection(name, desc, url, monitor, opts, urlh);
+            hash attributes = {
+                "monitor": monitor,
+            };
+
+            return new XmlRpcConnection(name, desc, url, attributes, opts ?? {});
         }
     }
 }

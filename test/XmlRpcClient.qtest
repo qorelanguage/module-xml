@@ -28,7 +28,7 @@ class XmlRpcClientTest inherits QUnit::Test {
 
     testXmlRpcConnection() {
         string url = "xmlrpcs://localhost:8099/";
-        XmlRpcConnection conn("test", "test", url, False, NOTHING, parse_url(url));
+        XmlRpcConnection conn("test", "test", url);
         XmlRpcClient client = conn.get(False);
         string yurl = url;
         yurl =~ s/^xmlrpc/http/;
@@ -36,7 +36,7 @@ class XmlRpcClientTest inherits QUnit::Test {
 
         # test default path
         url = "xmlrpcs://localhost:8099";
-        conn = new XmlRpcConnection("test", "test", url, False, NOTHING, parse_url(url));
+        conn = new XmlRpcConnection("test", "test", url);
         client = conn.get(False);
         yurl = url;
         yurl =~ s/^xmlrpc/http/;
