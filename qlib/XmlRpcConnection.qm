@@ -35,12 +35,12 @@
 
 %requires(reexport) xml
 #%requires Util >= 1.0
-%requires(reexport) ConnectionProvider >= 1.1
+%requires(reexport) ConnectionProvider >= 1.2
 
 %new-style
 
 module XmlRpcConnection {
-    version = "1.1";
+    version = "1.2";
     desc = "user module for providing XML-RPC client connections";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -67,6 +67,9 @@ module XmlRpcConnection {
     - @ref XmlRpcConnection::XmlRpcConnection "XmlRpcConnection"
 
     @section xmlrpcconnection_relnotes XmlRpcConnection Module Release History
+
+    @subsection xmlrpcconnection_v1_2 XmlRpcConnection v1.2
+    - new AbstractConnection infrastructure
 
     @subsection xmlrpcconnection_v1_1 XmlRpcConnection v1.1
     - the @ref XmlRpcConnection::XmlRpcConnection::getConstructorInfo() "XmlRpcConnection::getConstructorInfo()"
@@ -104,6 +107,7 @@ public namespace XmlRpcConnection {
 
             @deprecated since Qore 0.9
         */
+        deprecated
         constructor(string name, string desc, string url, bool monitor, *hash opts, hash urlh)
             : HttpBasedConnection(name, desc, url, {"monitor": monitor}, opts ?? {}) {
             real_opts = ("url": real_url) + opts;
