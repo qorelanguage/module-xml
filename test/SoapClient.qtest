@@ -324,7 +324,7 @@ class SoapClientTest inherits QUnit::Test {
         if (m_options.verbose > 2)
             printf("conn_url: %y\n", conn_url);
 
-        SoapConnection conn("test", "test", conn_url, False, ("target_url": url, "port": "SoapPort"), parse_url(conn_url));
+        SoapConnection conn("test", "test", conn_url, {"monitor": False}, ("target_url": url, "port": "SoapPort"));
         SoapClient sc2 = conn.get();
         hash h = sc2.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": ""));
         assertEq(99.9, h.body.result);

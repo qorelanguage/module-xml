@@ -264,7 +264,7 @@ class SalesforceTest inherits QUnit::Test {
         );
 
         string conn_url = "sfsoap://ignored";
-        SalesforceSoapConnection conn("test", "test", conn_url, False, fake_opts, parse_url(conn_url));
+        SalesforceSoapConnection conn("test", "test", conn_url, {"monitor": False}, fake_opts);
         SalesforceSoapClient sc = conn.get(False, opts.("log", "dbglog"));
 
         string url = sc.getURL();
