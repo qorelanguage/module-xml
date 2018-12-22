@@ -1893,10 +1893,11 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         }
 
         #printf("DEBUG name: %y desc: %y\n", name, descriptive_name);
-        if (name && !omitType && !descriptive_name)
-            rh."^attributes^" += ("xsi:type": "ns1:" + name) + ah;
-        else if (ah)
+        if (name && !omitType && !descriptive_name) {
+            rh."^attributes^" += ("xsi:type": nsc.getTargetNamespaceOutputPrefix() + ":" + name) + ah;
+        } else if (ah) {
             rh."^attributes^" += ah;
+        }
 
         # issue #2899: if encoding elements of an array type, include the array type attribute
         if (arrayType && !omitType) {
@@ -2492,7 +2493,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
                 return rh;
             }
 
-            return {"ns1:" + n_name: rh};
+            return {nsc.getTargetNamespaceOutputPrefix() + ":" + n_name: rh};
         }
     }
 
@@ -4027,9 +4028,6 @@ public class WSDL::Namespaces {
             XSD_NS: "xsd",
         };
 
-        #! integer providing a sequence for output namespace prefixes
-        int nsn;
-
         #! if True then has SOAP 1.1
         bool hassoap11 = False;
 
@@ -4064,18 +4062,17 @@ public class WSDL::Namespaces {
     }
 
     #! creates the object with the WSDL definitions attribute hash
-    constructor(hash<auto> nsh, *Namespaces nsc) {
-        nsn = nsc ? nsc.nsn : 1;
-
-        if (nsh.targetNamespace) {
-            target_ns = nsh.targetNamespace;
+    constructor(hash<auto> nsh, *Namespaces nsc, *string targetNamespace) {
+        if (nsh.targetNamespace || targetNamespace) {
+            target_ns = nsh.targetNamespace ?? targetNamespace;
             # issue #3029: add target namespace to output namespace hash by default
-            ns.ns1 = target_ns;
+            registerNamespaceIntern(target_ns, "tns");
         }
 
         # set default namespace for unprefixed definitions
-        if (nsh.xmlns)
+        if (nsh.xmlns) {
             default_ns = nsh.xmlns;
+        }
 
         #printf("*** DEBUG: Namespaces::constructor() nsh: %y imap: %y\n", nsh, imap);
         addNamespaces(nsh);
@@ -4137,26 +4134,34 @@ public class WSDL::Namespaces {
 
     #! merges namespaces when parsing imported schemas
     merge(Namespaces nsc) {
-        nsn = nsc.nsn;
-        foreach string k in (keys nsc.ns) {
-            string v = nsc.ns{k};
+        foreach string prefix in (keys nsc.ns) {
+            string uri = nsc.ns{prefix};
+            # only import the prefix if the URI isn't already registered
+            if (!nsr{uri}) {
+                if (ns{prefix}) {
+                    if (ns{prefix} == uri) {
+                        continue;
+                    }
 
-            if (ns{k}) {
-                if (ns{k} == v)
-                    continue;
-                throw "WSDL-NAMESPACE-ERROR", sprintf("imported schema uses prefix %y to refer to %y, however this prefix was previously defined with %y", k, v, ns{k});
-            }
-            if (!nsr{v}) {
-                ns{k} = v;
-                nsr{v} = k;
+                    # issue #3194: rename clashing namespace prefixes
+                    string new_prefix = getUniquePrefix(uri);
+
+
+                    ns{new_prefix} = nsc.ns{prefix};
+                    nsc.nsr{uri} = new_prefix;
+                } else {
+                    ns{prefix} = uri;
+                    nsr{uri} = prefix;
+                }
             }
         }
         # merge input namespace mappings
         foreach string k in (keys nsc.imap) {
             string v = nsc.imap{k};
             if (imap{k}) {
-                if (imap{k} == v)
+                if (imap{k} == v) {
                     continue;
+                }
                 throw "WSDL-NAMESPACE-ERROR", sprintf("imported schema uses prefix %y to refer to %y, however this prefix was previously defined with %y", k, v, imap{k});
             }
             imap{k} = v;
@@ -4165,12 +4170,42 @@ public class WSDL::Namespaces {
         base_types += nsc.base_types;
     }
 
+    #! returns a unique namespace prefix from a URI path string
+    string getUniquePrefix(string uri, *string default_prefix) {
+        # try to get last URI path segment
+        *string str = (uri =~ x/\/([^\/]+)$/)[0];
+        if (str) {
+            # keep only the first three characters
+            splice str, 3;
+            # convert to all lower case
+            str =~ tr/A-Z/a-z/;
+            # remove special characters
+            str =~ s/[^a-z0-9_]//ig;
+        }
+        # only accept strings that start with a letter and have no special characters
+        if (str !~ /^[a-z]/i) {
+            # otherwise we use a hardcoded prefix
+            str = default_prefix ?? "ns";
+        }
+        if (!ns{str}) {
+            return str;
+        }
+        string pfx = str;
+        int count = 0;
+        do {
+            str = pfx + ++count;
+        } while (ns{str});
+        return str;
+    }
+
     #! returns the namespace URI for the given output namespace prefix
     string getOutputNamespaceUri(string nsp) {
-        *string n_ns = ns{nsp};
-        if (!n_ns)
-            throw "WSDL-NAMESPACE-ERROR", sprintf("output namespace prefix %y is unknown (known output namespace prefixes: %y)", nsp, ns.keys());
-        return n_ns;
+        *string uri = ns{nsp};
+        if (!uri) {
+            throw "WSDL-NAMESPACE-ERROR", sprintf("output namespace prefix %y is unknown (known output namespace "
+                "prefixes: %y)", nsp, ns.keys());
+        }
+        return uri;
     }
 
     #! returns a hash of namespace attributes for outgoing SOAP messages
@@ -4227,26 +4262,32 @@ public class WSDL::Namespaces {
 
     #! looks up and registers a namespace if necessary, returns the namespace's prefix
     string getOutputNamespacePrefix(string ns) {
-        *string nsa = nsr{ns};
-        if (nsa)
-            return nsa;
-        return registerNamespaceIntern(ns);
+        return nsr{ns} ?? registerNamespaceIntern(ns);
     }
 
-    #! looks up and registers a namespace if necessary, returns the namespace's prefix
-    string getTargetNamespaceInputPrefix() {
-        if (!target_ns)
+    #! returns the output namespace prefix for the target namespace, if any
+    string getTargetNamespaceOutputPrefix() {
+        if (!target_ns) {
             throw "NAMESPACE-ERROR", sprintf("no target namespace");
+        }
+        return getOutputNamespacePrefix(target_ns);
+    }
+
+    #! returns the input namespace prefix for the target namespace, if any
+    string getTargetNamespaceInputPrefix() {
+        if (!target_ns) {
+            throw "NAMESPACE-ERROR", sprintf("no target namespace");
+        }
         return imapr{target_ns};
     }
 
     #! registers a namespace internally
-    private string registerNamespaceIntern(string n_ns) {
+    private string registerNamespaceIntern(string uri, *string default_pfx) {
         # see if ns gets a default prefix or create namespace prefix
-        string nsa = DefaultPrefixes{n_ns} ?? sprintf("ns%d", nsn++);
+        string nsa = DefaultPrefixes{uri} ?? getUniquePrefix(uri);
         # register namespace in forward and reverse maps
-        ns{nsa} = n_ns;
-        nsr{n_ns} = nsa;
+        ns{nsa} = uri;
+        nsr{uri} = nsa;
 
         return nsa;
     }
@@ -4659,10 +4700,11 @@ public class WSDL::WebService inherits WSDL::XsdBase {
                 if (a.schemaLocation) {
                     hash<auto> h = parse_url(a.schemaLocation);
                     string xsd;
-                    if (!h.protocol && try_import)
+                    if (!h.protocol && try_import) {
                         xsd = call_function(try_import, a.schemaLocation);
-                    else
+                    } else {
                         xsd = WSDLLib::getFileFromURL(a.schemaLocation, "file", http_client, http_headers, NOTHING, def_path);
+                    }
 
                     # parse XML to Qore data structure ignoring XML element order
                     hash<auto> xh = parse_xml(xsd);
@@ -4678,7 +4720,7 @@ public class WSDL::WebService inherits WSDL::XsdBase {
 
                     # use temporary Namespaces object for import
                     Namespaces n_nsc = nsc;
-                    nsc = new Namespaces(xh{sk}."^attributes^", n_nsc);
+                    nsc = new Namespaces(xh{sk}."^attributes^", n_nsc, a."namespace");
                     on_exit
                         nsc = n_nsc;
                     on_success

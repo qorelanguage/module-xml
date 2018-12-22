@@ -5,7 +5,7 @@
 
   Qore Programming Language
 
-  Copyright 2003 - 2017 Qore Technologies, s.r.o.
+  Copyright 2003 - 2018 Qore Technologies, s.r.o.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -129,7 +129,7 @@ XmlReader::copy() {
 
     @see XmlReader::readSkipWhitespace()
 */
-bool XmlReader::read() [flags=RET_VALUE_ONLY] {
+bool XmlReader::read() {
     return (bool)xr->read(xsink);
 }
 
@@ -146,7 +146,7 @@ bool XmlReader::read() [flags=RET_VALUE_ONLY] {
 
     @see XmlReader::read()
 */
-bool XmlReader::readSkipWhitespace() [flags=RET_VALUE_ONLY] {
+bool XmlReader::readSkipWhitespace() {
    return (bool)xr->readSkipWhitespace(xsink);
 }
 
@@ -604,7 +604,7 @@ bool XmlReader::next() {
     @par Example:
     @code xr.relaxNGValidate(relaxng); @endcode
  */
-nothing XmlReader::relaxNGValidate(string relaxng) [flags=RET_VALUE_ONLY] {
+nothing XmlReader::relaxNGValidate(string relaxng) {
 #ifdef HAVE_XMLTEXTREADERRELAXNGSETSCHEMA
    xr->relaxNGValidate(relaxng->getBuffer(), xsink);
 #else
@@ -626,7 +626,7 @@ nothing XmlReader::relaxNGValidate(string relaxng) [flags=RET_VALUE_ONLY] {
     @par Example:
     @code xr.schemaValidate(xsd); @endcode
  */
-nothing XmlReader::schemaValidate(string xsd) [flags=RET_VALUE_ONLY] {
+nothing XmlReader::schemaValidate(string xsd) {
 #ifdef HAVE_XMLTEXTREADERSETSCHEMA
    xr->schemaValidate(xsd->getBuffer(), xsink);
 #else
