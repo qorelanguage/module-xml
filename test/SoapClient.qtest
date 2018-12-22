@@ -324,7 +324,7 @@ class SoapClientTest inherits QUnit::Test {
         if (m_options.verbose > 2)
             printf("conn_url: %y\n", conn_url);
 
-        SoapConnection conn("test", "test", conn_url, {"monitor": False}, ("target_url": url, "port": "SoapPort"));
+        SoapConnection conn("test", "test", conn_url, False, ("target_url": url, "port": "SoapPort"), parse_url(conn_url));
         SoapClient sc2 = conn.get();
         hash h = sc2.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": ""));
         assertEq(99.9, h.body.result);
@@ -343,18 +343,27 @@ class SoapClientTest inherits QUnit::Test {
 
     private checkPreAndPostProcessing(hash<ConnectionConstructorInfo> info) {
         Program p(PO_NEW_STYLE | PO_STRICT_ARGS | PO_REQUIRE_TYPES);
-        if (info.module)
+        if (info.module) {
             p.loadModule(info.module);
+        }
         if (info.pre_processing) {
             string pre_processing = sprintf("sub pre_processing(reference<*softlist<auto>> args, bool connect, *hash rtopts) { %s }", info.pre_processing);
             # ensure that the pre processing code can be parsed
-            p.parse(pre_processing, "pre processing");
-            assertTrue(True, "pre processing: " + info.class_name);
+            p.parsePending(pre_processing, "pre processing");
         }
         if (info.post_processing) {
             string post_processing = sprintf("sub post_processing(%s obj, bool connect, *hash rtopts) { %s }", info.class_name, info.post_processing);
             # ensure that the post processing code can be parsed
-            p.parse(post_processing, "post processing");
+            p.parsePending(post_processing, "post processing");
+        }
+
+        if (info.pre_processing || info.post_processing) {
+            p.parseCommit();
+        }
+        if (info.pre_processing) {
+            assertTrue(True, "pre processing: " + info.class_name);
+        }
+        if (info.post_processing) {
             assertTrue(True, "post processing: " + info.class_name);
         }
     }

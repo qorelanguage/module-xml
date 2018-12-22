@@ -668,14 +668,14 @@ class SoapTest inherits QUnit::Test {
 
         {
             hash h1 = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING, "TEST");
-            h1.body =~ s/<ns1:i2754_2_e2>str<\/ns1:i2754_2_e2>/<ns1:i2754_2_e2\/>/;
+            h1.body =~ s/<sim:i2754_2_e2>str<\/sim:i2754_2_e2>/<sim:i2754_2_e2\/>/;
             #printf("body: %s\n", h1.body);
             hash xh1 = parse_xml(h1.body);
             #printf("xh1: %N\n", xh1);
             # test issue #2754
             h = op.deserializeRequest(xh1);
-            assertEq("", h.issue2754.i2754_e1.i2754_2_e2);
             #printf("h: %N\n", h);
+            assertEq("", h.issue2754.i2754_e1.i2754_2_e2);
 
             {
                 WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"), ("compat_empty_string_is_nothing": True));

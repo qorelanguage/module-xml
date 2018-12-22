@@ -246,42 +246,51 @@ ash), the method definition as passed in the methods argument to this constructo
         }
 
         # don't reimplement this method; fix/enhance it in the module
-        final private hash callMethod(hash cx, auto params) {
+        final private hash<auto> callMethod(hash cx, auto params) {
             string method = cx.method;
             # find method function
-            hash found;
-            foreach hash m in (methods) {
+            hash<auto> found;
+            foreach hash<auto> m in (methods) {
                 if (regex(method, m.name)) {
                     found = m;
                     break;
                 }
             }
 
-            if (!exists found)
-                throw "XML-RPC-SERVER-UNKNOWN-METHOD", sprintf("unknown method %n", method);
+            if (!exists found) {
+                throw "XML-RPC-SERVER-UNKNOWN-METHOD", sprintf("unknown method %y", method);
+            }
 
             # add context marker, if any
             cx.cmark = found.cmark;
             cx.function = found.function;
 
             *string msg = exists getLogMessage ? call_function(getLogMessage, cx, found, \params) : NOTHING;
-            if (exists msg)
+            if (exists msg) {
                 log(cx, msg);
+            }
 
-            #printf("DEBUG: about to call function '%s' (method=%s params=%y)\n", found.function, method, params);
+            #printf("DEBUG: about to call function %y (method=%s params=%y)\n", found, method, params);
 
             auto rv;
             try {
-                rv = found.internal ? call_object_method_args(self, found.function, params) : call_function_args(found.function, params);
-            }
-            catch (hash<ExceptionInfo> ex) {
-                # issue #2573: provide a more user-friendly error when the argument cannot be matched to the closure/call ref
-                if (ex.err == "RUNTIME-TYPE-ERROR" && (ex.callstack[1].file =~ /XmlRpcHandler.qm$/ && (ex.callstack[1].function == "call_function_args" || ex.callstack[1].function == "call_object_method_args")))
-                    throw "RPC-ARG-ERROR", sprintf("a call to XML-RPC method %y is missing one or more required arguments; internal call error: %s: %s", method, ex.err, ex.desc);
+                rv = found.internal
+                    ? call_object_method_args(self, found.function, params)
+                    : call_function_args(found.function, params);
+            } catch (hash<ExceptionInfo> ex) {
+                # issue #2573: provide a more user-friendly error when the argument cannot be matched to the
+                # closure/call ref
+                if (ex.err == "RUNTIME-TYPE-ERROR"
+                    && (ex.callstack[1].file =~ /XmlRpcHandler.qm$/
+                        && (ex.callstack[1].function == "call_function_args"
+                            || ex.callstack[1].function == "call_object_method_args"))) {
+                    throw "RPC-ARG-ERROR", sprintf("a call to XML-RPC method %y is missing one or more required "
+                        "arguments; internal call error: %s: %s", method, ex.err, ex.desc);
+                }
                 rethrow;
             }
 
-            hash h.body = make_xmlrpc_response(rv, 0, cx."response-encoding");
+            hash<auto> h.body = make_xmlrpc_response(rv, 0, cx."response-encoding");
             return h;
         }
 

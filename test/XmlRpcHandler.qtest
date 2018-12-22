@@ -27,7 +27,7 @@ class XmlRpcHandlerTest inherits QUnit::Test {
             (
                 "name": "^example\$",
                 "text": "example",
-                "function": string sub (string arg) { return arg; },
+                "function": string sub (*string arg) { return arg; },
                 "help": "example call",
             ),
         );
