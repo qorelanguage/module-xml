@@ -226,14 +226,13 @@ class SoapHandlerTest inherits QUnit::Test {
         hash<ExceptionInfo> ex;
         try {
             sc.call("getCompanyInfo", h);
-        }
-        catch (hash<ExceptionInfo> ex1) {
+        } catch (hash<ExceptionInfo> ex1) {
             ex = ex1;
         }
         #printf("%s\n", get_exception_string(ex));
         assertEq("SOAP-SERVER-FAULT-RESPONSE", ex.err);
-        assertEq("err1", ex.arg.Detail."ns1:GetCompanyInfoFault"."ns1:err");
-        assertEq("desc1", ex.arg.Detail."ns1:GetCompanyInfoFault"."ns1:desc");
+        assertEq("err1", ex.arg.Detail."sim:GetCompanyInfoFault"."sim:err");
+        assertEq("desc1", ex.arg.Detail."sim:GetCompanyInfoFault"."sim:desc");
     }
 
     issue2783() {
