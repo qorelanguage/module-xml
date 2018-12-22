@@ -330,5 +330,41 @@ class SoapClientTest inherits QUnit::Test {
         assertEq(99.9, h.body.result);
         assertEq("ABC", h.docs);
         assertEq(binary(), h.logo);
+
+        hash<ConnectionConstructorInfo> conn_info = conn.getConstructorInfo();
+        assertEq("SoapClient", conn_info.module);
+        assertEq("SoapClient::SoapClient", conn_info.class_name);
+        assertEq(url, conn_info.args[0].target_url);
+        assertEq(url, conn_info.args[0].url);
+        assertEq(45s, conn_info.args[0].connect_timeout);
+        assertEq(45s, conn_info.args[0].timeout);
+        checkPreAndPostProcessing(conn_info);
+    }
+
+    private checkPreAndPostProcessing(hash<ConnectionConstructorInfo> info) {
+        Program p(PO_NEW_STYLE | PO_STRICT_ARGS | PO_REQUIRE_TYPES);
+        if (info.module) {
+            p.loadModule(info.module);
+        }
+        if (info.pre_processing) {
+            string pre_processing = sprintf("sub pre_processing(reference<*softlist<auto>> args, bool connect, *hash rtopts) { %s }", info.pre_processing);
+            # ensure that the pre processing code can be parsed
+            p.parsePending(pre_processing, "pre processing");
+        }
+        if (info.post_processing) {
+            string post_processing = sprintf("sub post_processing(%s obj, bool connect, *hash rtopts) { %s }", info.class_name, info.post_processing);
+            # ensure that the post processing code can be parsed
+            p.parsePending(post_processing, "post processing");
+        }
+
+        if (info.pre_processing || info.post_processing) {
+            p.parseCommit();
+        }
+        if (info.pre_processing) {
+            assertTrue(True, "pre processing: " + info.class_name);
+        }
+        if (info.post_processing) {
+            assertTrue(True, "post processing: " + info.class_name);
+        }
     }
 }

@@ -28,7 +28,7 @@ class XmlRpcClientTest inherits QUnit::Test {
 
     testXmlRpcConnection() {
         string url = "xmlrpcs://localhost:8099/";
-        XmlRpcConnection conn("test", "test", url, False, NOTHING, parse_url(url));
+        XmlRpcConnection conn("test", "test", url);
         XmlRpcClient client = conn.get(False);
         string yurl = url;
         yurl =~ s/^xmlrpc/http/;
@@ -36,10 +36,34 @@ class XmlRpcClientTest inherits QUnit::Test {
 
         # test default path
         url = "xmlrpcs://localhost:8099";
-        conn = new XmlRpcConnection("test", "test", url, False, NOTHING, parse_url(url));
+        conn = new XmlRpcConnection("test", "test", url);
         client = conn.get(False);
         yurl = url;
         yurl =~ s/^xmlrpc/http/;
         assertEq(yurl + "/RPC2", client.getURL());
+
+        hash<ConnectionConstructorInfo> info = conn.getConstructorInfo();
+        assertEq("xml", info.module);
+        assertEq("Qore::Xml::XmlRpcClient", info.class_name);
+        assertEq("https://localhost:8099", info.args[0].url);
+        checkPreAndPostProcessing(info);
+    }
+
+    private checkPreAndPostProcessing(hash<ConnectionConstructorInfo> info) {
+        Program p(PO_NEW_STYLE | PO_STRICT_ARGS | PO_REQUIRE_TYPES);
+        if (info.module)
+            p.loadModule(info.module);
+        if (info.pre_processing) {
+            string pre_processing = sprintf("sub pre_processing(reference<*softlist<auto>> args, bool connect, *hash rtopts) { %s }", info.pre_processing);
+            # ensure that the pre processing code can be parsed
+            p.parse(pre_processing, "pre processing");
+            assertTrue(True, "pre processing: " + info.class_name);
+        }
+        if (info.post_processing) {
+            string post_processing = sprintf("sub post_processing(%s obj, bool connect, *hash rtopts) { %s }", info.class_name, info.post_processing);
+            # ensure that the post processing code can be parsed
+            p.parse(post_processing, "post processing");
+            assertTrue(True, "post processing: " + info.class_name);
+        }
     }
 }
