@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file XmlRpcHandler.qm @brief XML-RPC handler class definition for the HttpServer module
 
-/*  XmlRpcHandler.qm Copyright (C) 2012 - 2018 Qore Technologies, s.r.o.
+/*  XmlRpcHandler.qm Copyright (C) 2012 - 2019 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -309,7 +309,7 @@ ash), the method definition as passed in the methods argument to this constructo
                 if (path.empty())
                     return (
                         "code": 501,
-                        "desc": "invalid HTTP GET: no path/XML-RPC method name given",
+                        "body": "invalid HTTP GET: no path/XML-RPC method name given",
                     );
 
                 xmlrpc += parse_uri_query(path);
@@ -318,8 +318,7 @@ ash), the method definition as passed in the methods argument to this constructo
 
                 if (exists get_prefix && index(xmlrpc.methodName, ".") == -1)
                     xmlrpc.methodName = get_prefix + xmlrpc.methodName;
-            }
-            else {
+            } else {
                 if (hdr.method != "POST")
                     return (
                         "code": 501,
@@ -343,7 +342,7 @@ ash), the method definition as passed in the methods argument to this constructo
                         "errlog": sprintf("%s: %s", ex.err, ex.desc),
                         "hdr": ( "Content-Type" : MimeTypeXml ),
                         "body": make_xmlrpc_fault(XMLRPC_INVALID_XML, ex.err, 0, cx."response-encoding"),
-                        );
+                    );
                 }
             }
             try {
@@ -367,7 +366,7 @@ ash), the method definition as passed in the methods argument to this constructo
                     "errlog": str,
                     "hdr": ("Content-Type": MimeTypeXml),
                     "body": make_xmlrpc_fault(int(ex.arg), str, 0, cx."response-encoding"),
-                    );
+                );
             }
         }
         #! @endcond
