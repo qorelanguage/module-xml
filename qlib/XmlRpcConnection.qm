@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file XmlRpcConnection.qm XML-RPC client connection module implementation
 
-/*  XmlRpcConnections.qm Copyright 2013 - 2016 Qore Technologies, s.r.o.
+/*  XmlRpcConnections.qm Copyright 2013 - 2019 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -67,6 +67,10 @@ module XmlRpcConnection {
     - @ref XmlRpcConnection::XmlRpcConnection "XmlRpcConnection"
 
     @section xmlrpcconnection_relnotes XmlRpcConnection Module Release History
+
+    @subsection xmlrpcconnection_v1_0_1 XmlRpcConnection v1.0.1
+    - fixed a bug handling default options including timeouts in @ref XmlRpcConnection::XmlRpcConnection "XmlRpcConnection"
+      (<a href="https://github.com/qorelanguage/qore/issues/3321">issue 3321</a>)
 
     @subsection xmlrpcconnection_v1_0 XmlRpcConnection v1.0
     - the initial version of the XmlRpcConnection module
