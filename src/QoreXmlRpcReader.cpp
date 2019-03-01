@@ -380,7 +380,7 @@ int QoreXmlRpcReader::getDouble(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink
       const char* str = constValue();
       if (str) {
          //printd(5, "** got float '%s'\n", str);
-         v->set(strtod(str, 0));
+         v->set(q_strtod(str));
       }
 
       // advance to next position
