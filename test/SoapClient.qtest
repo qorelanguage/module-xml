@@ -154,6 +154,7 @@ class SoapClientTest inherits QUnit::Test {
         url = sprintf("http://user:pass@%s:%d", m_options.host ? m_options.host : gethostname(), serverPort);
 
         # add test cases
+        addTestCase("issue 3336", \issue3336());
         addTestCase("SoapClientTest", \soapClientTest());
         addTestCase("HttpGetClientTest", \httpGetClientTest());
         addTestCase("HttpPostClientTest", \httpPostClientTest());
@@ -166,6 +167,11 @@ class SoapClientTest inherits QUnit::Test {
     cleanMsgLog() {
         sc.msglogs = ();
         server.soap.msglogs = ();
+    }
+
+    issue3336() {
+        sc = new TestSoapClient({"wsdl": WsdlUrl, "url": "http://localhost:1"});
+        assertThrows("SOCKET-CONNECT-ERROR", \sc.callOperation(), ("getInfo", {"GetInfo": {"tickerSymbol": "ABC"}}));
     }
 
     soapClientTest() {

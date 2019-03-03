@@ -488,7 +488,7 @@ public namespace SoapClient {
                 info."response-body" = rh.body;
                 http_status_code = rh.status_code;
             } catch (hash<ExceptionInfo> ex) {
-                # issue #3336 an HTTP status code is not available with all errors (ex: STATUS-CLOSED)
+                # issue #3336 an HTTP status code is not available with all errors (ex: SOCKET-CONNECT-ERROR)
                 http_status_code = ex.arg.status_code ?? -1;
                 # allow fault responses returned with a 500-series status code to be processed as a SOAP fault so that error information is returned in the exception
                 #printf("response exception: %s\n", get_exception_string(ex));
