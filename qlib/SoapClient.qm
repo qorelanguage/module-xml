@@ -111,6 +111,8 @@ any result = sc.call("SubmitDocument", msg);
     - added the @ref SoapClient::SoapConnection::getConstructorInfo() "SoapConnection::getConstructorInfo()"
       method to allow connections to be created dynamically, potentially in another process from a network
       call (<a href="https://github.com/qorelanguage/qore/issues/2628">issue 2628</a>)
+    - fixed type error in exception handling in SOAP calls
+      (<a href="https://github.com/qorelanguage/qore/issues/3336">issue 3336</a>)
 
     @subsection soapclient_0_2_5 SoapClient v0.2.5
     - added support for logging content of SOAP messages
