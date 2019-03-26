@@ -60,7 +60,10 @@ QLIB_TMP_DOXYFILES = docs/qlib/XmlRpcHandler.qm.dox.h docs/qlib/Doxyfile.XmlRpcH
 QDX = qdx
 DX_CLEANFILES = ${DOXYFILES} $(QLIB_TMP_DOXYFILES)
 
-docs/qlib/Doxyfile.SoapClient: docs/qlib/Doxyfile.tmpl
+docs/qlib/Doxyfile.tmp: docs/qlib/Doxyfile.tmpl
+	sed s:__USERMODDIR__:${usermoddir}: $< > $@
+
+docs/qlib/Doxyfile.SoapClient: docs/qlib/Doxyfile.tmp
 	$(QDX) -M=qlib/SoapClient.qm:qlib/SoapClient.qm.dox.h -txml.tag=../../xml/html -tWSDL.tag=../../WSDL/html $< $@
 
 docs/qlib/SoapClient.qm.dox.h: qlib/SoapClient.qm
@@ -70,7 +73,7 @@ docs/SoapClient/html: docs/qlib/SoapClient.qm.dox.h docs/qlib/Doxyfile.SoapClien
 	cd docs; $(DOXYGEN_CMD) qlib/Doxyfile.SoapClient
 	$(QDX) --post docs/SoapClient/html docs/SoapClient/html/search
 
-docs/qlib/Doxyfile.SalesforceSoapClient: docs/qlib/Doxyfile.tmpl
+docs/qlib/Doxyfile.SalesforceSoapClient: docs/qlib/Doxyfile.tmp
 	$(QDX) -M=qlib/SalesforceSoapClient.qm:qlib/SalesforceSoapClient.qm.dox.h -txml.tag=../../xml/html -tWSDL.tag=../../WSDL/html -tSoapClient.tag=../../SoapClient/html $< $@
 
 docs/qlib/SalesforceSoapClient.qm.dox.h: qlib/SalesforceSoapClient.qm
@@ -80,7 +83,7 @@ docs/SalesforceSoapClient/html: docs/qlib/SalesforceSoapClient.qm.dox.h docs/qli
 	cd docs; $(DOXYGEN_CMD) qlib/Doxyfile.SalesforceSoapClient
 	$(QDX) --post docs/SalesforceSoapClient/html docs/SalesforceSoapClient/html/search
 
-docs/qlib/Doxyfile.SoapHandler: docs/qlib/Doxyfile.tmpl
+docs/qlib/Doxyfile.SoapHandler: docs/qlib/Doxyfile.tmp
 	$(QDX) -M=qlib/SoapHandler.qm:qlib/SoapHandler.qm.dox.h -txml.tag=../../xml/html $< $@
 
 docs/qlib/SoapHandler.qm.dox.h: qlib/SoapHandler.qm
@@ -90,7 +93,7 @@ docs/SoapHandler/html: docs/qlib/SoapHandler.qm.dox.h docs/qlib/Doxyfile.SoapHan
 	cd docs; $(DOXYGEN_CMD) qlib/Doxyfile.SoapHandler
 	$(QDX) --post docs/SoapHandler/html docs/SoapHandler/html/search
 
-docs/qlib/Doxyfile.WSDL: docs/qlib/Doxyfile.tmpl
+docs/qlib/Doxyfile.WSDL: docs/qlib/Doxyfile.tmp
 	$(QDX) -M=qlib/WSDL.qm:qlib/WSDL.qm.dox.h -txml.tag=../../xml/html $< $@
 
 docs/qlib/WSDL.qm.dox.h: qlib/WSDL.qm
@@ -110,7 +113,7 @@ docs/XmlRpcHandler/html: docs/qlib/XmlRpcHandler.qm.dox.h docs/qlib/Doxyfile.Xml
 	cd docs; $(DOXYGEN_CMD) qlib/Doxyfile.XmlRpcHandler
 	$(QDX) --post docs/XmlRpcHandler/html docs/XmlRpcHandler/html/search
 
-docs/qlib/Doxyfile.XmlRpcConnection: docs/qlib/Doxyfile.tmpl
+docs/qlib/Doxyfile.XmlRpcConnection: docs/qlib/Doxyfile.tmp
 	$(QDX) -M=qlib/XmlRpcConnection.qm:qlib/XmlRpcConnection.qm.dox.h -txml.tag=../../xml/html $< $@
 
 docs/qlib/XmlRpcConnection.qm.dox.h: qlib/XmlRpcConnection.qm
@@ -128,7 +131,7 @@ docs/mainpage.doxygen: docs/mainpage.doxygen.tmpl
 	$(QDX) -d $< $@
 
 docs/doxyfile: docs/doxyfile.tmpl
-	sed s/__VERSION__/${VERSION}/ $< > $@
+	sed -e s/__VERSION__/${VERSION}/ -e s:__USERMODDIR__:${usermoddir}: $< > $@
 
 doxygen-doc: $(DOXYGEN_OUTPUT)
 

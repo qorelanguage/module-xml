@@ -543,6 +543,7 @@ class SoapTest inherits QUnit::Test {
     constructor() : QUnit::Test("SoapTest", "1.0") {
         addTestCase("issue 3029", \issue3029());
         addTestCase("WSDLLib", \wsdlLibTest());
+        addTestCase("issue 2793", \issue2793());
         addTestCase("SoapTestCase", \soapTestCase());
         addTestCase("Test1", \test1());
         addTestCase("multi", \multiTest());
@@ -562,6 +563,14 @@ class SoapTest inherits QUnit::Test {
 
         auto response = op.deserializeRequest(test_req);
         assertEq("Fred", response);
+    }
+
+    issue2793() {
+        # test serialization with a try_import closure
+        WebService ws1(ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl"), {"try_import": sub () {}});
+        binary bin = ws1.serialize();
+        WebService ws2 = Serializable::deserialize(bin);
+        assertTrue(ws2.getOperation("setInfo") instanceof WSOperation);
     }
 
     *hash parseMessage(hash msg, WSOperation op, bool request) {

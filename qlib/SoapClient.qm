@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file SoapClient.qm SOAP Client module implementation based on the WSDL classes
 
-/*  SoapClient.qm Copyright (C) 2012 - 2018 Qore Technologies, s.r.o.
+/*  SoapClient.qm Copyright (C) 2012 - 2019 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.8.13
+%requires qore >= 0.9
 
 # requires XML functionality
 %requires(reexport) xml
@@ -35,7 +35,7 @@
 %requires(reexport) Mime >= 1.1
 
 # provides a connection class
-%requires(reexport) ConnectionProvider
+%requires(reexport) ConnectionProvider >= 1.1
 
 # do not use $ for vars
 %new-style
@@ -50,7 +50,7 @@
 %enable-all-warnings
 
 module SoapClient {
-    version = "0.2.5";
+    version = "0.3";
     desc = "SoapClient module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -106,6 +106,13 @@ any result = sc.call("SubmitDocument", msg);
     - \c "timeout"
 
     @section soapclientrelnotes SoapClient Release Notes
+
+    @subsection soapclient_0_3 SoapClient v0.3
+    - added the @ref SoapClient::SoapConnection::getConstructorInfo() "SoapConnection::getConstructorInfo()"
+      method to allow connections to be created dynamically, potentially in another process from a network
+      call (<a href="https://github.com/qorelanguage/qore/issues/2628">issue 2628</a>)
+    - fixed type error in exception handling in SOAP calls
+      (<a href="https://github.com/qorelanguage/qore/issues/3336">issue 3336</a>)
 
     @subsection soapclient_0_2_5 SoapClient v0.2.5
     - added support for logging content of SOAP messages
@@ -480,9 +487,9 @@ public namespace SoapClient {
                 rh = send(body, msg.method, msg.path, hdr, True, \info);
                 info."response-body" = rh.body;
                 http_status_code = rh.status_code;
-            }
-            catch (hash<ExceptionInfo> ex) {
-                http_status_code = ex.arg.status_code;
+            } catch (hash<ExceptionInfo> ex) {
+                # issue #3336 an HTTP status code is not available with all errors (ex: SOCKET-CONNECT-ERROR)
+                http_status_code = ex.arg.status_code ?? -1;
                 # allow fault responses returned with a 500-series status code to be processed as a SOAP fault so that error information is returned in the exception
                 #printf("response exception: %s\n", get_exception_string(ex));
                 if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ((http_status_code == 400 ||
@@ -490,8 +497,7 @@ public namespace SoapClient {
                     && ex.arg.body =~ /<\?xml.*Fault/s)) {
                     info."response-body" = ex.arg.body;
                     rh = ex.arg;
-                }
-                else {
+                } else {
                     if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR") {
                         msglog({
                             "reason": "error",
@@ -736,15 +742,37 @@ private nothing msglog(hash msg) {
             };
         }
 
-        #! creates the SoapConnection object
+        #! DEPRECATED: creates the SoapConnection object
         /** @param name the name of the connection
             @param desc connection description
             @param url connection URL
             @param monitor monitoring flag
             @param n_opts connection options
             @param urlh broken down URL hash (as returned by @ref Qore::parse_url())
+
+            @deprecated since Qore 0.9
         */
-        constructor(string name, string desc, string url, bool monitor, *hash<auto> n_opts, hash<auto> urlh) : HttpBasedConnection(name, desc, url, monitor, n_opts, urlh) {
+        deprecated
+        constructor(string name, string desc, string url, bool monitor, *hash<auto> n_opts, hash<auto> urlh)
+            : HttpBasedConnection(name, desc, url, {"monitor": monitor}, n_opts ?? {}) {
+            constructorInit();
+        }
+
+        #! creates the SoapConnection object
+        /** @param name the name of the connection
+            @param description connection description
+            @param url connection URL (potentially with password info)
+            @param attributes various attributes. See below
+            @param options connection options
+
+            See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
+         */
+        constructor(string name, string description, string url, hash attributes = {}, hash options = {})
+            : HttpBasedConnection(name, description, url, attributes, options) {
+            constructorInit();
+        }
+
+        private:internal constructorInit() {
             # do environment variable substitution in wsdl option if applicable
             if (!opts.wsdl) {
                 # check if we have a local path to the WSDL
@@ -790,6 +818,22 @@ private nothing msglog(hash msg) {
             return sc;
         }
 
+        #! returns a hash that can be used to contruct the object dynamically
+        /** @since %SoapClient 0.3
+        */
+        private hash<ConnectionConstructorInfo> getConstructorInfoImpl() {
+            string my_pre_code = "args[0] += rtopts.(\"log\", \"dbglog\");";
+            string my_post_code = "if (connect) {obj.connect();}";
+
+            return new hash<ConnectionConstructorInfo>({
+                "module": "SoapClient",
+                "class_name": "SoapClient::SoapClient",
+                "args": real_opts,
+                "pre_processing": my_pre_code,
+                "post_processing": my_post_code,
+            });
+        }
+
         #! gets options
         hash getOptions() {
             return Options;
@@ -800,9 +844,16 @@ private nothing msglog(hash msg) {
             return HttpConnection::DefaultOptions;
         }
 
-        #! static constructor
+        #! DEPRECATED: static constructor
+        /** @deprecated since Qore 0.9 in favor of new constructor and Qore::Reflection
+         */
+        deprecated
         static SoapConnection make(string name, string desc, string url, bool monitor, *hash<auto> opts, hash<auto> urlh) {
-            return new SoapConnection(name, desc, url, monitor, opts, urlh);
+            hash attributes = {
+                "monitor": monitor,
+            };
+
+            return new SoapConnection(name, desc, url, attributes, opts ?? {});
         }
     }
 }
