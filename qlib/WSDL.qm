@@ -898,28 +898,33 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
 
     auto deserialize(string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto val) {
         string type;
-        if (val.typeCode() == NT_HASH && val.hasKey("^value^")) {
+        if (val.typeCode() == NT_HASH && (val.hasKey("^value^") || val.hasKey("^attributes^"))) {
             if (val."^attributes^"."xsi:type") {
                 type = val."^attributes^"."xsi:type";
                 string t = (type =~ x/[^:]+:([^:]+)/)[0];
-                if (exists t)
+                if (exists t) {
                     type = t;
+                }
 
-                if (name != "anyType" && type != name)
+                if (name != "anyType" && type != name) {
                     throw SOAP_DESERIALIZATION_ERROR, sprintf("expecting base type %y, got %y", name, val."^attributes^"."xsi:type");
-            }
-            else
+                }
+            } else {
                 type = name;
+            }
             val = val."^value^";
-        }
-        else
+        } else {
             type = name;
+        }
 
         switch (type) {
             case "string":
             case "token":
             case "normalizedString":
             case "anyURI":
+                if (exists val && !val.strp()) {
+                    throw SOAP_DESERIALIZATION_ERROR, sprintf("type %y does not accept values of type %y (val: %y)", type, val.type(), val);
+                }
                 return nsc.opt_empty_string_is_nothing ? val : string(val);
 
             case "integer": {
