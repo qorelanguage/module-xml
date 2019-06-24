@@ -4,7 +4,7 @@
 
     Qore Programming Language
 
-    Copyright (C) 2003 - 2018 Qore Technologies, s.r.o.
+    Copyright (C) 2003 - 2019 Qore Technologies, s.r.o.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -34,9 +34,9 @@ static int xmlrpc_do_empty_value(Qore::Xml::intern::XmlRpcValue *v, const char* 
    else if (!strcmp(name, "boolean"))
       v->set(false);
    else if (!strcmp(name, "struct"))
-      v->set(new QoreHashNode);
+      v->set(new QoreHashNode(autoTypeInfo));
    else if (!strcmp(name, "array"))
-      v->set(new QoreListNode);
+      v->set(new QoreListNode(autoTypeInfo));
    else if (!strcmp(name, "double") || !strcmp(name, "ex:float"))
       v->set(0.0f);
    else if (!strcmp(name, "dateTime.iso8601") || !strcmp(name, "ex:dateTime"))
@@ -55,7 +55,7 @@ static int xmlrpc_do_empty_value(Qore::Xml::intern::XmlRpcValue *v, const char* 
 int QoreXmlRpcReader::getStruct(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, ExceptionSink* xsink) {
    int nt;
 
-   QoreHashNode* h = new QoreHashNode;
+   QoreHashNode* h = new QoreHashNode(autoTypeInfo);
    v->set(h);
 
    int member_depth = depth();
@@ -180,7 +180,7 @@ int QoreXmlRpcReader::getParams(Qore::Xml::intern::XmlRpcValue *v, const QoreEnc
    int nt;
    int index = 0;
 
-   QoreListNode* l = new QoreListNode;
+   QoreListNode* l = new QoreListNode(autoTypeInfo);
    v->set(l);
 
    int array_depth = depth();
@@ -467,7 +467,7 @@ int QoreXmlRpcReader::getArray(Qore::Xml::intern::XmlRpcValue *v, const QoreEnco
    int nt;
    int index = 0;
 
-   QoreListNode* l = new QoreListNode;
+   QoreListNode* l = new QoreListNode(autoTypeInfo);
    v->set(l);
 
    int array_depth = depth();
