@@ -4,7 +4,7 @@
 
     Qore Programming Language
 
-    Copyright (C) 2003 - 2018 Qore Technologies, s.r.o.
+    Copyright (C) 2003 - 2019 Qore Technologies, s.r.o.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -52,7 +52,7 @@ public:
         assert(xsink);
 
         // unhandled exceptions will appear on stdout
-        ReferenceHolder<QoreListNode> args(new QoreListNode, xsink);
+        ReferenceHolder<QoreListNode> args(new QoreListNode(autoTypeInfo), xsink);
         args->push(new QoreStringNode(filename), xsink);
         ValueHolder bufHolder(self->evalMethod("open", *args, xsink), xsink);
         //printd(5, "AbstractXmlIoInputCallback::match() '%s': %d\n", filename, (int)(bool)bufHolder);
@@ -77,7 +77,7 @@ public:
         assert(xsink);
 
         // unhandled exceptions will appear on stdout
-        ReferenceHolder<QoreListNode> args(new QoreListNode, xsink);
+        ReferenceHolder<QoreListNode> args(new QoreListNode(autoTypeInfo), xsink);
         args->push(len, xsink);
         ValueHolder bufHolder(input_stream->evalMethod("read", *args, xsink), xsink);
         //printd(5, "AbstractXmlIoInputCallback::read() %d: %d\n", len, (bool)bufHolder);

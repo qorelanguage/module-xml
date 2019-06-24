@@ -7,7 +7,7 @@
 
     Qore Programming Language
 
-    Copyright 2003 - 2018 Qore Technologies, s.r.o.
+    Copyright 2003 - 2019 Qore Technologies, s.r.o.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -1290,7 +1290,7 @@ QoreHashNode* parse_xmlrpc_response(ExceptionSink* xsink, const QoreString* msg,
    if ((nt = reader.nodeTypeSkipWhitespace()) != XML_READER_TYPE_END_ELEMENT)
       return qore_xml_hash_exception("PARSE-XMLRPC-RESPONSE-ERROR", "expecting 'methodResponse' end element", xsink, *str);
 
-   QoreHashNode* h = new QoreHashNode;
+   QoreHashNode* h = new QoreHashNode(autoTypeInfo);
    if (fault)
       h->setKeyValue("fault", v.getValue(), 0);
    else
@@ -1441,7 +1441,7 @@ static QoreHashNode* parse_xmlrpc_call(const QoreStringNode* xml, const QoreStri
     if (!method_name)
         return (QoreHashNode*)qore_xml_exception("PARSE-XMLRPC-CALL-ERROR", "expecting method name", xsink);
 
-    ReferenceHolder<QoreHashNode> h(new QoreHashNode, xsink);
+    ReferenceHolder<QoreHashNode> h(new QoreHashNode(autoTypeInfo), xsink);
     h->setKeyValue("methodName", new QoreStringNode(method_name), 0);
 
     // get methodName close tag

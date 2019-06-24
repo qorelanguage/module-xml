@@ -5,7 +5,7 @@
 
     Qore Programming Language
 
-    Copyright (C) 2006 - 2018 Qore Technologies, s.r.o.
+    Copyright (C) 2006 - 2019 Qore Technologies, s.r.o.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -38,7 +38,7 @@ protected:
     ReferenceHolder<QoreHashNode> info;
 
 public:
-    DLLLOCAL HTTPInfoRefHelper(const ReferenceNode *n_ref, QoreStringNode *msg, ExceptionSink *n_xsink) : ref(n_ref), xsink(n_xsink), info(new QoreHashNode, xsink) {
+    DLLLOCAL HTTPInfoRefHelper(const ReferenceNode *n_ref, QoreStringNode *msg, ExceptionSink *n_xsink) : ref(n_ref), xsink(n_xsink), info(new QoreHashNode(autoTypeInfo), xsink) {
         info->setKeyValue("request", msg, xsink);
     }
     DLLLOCAL ~HTTPInfoRefHelper() {
@@ -80,7 +80,7 @@ static QoreHashNode *make_xmlrpc_call(QoreHttpClientObject* client, QoreStringNo
     if (client->getEncoding() != QCS_UTF8) {
         QoreString str(client->getEncoding()->getCode());
         str.tolwr();
-        hdr = new QoreHashNode;
+        hdr = new QoreHashNode(autoTypeInfo);
         str.prepend("text/xml;charset=");
         hdr->setKeyValue("Content-Type", new QoreStringNode(str.getBuffer()), xsink);
     }

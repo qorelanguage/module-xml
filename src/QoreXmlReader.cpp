@@ -4,7 +4,7 @@
 
     Qore Programming Language
 
-    Copyright (C) 2003 - 2018 Qore Technologies, s.r.o.
+    Copyright (C) 2003 - 2019 Qore Technologies, s.r.o.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -141,14 +141,14 @@ QoreValue QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* da
             QoreValue n = xstack.getValue();
             // if there is no node pointer, then make a hash
             if (n.isNothing()) {
-                QoreHashNode* h = new QoreHashNode;
+                QoreHashNode* h = new QoreHashNode(autoTypeInfo);
                 xstack.setNode(h);
                 xstack.push(h->getKeyValueReference(name), depth);
             }
             else { // node ptr already exists
                 QoreHashNode* h = n.getType() == NT_HASH ? n.get<QoreHashNode>() : nullptr;
                 if (!h) {
-                    h = new QoreHashNode;
+                    h = new QoreHashNode(autoTypeInfo);
                     xstack.setNode(h);
                     h->setKeyValue("^value^", n, xsink);
                     xstack.incValueCount();
@@ -168,7 +168,7 @@ QoreValue QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* da
                             // if it's not a list, then make into a list with current value as first entry
                             if (!vl) {
                                 QoreValue& vp = h->getKeyValueReference(name);
-                                vl = new QoreListNode;
+                                vl = new QoreListNode(autoTypeInfo);
                                 vl->push(v, xsink);
                                 vp = vl;
                             }
@@ -187,7 +187,7 @@ QoreValue QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* da
                                 // if it's not a list, then make into a list with current value as first entry
                                 if (!vl) {
                                     QoreValue& vp = h->getKeyValueReference(lk);
-                                    vl = new QoreListNode;
+                                    vl = new QoreListNode(autoTypeInfo);
                                     vl->push(v, xsink);
                                     vp = vl;
                                 }
@@ -211,7 +211,7 @@ QoreValue QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* da
             }
             // add attributes to structure if possible
             if (hasAttributes()) {
-                ReferenceHolder<QoreHashNode> h(new QoreHashNode, xsink);
+                ReferenceHolder<QoreHashNode> h(new QoreHashNode(autoTypeInfo), xsink);
                 while (moveToNextAttribute(xsink) == 1) {
                     const char* aname = constName();
                     QoreStringNode* value = getValue(data_ccsid, xsink);
@@ -223,7 +223,7 @@ QoreValue QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* da
                     return QoreValue();
 
                 // make new new a hash and assign "^attributes^" key
-                QoreHashNode* nv = new QoreHashNode;
+                QoreHashNode* nv = new QoreHashNode(autoTypeInfo);
                 nv->setKeyValue("^attributes^", h.release(), xsink);
                 xstack.setNode(nv);
             }
@@ -252,7 +252,7 @@ QoreValue QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* da
                         }
                     }
                     else { // convert value to hash and save value node
-                        h = new QoreHashNode;
+                        h = new QoreHashNode(autoTypeInfo);
                         xstack.setNode(h);
                         h->setKeyValue("^value^", n, xsink);
                         xstack.incValueCount();
@@ -289,7 +289,7 @@ QoreValue QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* da
                     }
                 }
                 else { // convert value to hash and save value node
-                    QoreHashNode* h = new QoreHashNode;
+                    QoreHashNode* h = new QoreHashNode(autoTypeInfo);
                     xstack.setNode(h);
                     if (!n.isNothing()) {
                         h->setKeyValue("^value^", n, xsink);
@@ -322,7 +322,7 @@ QoreValue QoreXmlReader::getXmlData(ExceptionSink* xsink, const QoreEncoding* da
                     }
                 }
                 else { // convert value to hash and save value node
-                    QoreHashNode* h = new QoreHashNode;
+                    QoreHashNode* h = new QoreHashNode(autoTypeInfo);
                     xstack.setNode(h);
                     if (!n.isNothing()) {
                         h->setKeyValue("^value^", n, xsink);
