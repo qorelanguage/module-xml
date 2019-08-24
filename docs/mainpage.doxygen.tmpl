@@ -331,7 +331,9 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @subsection xml15 xml Module Version 1.5
     <b>Changes and Bug Fixes in This Release</b>
-   - fixed the return types of deserializtion to avoid type stripping
+    - fixed bugs in serializing some classes in the <a href="../../WSDL/html/index.html">WSDL</a> module
+      (<a href="https://github.com/qorelanguage/qore/issues/3517">issue 3517</a>)
+    - fixed the return types of deserialization to avoid type stripping
       (<a href="https://github.com/qorelanguage/qore/issues/3432">issue 3432</a>)
     - updated the <a href="../../SoapClient/html/index.html">SoapClient</a> and
       <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> modules to support the updated
