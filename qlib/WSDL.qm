@@ -3427,7 +3427,7 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
 #! describes the message body for a SOAP operational binding message description
 /** @see https://www.w3.org/TR/wsdl#_soap:body
 */
-public class WSDL::BindingMessageBodyDescription {
+public class WSDL::BindingMessageBodyDescription inherits Serializable {
     public {
         #! required attribute
         /** if @ref Qore::True "True", then use = \c "encoded" (each message part references an abstract type using the \c type attribute),
@@ -3460,7 +3460,7 @@ public class WSDL::BindingMessageBodyDescription {
 }
 
 #! describes a SOAP message header for a SOAP operational binding message description
-public class WSDL::BindingMessageHeaderDescription {
+public class WSDL::BindingMessageHeaderDescription inherits Serializable {
     public {
         #! message part name
         string part;
@@ -3491,7 +3491,7 @@ public class WSDL::BindingMessageHeaderDescription {
 #! describes MIME content information for SOAP operational binding message descriptions
 /** @see https://www.w3.org/TR/wsdl#_mime:content
  */
-public class WSDL::BindingContentDescription {
+public class WSDL::BindingContentDescription inherits Serializable {
     public {
         #! specifies the name of the message part
         string part;
@@ -3550,7 +3550,7 @@ public class WSDL::BindingContentDescription {
 #! describes a mimeXml payload for a SOAP operational binding message description
 /** @see https://www.w3.org/TR/wsdl#_mime:mimeXml
  */
-public class WSDL::MimeXmlMessageDescription {
+public class WSDL::MimeXmlMessageDescription inherits Serializable {
     public {
         #! refers to a message part defining the concrete schema of the root XML element
         /** The part references a concrete schema using the element attribute for simple parts or type attribute for composite parts
@@ -3564,7 +3564,7 @@ public class WSDL::MimeXmlMessageDescription {
 }
 
 #! describes an input or output message in a SOAP operational binding
-public class WSDL::BindingMessageDescription {
+public class WSDL::BindingMessageDescription inherits Serializable {
     public {
         #! the description of the message body
         *WSDL::BindingMessageBodyDescription body;
@@ -4005,7 +4005,7 @@ class WSDL::NamespacePrefixHelper {
 }
 
 #! namespace container class
-public class WSDL::Namespaces {
+public class WSDL::Namespaces inherits Serializable {
     public {
         # options are here since this object is passed through all serialization and deserialization
         bool opt_empty_string_is_nothing = False;
