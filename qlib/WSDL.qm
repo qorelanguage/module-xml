@@ -3030,9 +3030,11 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
         return rh;
     }
 
-    auto deserializeMessageImpl(WSOperation op, hash<auto> o, bool request) {
+    auto deserializeMessageImpl(WSOperation op, hash<auto> orig_msg, bool request) {
         #printf("DEBUG: deserializeSoapMessage(%N, %y)\n", o, request);
         string io = request ? "input" : "output";
+        # NOTE: types must be stripped on "o"; cannot use hash<auto> here
+        hash o = orig_msg;
         WSDL::XsdBase::removeNS2(\o);
         WSDL::XsdBase::removeNS2(\o.Envelope);
         hash<auto> hrv;
