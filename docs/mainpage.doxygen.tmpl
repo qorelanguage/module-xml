@@ -331,6 +331,8 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @subsection xml15 xml Module Version 1.5
     <b>Changes and Bug Fixes in This Release</b>
+    - fixed a bug where serialization errors were not thrown wtih unserializable data types
+      (<a href="https://github.com/qorelanguage/qore/issues/3588">issue 3588</a>)
     - fixed bugs in serializing some classes in the <a href="../../WSDL/html/index.html">WSDL</a> module
       (<a href="https://github.com/qorelanguage/qore/issues/3517">issue 3517</a>)
     - fixed the return types of deserialization to avoid type stripping
