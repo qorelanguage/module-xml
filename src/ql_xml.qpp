@@ -39,27 +39,27 @@
 
 // list of libxml2 element type names
 static const char* xml_element_type_names[] = {
-   "XML_ELEMENT_NODE",
-   "XML_ATTRIBUTE_NODE",
-   "XML_TEXT_NODE",
-   "XML_CDATA_SECTION_NODE",
-   "XML_ENTITY_REF_NODE",
-   "XML_ENTITY_NODE",
-   "XML_PI_NODE",
-   "XML_COMMENT_NODE",
-   "XML_DOCUMENT_NODE",
-   "XML_DOCUMENT_TYPE_NODE",
-   "XML_DOCUMENT_FRAG_NODE",
-   "XML_NOTATION_NODE",
-   "XML_HTML_DOCUMENT_NODE",
-   "XML_DTD_NODE",
-   "XML_ELEMENT_DECL",
-   "XML_ATTRIBUTE_DECL",
-   "XML_ENTITY_DECL",
-   "XML_NAMESPACE_DECL",
-   "XML_XINCLUDE_START",
-   "XML_XINCLUDE_END",
-   "XML_DOCB_DOCUMENT_NODE"
+    "XML_ELEMENT_NODE",
+    "XML_ATTRIBUTE_NODE",
+    "XML_TEXT_NODE",
+    "XML_CDATA_SECTION_NODE",
+    "XML_ENTITY_REF_NODE",
+    "XML_ENTITY_NODE",
+    "XML_PI_NODE",
+    "XML_COMMENT_NODE",
+    "XML_DOCUMENT_NODE",
+    "XML_DOCUMENT_TYPE_NODE",
+    "XML_DOCUMENT_FRAG_NODE",
+    "XML_NOTATION_NODE",
+    "XML_HTML_DOCUMENT_NODE",
+    "XML_DTD_NODE",
+    "XML_ELEMENT_DECL",
+    "XML_ATTRIBUTE_DECL",
+    "XML_ENTITY_DECL",
+    "XML_NAMESPACE_DECL",
+    "XML_XINCLUDE_START",
+    "XML_XINCLUDE_END",
+    "XML_DOCB_DOCUMENT_NODE"
 };
 
 #define XETN_SIZE (sizeof(xml_element_type_names) / sizeof(char*))
@@ -316,19 +316,20 @@ static int concat_simple_value(ExceptionSink* xsink, QoreString &str, const Qore
             date->format(str, opts.m_dateFormat.c_str());
             return 0;
         }
-    }
 
-    if (opts.m_useNumericRefs && t == NT_STRING) {
-        if (str.concatEncode(xsink, *n.get<const QoreStringNode>(),
-                            CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
+        case NT_STRING:
+            break;
+
+        default:
+            // issue #3588: throw an exception for unsupported types
+            xsink->raiseException("MAKE-XML-ERROR", "cannot serialize type '%s'", n.getTypeName());
             return -1;
-        return 0;
     }
 
-    QoreStringValueHelper temp(n);
-    if (str.concatEncode(xsink, **temp, CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
+    assert(t == NT_STRING);
+    if (str.concatEncode(xsink, *n.get<const QoreStringNode>(),
+                        CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
         return -1;
-
     return 0;
 }
 
@@ -370,179 +371,160 @@ QoreStringNode* make_xml(ExceptionSink* xsink, const QoreHashNode &h, const Make
 }
 
 static void add_xml_element(ExceptionSink* xsink, const char* key, QoreString &str, const QoreValue n, int indent, const MakeXmlOpts &opts) {
-   //QORE_TRACE("add_xml_element()");
+    //QORE_TRACE("add_xml_element()");
 
-   if (n.isNothing()) {
-      str.concat('<');
-      str.concat(key);
-      str.concat("/>");
-      return;
-   }
+    if (n.isNothing()) {
+        str.concat('<');
+        str.concat(key);
+        str.concat("/>");
+        return;
+    }
 
-   qore_type_t ntype = n.getType();
+    qore_type_t ntype = n.getType();
 
-   if (ntype == NT_LIST) {
-      const QoreListNode* l = n.get<const QoreListNode>();
-      // iterate through the list
-      int ls = l->size();
-      if (ls) {
-         for (int j = 0; j < ls; j++) {
-            QoreValue v = l->retrieveEntry(j);
-            // indent all but first entry if necessary
-            if (j && opts.m_formatWithWhitespaces) {
-               str.concat('\n');
-               str.addch(' ', indent);
+    if (ntype == NT_LIST) {
+        const QoreListNode* l = n.get<const QoreListNode>();
+        // iterate through the list
+        int ls = l->size();
+        if (ls) {
+            for (int j = 0; j < ls; j++) {
+                QoreValue v = l->retrieveEntry(j);
+                // indent all but first entry if necessary
+                if (j && opts.m_formatWithWhitespaces) {
+                    str.concat('\n');
+                    str.addch(' ', indent);
+                }
+
+                add_xml_element(xsink, key, str, v, indent, opts);
             }
+        } else {    // close node
+            str.concat('<');
+            str.concat(key);
+            str.concat("/>");
+        }
+        return;
+    }
 
-            add_xml_element(xsink, key, str, v, indent, opts);
-         }
-      }
-      else {    // close node
-         str.concat('<');
-         str.concat(key);
-         str.concat("/>");
-      }
-      return;
-   }
+    // open node
+    str.concat('<');
+    str.concat(key);
 
-   // open node
-   str.concat('<');
-   str.concat(key);
-
-   if (ntype == NT_HASH) {
-      const QoreHashNode* h = n.get<const QoreHashNode>();
-      // inc = ignore node counter, see if special keys exists and increment counter even if they have no value
-      qore_size_t inc = 0;
-      int vn = 0;
-      bool exists;
-      QoreValue value;
-      QoreValue v = h->getKeyValueExistence("^value^", exists);
-      if (exists) {
-         vn++;
-         if (v.isNothing()) {
-            inc++;
-         } else {
-            value = v;
-         }
-         // find all ^value*^ nodes
-         QoreString val;
-         while (true) {
-            val.sprintf("^value%d^", vn);
-            v = h->getKeyValueExistence(val.getBuffer(), exists);
-            if (!exists) {
-               break;
-            }
-            else if (v.isNothing()) // if the node exists but there is no value, then skip
-               inc++;
-            else
-               value = v;
+    if (ntype == NT_HASH) {
+        const QoreHashNode* h = n.get<const QoreHashNode>();
+        // inc = ignore node counter, see if special keys exists and increment counter even if they have no value
+        qore_size_t inc = 0;
+        int vn = 0;
+        bool exists;
+        QoreValue value;
+        QoreValue v = h->getKeyValueExistence("^value^", exists);
+        if (exists) {
             vn++;
-         }
-      }
-
-      int cn = 0;
-      v = h->getKeyValueExistence("^comment^", exists);
-      if (exists) {
-         cn++;
-         if (v.isNothing())
-            inc++;
-         // find all ^comment*^ nodes
-         QoreString val;
-         while (true) {
-            val.sprintf("^comment%d^", cn);
-            v = h->getKeyValueExistence(val.getBuffer(), exists);
-            if (!exists) {
-               break;
+            if (v.isNothing()) {
+                inc++;
+            } else {
+                value = v;
             }
-            else if (v.isNothing()) // if the node exists but there is no value, then skip
-               inc++;
+            // find all ^value*^ nodes
+            QoreString val;
+            while (true) {
+                val.sprintf("^value%d^", vn);
+                v = h->getKeyValueExistence(val.getBuffer(), exists);
+                if (!exists) {
+                    break;
+                }
+                else if (v.isNothing()) // if the node exists but there is no value, then skip
+                    inc++;
+                else
+                    value = v;
+                vn++;
+            }
+        }
+
+        int cn = 0;
+        v = h->getKeyValueExistence("^comment^", exists);
+        if (exists) {
             cn++;
-         }
-      }
-      QoreValue attrib = h->getKeyValueExistence("^attributes^", exists);
-      if (exists)
-         inc++;
-
-      // add attributes for objects
-      if (attrib.getType() == NT_HASH) {
-         const QoreHashNode* ah = attrib.get<const QoreHashNode>();
-         // add attributes to node
-         ConstHashIterator hi(ah);
-         while (hi.next()) {
-            const char* tkey = hi.getKey();
-            str.sprintf(" %s=\"", tkey);
-            QoreValue v = hi.get();
-            if (!v.isNothing()) {
-               if (v.getType() == NT_STRING) {
-                  if (str.concatEncode(xsink, v.get<const QoreStringNode>(),
-                                       CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
-                     return;
-               }
-               else { // convert to string and add
-                  QoreStringValueHelper temp(v);
-                  str.concat(*temp, xsink);
-               }
+            if (v.isNothing())
+                inc++;
+            // find all ^comment*^ nodes
+            QoreString val;
+            while (true) {
+                val.sprintf("^comment%d^", cn);
+                v = h->getKeyValueExistence(val.getBuffer(), exists);
+                if (!exists) {
+                    break;
+                }
+                else if (v.isNothing()) // if the node exists but there is no value, then skip
+                    inc++;
+                cn++;
             }
-            str.concat('\"');
-         }
-      }
+        }
+        QoreValue attrib = h->getKeyValueExistence("^attributes^", exists);
+        if (exists)
+            inc++;
 
-      //printd(5, "inc: %d vn: %d\n", inc, vn);
+        // add attributes for objects
+        if (attrib.getType() == NT_HASH) {
+            const QoreHashNode* ah = attrib.get<const QoreHashNode>();
+            // add attributes to node
+            ConstHashIterator hi(ah);
+            while (hi.next()) {
+                const char* tkey = hi.getKey();
+                str.sprintf(" %s=\"", tkey);
+                QoreValue v = hi.get();
+                if (!v.isNothing()) {
+                    if (v.getType() == NT_STRING) {
+                        if (str.concatEncode(xsink, v.get<const QoreStringNode>(),
+                                            CE_XML | (opts.m_useNumericRefs ? CE_NONASCII : 0)))
+                            return;
+                    } else { // convert to string and add
+                        QoreStringValueHelper temp(v);
+                        str.concat(*temp, xsink);
+                    }
+                }
+                str.concat('\"');
+            }
+        }
 
-      // if there are no more elements, close node immediately
-      if (h->size() == inc) {
-         str.concat("/>");
-         return;
-      }
+        //printd(5, "inc: %d vn: %d\n", inc, vn);
 
-      // close node
-      str.concat('>');
-
-      // print value without CRLF
-      if (!value.isNothing() && h->size() == (inc + 1)) {
-         if (concat_simple_value(xsink, str, value, opts))
+        // if there are no more elements, close node immediately
+        if (h->size() == inc) {
+            str.concat("/>");
             return;
-      }
-      else { // add additional elements and formatting only if the additional elements exist
-         if (opts.m_formatWithWhitespaces && !vn) {
-            str.concat('\n');
-         }
-         auto innerOpts = opts;
-         if (vn)
-             innerOpts.m_formatWithWhitespaces = false;
-         make_xml(xsink, str, *h, indent + 2, innerOpts);
-         // indent closing entry
-         if (opts.m_formatWithWhitespaces && !vn) {
-            str.concat('\n');
-            str.addch(' ', indent);
-         }
-      }
-   }
-   else {
-      // close node
-      str.concat('>');
+        }
 
-      if (ntype == NT_OBJECT) {
-         const QoreObject *o = n.get<const QoreObject>();
-         // get snapshot of data
-         QoreHashNodeHolder h(o->copyData(xsink), xsink);
-         if (!*xsink) {
-            if (opts.m_formatWithWhitespaces)
-               str.concat('\n');
-            make_xml(xsink, str, *(*h), indent + 2, opts);
+        // close node
+        str.concat('>');
+
+        // print value without CRLF
+        if (!value.isNothing() && h->size() == (inc + 1)) {
+            if (concat_simple_value(xsink, str, value, opts))
+                return;
+        } else { // add additional elements and formatting only if the additional elements exist
+            if (opts.m_formatWithWhitespaces && !vn) {
+                str.concat('\n');
+            }
+            auto innerOpts = opts;
+            if (vn)
+                innerOpts.m_formatWithWhitespaces = false;
+            make_xml(xsink, str, *h, indent + 2, innerOpts);
             // indent closing entry
-            if (opts.m_formatWithWhitespaces)
-               str.addch(' ', indent);
-         }
-      }
-      else
-         concat_simple_value(xsink, str, n, opts);
-   }
+            if (opts.m_formatWithWhitespaces && !vn) {
+                str.concat('\n');
+                str.addch(' ', indent);
+            }
+        }
+    } else {
+        // close node
+        str.concat('>');
+        concat_simple_value(xsink, str, n, opts);
+    }
 
-   // close node
-   str.concat("</");
-   str.concat(key);
-   str.concat('>');
+    // close node
+    str.concat("</");
+    str.concat(key);
+    str.concat('>');
 }
 
 static int make_xml(ExceptionSink* xsink, QoreString &str, const QoreHashNode &h, int indent, const MakeXmlOpts &opts) {

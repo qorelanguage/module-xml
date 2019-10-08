@@ -228,6 +228,8 @@ class XmlTest inherits QUnit::Test {
     }
 
     xmlTestCase() {
+        assertThrows("MAKE-XML-ERROR", \make_xml(), {"a": new Mutex()});
+
         hash o = Hash;
         hash mo = ("o": o);
         string str = make_xml("o", o);
