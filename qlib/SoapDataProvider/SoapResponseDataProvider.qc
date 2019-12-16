@@ -43,14 +43,14 @@ public class SoapResponseDataProvider inherits SoapDataProviderBase {
 
     #! Returns the data provider name
     string getName() {
-        return webservice.getName() + "/" + op.name + "/" + "request";
+        return webservice.getName() + "/" + op.name + "/" + "reresponsequest";
     }
 
     #! Returns data provider info
     hash<DataProviderInfo> getInfo() {
         hash<DataProviderInfo> rv({
             "name": getName(),
-            "has_record": True,
+            "supports_request": True,
         });
         rv += getStaticInfoImpl();
         return rv;

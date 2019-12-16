@@ -61,7 +61,7 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
             "name": getName(),
             "supports_read": True,
             "supports_request": True,
-            "has_record": True,
+            "has_record": exists getRecordType(),
         });
         rv += getStaticInfoImpl();
         return rv;
@@ -71,9 +71,24 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     /** Returns the record type description for any successful response
     */
     *hash<string, AbstractDataField> getRecordType() {
+        AbstractDataProviderType type = op.output.getDataProviderType();
+        if (type.getBaseTypeCode() == NT_LIST && (*hash<string, AbstractDataField> rv = type.getElementType().getFields())) {
+            return rv;
+        }
     }
 
-    #! Makes a request and returned the response
+    #! Returns the description of a response message, if this object represents a response message
+    /** If the object is a request message, then any successful response message should be returned here as well
+
+        @return the response type for this response message
+
+        @throw INVALID-OPERATION the data provider does not support the request API
+    */
+    private *AbstractDataProviderType getResponseTypeImpl() {
+        return op.output.getDataProviderType();
+    }
+
+    #! Makes a request and returns the response
     /**
         @param request_options the request options; will be processed by validateRequestOptions()
 
@@ -125,7 +140,7 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     private SoapClient getSoapClient() {
         if (!soapclient) {
             soapclient = new SoapClient({
-                "wsdl": webservice.getWebService(),
+                "wsdl": webservice,
             });
         }
         return soapclient;
