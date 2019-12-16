@@ -20,6 +20,10 @@ noinst_HEADERS = src/QC_XmlDoc.h \
 
 USER_MODULES = qlib/XmlRpcHandler.qm qlib/WSDL.qm qlib/SoapClient.qm qlib/SoapHandler.qm qlib/XmlRpcConnection.qm qlib/SalesforceSoapClient.qm
 
+USER_SPLIT_MODULES = qlib/SoapDataProvider
+
+SoapDataPRovider_moddir= $(moddir)/SoapDataProvider
+
 EXTRA_DIST = COPYING.LGPL COPYING.MIT AUTHORS README \
 	RELEASE-NOTES \
 	src/QC_XmlDoc.qpp \
@@ -47,18 +51,35 @@ dist_mod_DATA = $(USER_MODULES)
 dist_bin_SCRIPTS = bin/soaputil
 
 if COND_DOXYGEN
-DOX = xml SoapClient SoapHandler WSDL XmlRpcHandler SalesforceSoapClient XmlRpcConnection
-DOXYGEN_OUTPUT=docs/xml/html docs/XmlRpcHandler/html docs/WSDL/html docs/SoapClient/html docs/SoapHandler/html docs/SalesforceSoapClient/html docs/XmlRpcConnection/html
+USER_MODS = $(basename $(notdir $(USER_MODULES)))
+USER_SPLIT_MODS = $(basename $(notdir $(USER_SPLIT_MODULES)))
+DOXYGEN_OUTPUT = docs/xml/html $(addprefix docs/,$(addsuffix /html,$(USER_MODS) $(USER_SPLIT_MODS)))
 DOXYFILES = docs/doxyfile docs/mainpage.doxygen
 DOXYFILES_SRC = docs/doxyfile.tmpl docs/qlib/Doxyfile.tmpl docs/footer_template.html
-QLIB_TMP_DOXYFILES = docs/qlib/XmlRpcHandler.qm.dox.h docs/qlib/Doxyfile.XmlRpcHandler \
+TMP_MOD_TARG = docs/qlib/XmlRpcHandler.qm.dox.h docs/qlib/Doxyfile.XmlRpcHandler \
 	docs/qlib/SoapClient.qm.dox.h docs/qlib/Doxyfile.SoapClient \
 	docs/qlib/SoapHandler.qm.dox.h docs/qlib/Doxyfile.SoapHandler \
 	docs/qlib/WSDL.qm.dox.h docs/qlib/Doxyfile.WSDL \
 	docs/qlib/SalesforceSoapClient.qm.dox.h docs/qlib/Doxyfile.SalesforceSoapClient \
 	docs/qlib/XmlRpcConnection.qm.dox.h
+QLIB_TMP_DOXYFILES = $(TMP_MOD_TARG) $(addsuffix .tag,$(USER_MODS) $(USER_SPLIT_MODS))
 QDX = qdx
-DX_CLEANFILES = ${DOXYFILES} $(QLIB_TMP_DOXYFILES)
+
+DOXYFILE_SPLIT_TARG = $(addprefix docs/qlib/Doxyfile.,$(USER_SPLIT_MODS))
+$(DOXYFILE_SPLIT_TARG): docs/qlib/Doxyfile.%: docs/qlib/Doxyfile.tmp $(QDX_DEP)
+	$(QDX) -M=qlib/$*:qlib/$*.qm -txml.tag=../../xml/html -tWSDL.tag=../../WSDL/html $< $@
+
+TMP_MOD_SPLIT_TARG = $(addprefix docs/qlib/,$(addsuffix .qm,$(USER_SPLIT_MODS)))
+$(TMP_MOD_SPLIT_TARG): docs/qlib/%.qm: qlib/% $(QDX_DEP)
+	$(QDX) $< $@
+
+TMP_MOD_HTML_TARG = $(addsuffix /html,$(addprefix docs/,$(USER_SPLIT_MODS)))
+$(TMP_MOD_HTML_TARG): docs/%/html: docs/qlib/%.qm docs/qlib/Doxyfile.%
+	$(MKDIR_P) $@
+	cd docs; $(DOXYGEN_CMD) qlib/Doxyfile.$*
+	$(QDX) --post $@ $@/search
+
+DX_CLEANFILES = ${DOXYFILES} $(QLIB_TMP_DOXYFILES) $(DOXYFILE_SPLIT_TARG) docs/qlib/Doxyfile.tmp
 
 docs/qlib/Doxyfile.tmp: docs/qlib/Doxyfile.tmpl
 	sed s:__USERMODDIR__:${usermoddir}: $< > $@
@@ -103,7 +124,7 @@ docs/WSDL/html: docs/qlib/WSDL.qm.dox.h docs/qlib/Doxyfile.WSDL
 	cd docs; $(DOXYGEN_CMD) qlib/Doxyfile.WSDL
 	$(QDX) --post docs/WSDL/html docs/WSDL/html/search
 
-docs/qlib/Doxyfile.XmlRpcHandler: docs/qlib/Doxyfile.tmpl
+docs/qlib/Doxyfile.XmlRpcHandler: docs/qlib/Doxyfile.tmp
 	$(QDX) -M=qlib/XmlRpcHandler.qm:qlib/XmlRpcHandler.qm.dox.h -txml.tag=../../xml/html $< $@
 
 docs/qlib/XmlRpcHandler.qm.dox.h: qlib/XmlRpcHandler.qm
@@ -140,7 +161,7 @@ EXTRA_DIST += $(DOXYGEN_OUTPUT)
 html-local: $(DOXYGEN_OUTPUT)
 
 install-html-local:
-	for dox in $(DOX); do $(MKDIR_P) $(DESTDIR)$(datadir)/$(PACKAGE)/docs/$$dox/html/search; done
+	for dox in xml $(USER_MODS) $(USER_SPLIT_MODS); do $(MKDIR_P) $(DESTDIR)$(datadir)/$(PACKAGE)/docs/$$dox/html/search; done
 	for dir in $(DOXYGEN_OUTPUT); do \
 	   for f in $$dir/*; do if [ -f $$f ]; then $(INSTALL_DATA) $$f $(DESTDIR)$(datadir)/$(PACKAGE)/$$dir; fi; done; \
 	   for f in $$dir/search/*; do $(INSTALL_DATA) $$f $(DESTDIR)$(datadir)/$(PACKAGE)/$$dir/search; done; \
