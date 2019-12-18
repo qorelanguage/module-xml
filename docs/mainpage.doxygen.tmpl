@@ -28,6 +28,7 @@
     - <a href="../../WSDL/html/index.html">WSDL user module</a>
     - <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient user module</a>
     - <a href="../../SoapClient/html/index.html">SoapClient user module</a>
+    - <a href="../../SoapDataProvider/html/index.html">SoapDataProvider user module</a>
     - <a href="../../SoapHandler/html/index.html">SoapHandler user module</a>
     - <a href="../../XmlRpcConnection/html/index.html">XmlRpcConnection user module</a>
     - <a href="../../XmlRpcHandler/html/index.html">XmlRpcHandler user module</a>
@@ -54,13 +55,13 @@
     First, a straightforward example:
 
     @code
-hash h = (
-    "record": (
-        "name": (
+hash<auto> h = {
+    "record": {
+        "name": {
             "first": "Fred", "last": "Smith",
-        ),
-    ),
-);
+        },
+    },
+};
 printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
 
     This produces the following result
@@ -81,14 +82,14 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
     For example:
 
     @code
-hash h = (
-    "record": (
-        "^attributes^": ("type": "customer"),
-        "name": (
+hash<auto> h = {
+    "record": {
+        "^attributes^": {"type": "customer"},
+        "name": {
             "first": "Fred", "last": "Smith",
-        ),
-    ),
-);
+        },
+    },
+};
 printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
 
     This produces the following results:
@@ -106,12 +107,12 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
     If instead we wanted to have text instead of child data under the "record" node, we must set the \c "^value^" key of the hash along with the \c "^attributes^" key as follows:
 
     @code
-hash h = (
-    "record": (
-        "^attributes^": ("type": "customer"),
+hash<auto> h = {
+    "record": {
+        "^attributes^": {"type": "customer"},
         "^value^": "NO-RECORD",
-    ),
-);
+    },
+};
 printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
 
     Giving the following results:
@@ -124,13 +125,13 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
     Arrays are serialized with repeating node names as follows:
 
     @code
-hash h = (
-    "record": (
-        "part": (
+hash<auto> h = {
+    "record": {
+        "part": {
             "part-02-05", "part-99-23", "part-34-28",
-        ),
-    ),
-);
+        },
+    },
+};
 printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
 
     Producing the following results:
@@ -152,8 +153,8 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
     It's not possible to use a list, because text is required in between. As described earlier, the \c "^value^" hash key can be used to serialize text in an XML string. In this case, we need to have several text nodes and several code nodes in a mixed-up order to give us the XML string we want. Because qore hases have unique keys (we can't use the same key twice in the same hash), we resort to a key naming trick that allows us to virtually duplicate our key names and therefore arrive at the XML string we want. We do this by appending a \c '^' character to the end of the key name and then some unique text. When serializing hash keys, any text after (and including) the \c '^' character is ignored, therefore we can add unique text to the special XML element name prefix to ensure that the input hash contains the data needed so that it will be serialized in the right order to the XML string as in the following example:
 
     @code
-hash h = (
-    "para": (
+hash<auto> h = {
+    "para": {
         "^value^": "Keywords: ",
         "code" : "this",
         "^value^1" : ", ",
@@ -161,8 +162,8 @@ hash h = (
         "^value^2" : ", and ",
         "code^2" : "the_other",
         "^value^3" : ".",
-    ),
-);
+    },
+};
 printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
 
     Resulting in:
@@ -180,14 +181,14 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
     Comments can be serialized by using the \c "^comment^" XML element prefix (as with other special element prefixes, arbitrary text can appear after the \c "^comment^" prefix to make the element name unique) as in the following example:
 
     @code
-hash h = (
-    "record": (
-        "^attributes^": ("type": "customer"),
+hash<auto> h = {
+    "record": {
+        "^attributes^": {"type": "customer"},
         "^comment^1": "values correspond to customer reference values",
         "^value^": "NO-RECORD",
         "^comment^2": "see docs for more info",
-    ),
-);
+    },
+};
 printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     @endcode
 
@@ -333,6 +334,8 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     <b>Changes and Bug Fixes in This Release</b>
     - fixed a bug where serialization errors were not thrown wtih unserializable data types
       (<a href="https://github.com/qorelanguage/qore/issues/3588">issue 3588</a>)
+    - added support for the data provider API
+      (<a href="https://github.com/qorelanguage/qore/issues/3545">issue 3545</a>)
     - fixed bugs in serializing some classes in the <a href="../../WSDL/html/index.html">WSDL</a> module
       (<a href="https://github.com/qorelanguage/qore/issues/3517">issue 3517</a>)
     - fixed the return types of deserialization to avoid type stripping

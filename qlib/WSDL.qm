@@ -29,7 +29,10 @@
 %requires xml
 
 # need mime definitions
-%requires Mime >= 1.3.4.1
+%requires Mime >= 1.4.2
+
+# data provider
+%requires(reexport) DataProvider
 
 # do not use $ for vars
 %new-style
@@ -40,7 +43,7 @@
 %disable-warning unreferenced-variable
 
 module WSDL {
-    version = "0.4";
+    version = "0.5";
     desc = "WSDL module providing functionality for SOAP";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -75,6 +78,9 @@ module WSDL {
     - <a href="../../SoapHandler/html/index.html">SoapHandler user module</a>
 
     @section wsdlrelnotes WSDL Module Release Notes
+
+    @subsection wsdl_0_5 WSDL v0.5
+    - added support for the data provider API
 
     @subsection wsdl_0_4 WSDL v0.4
     - added support for serializing and deserilizing WebService objects
@@ -718,6 +724,7 @@ public class WSDL::XsdAbstractType inherits WSDL::XsdNamedData {
 
     abstract auto serialize(Namespaces nsc, auto val, *softbool omitType);
     abstract auto deserialize(string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto val);
+    abstract AbstractDataProviderType getDataProviderType();
 }
 
 #! class for XSD base types
@@ -746,8 +753,7 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
             type = any_type_map{val.type()};
             if (!type)
                 throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize xsd type anyType from Qore type %y", val.type());
-        }
-        else {
+        } else {
             type = name;
         }
         switch (type) {
@@ -1058,6 +1064,48 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
             }
         }
     }
+
+    AbstractDataProviderType getDataProviderType() {
+        Type type = getDataProviderBaseType();
+        return AbstractDataProviderType::get(type);
+    }
+
+    Type getDataProviderBaseType() {
+        switch (name) {
+            case "byte":
+            case "short":
+            case "int":
+            case "unsignedByte":
+            case "unsignedShort":
+            case "unsignedInt":
+            case "unsignedLong":
+            case "negativeInteger":
+            case "nonNegativeInteger":
+            case "nonPositiveInteger":
+            case "positiveInteger":
+                return IntType;
+
+            case "date":
+            case "dateTime":
+            case "time":
+                return DateType;
+
+            case "boolean":
+                return BoolType;
+
+            case "token":
+            case "normalizedString":
+                return StringType;
+
+            case "base64Binary":
+            case "hexBinary":
+            case "binary":
+                return BinaryType;
+        }
+
+        # for anyType or any unknown type
+        return AbstractDataProviderType::anyType;
+    }
 }
 
 #! class for XSD array types; currently only supports single dimensional arrays
@@ -1080,6 +1128,10 @@ public class WSDL::XsdArrayType inherits WSDL::XsdAbstractType {
         else {
             finalized = True;
         }
+    }
+
+    AbstractDataProviderType getDataProviderType() {
+        return new ListDataType(elementType.getDataProviderType());
     }
 
     finalize(hash<string, XsdAbstractType> tmap, Namespaces nsc) {
@@ -1236,8 +1288,7 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         if (a.type) {
             if (!nsc.doType(a.type, \typeinfo, \type))
                 unresolved.add(self);
-        }
-        else if (e.simpleType)
+        } else if (e.simpleType)
             type = new XsdSimpleType(e.simpleType, nsc, unresolved, usedocns, sprintf("simpleType for element %y", name));
         else if (e.hasKey("complexType")) {
             type = new XsdComplexType(e.complexType, nsc, unresolved, usedocns, sprintf("complexType for element %y", name));
@@ -1245,13 +1296,16 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
                 minOccurs = 0;
             if (type.isNillable() && !exists a.nillable)
                 nillable = True;
-        }
-        else if (e."^attributes^".ref) {
+        } else if (e."^attributes^".ref) {
             # issue #2786: must resolve ns prefixes immediately as with late resolution the context may be different
             (ref_ns, ref) = (e."^attributes^".ref =~ x/^([^:]*):(.*)$/);
             ref_ns = nsc.getNamespaceUri(ref_ns);
             unresolved.add(self);
         }
+    }
+
+    AbstractDataProviderType getDataProviderType() {
+        return type.getDataProviderType();
     }
 
     assimilate(WSDL::XsdElement other) {
@@ -1383,7 +1437,6 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
         list<XsdAbstractType> unionTypes;
         XsdSimpleType unionSimpleType;
         XsdAbstractType type;
-        #any type;
         bool usedocns;
     }
 
@@ -1408,8 +1461,7 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
 
             if (r.enumeration)
                 enum = map {$1."^attributes^".value: True}, r.enumeration;
-        }
-        else if (st.union) {
+        } else if (st.union) {
             hash<auto> u = st.union;
             *string memberTypes = u."^attributes^".memberTypes;
             if (memberTypes) {
@@ -1418,8 +1470,7 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
                     hash<auto> typeinfo;
                     if (nsc.doType(str, \typeinfo, \type)) {
                         unionTypes += type;
-                    }
-                    else {
+                    } else {
                         union += typeinfo;
                     }
                 }
@@ -1432,15 +1483,17 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
             if (union) {
                 unresolved.add(self);
             }
-        }
-        else if (st.list) {
+        } else if (st.list) {
             throw "XSD-SIMPLETYPE-ERROR", sprintf("unsupported list definition in simpleType %y", name);
-        }
-        else {
+        } else {
             throw "XSD-SIMPLETYPE-ERROR", sprintf("missing restriction, union, or list element in simpleType %y", name);
         }
 
         #printf("DEBUG: st: %y\n", self); exit();
+    }
+
+    AbstractDataProviderType getDataProviderType() {
+        return type.getDataProviderType();
     }
 
     auto serialize(Namespaces nsc, auto val, *softbool omitType) {
@@ -1464,8 +1517,7 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
             foreach XsdAbstractType t in (unionTypes) {
                 try {
                     return rh + t.serialize(nsc, val, omitType);
-                }
-                catch (hash<ExceptionInfo> ex) {
+                } catch (hash<ExceptionInfo> ex) {
                     exl += ex;
                 }
             }
@@ -1482,8 +1534,7 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
             foreach XsdAbstractType t in (unionTypes) {
                 try {
                     return t.deserialize(en, tmap, mrh, val);
-                }
-                catch (hash<ExceptionInfo> ex) {
+                } catch (hash<ExceptionInfo> ex) {
                     exl += ex;
                 }
             }
@@ -1593,15 +1644,13 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
 
                             elementmap = parseElements(seq.element, unresolved, nsc);
                             cx_type = XET_SEQUENCE;
-                        }
-                        else {
+                        } else {
                             array = new XsdArrayType(name, ns ?? "unknown", aa.arrayType, nsc, unresolved);
                         }
 
                         #printf("DEBUG: ans: %y atn: %y aa: %y\n", ans, atn, aa);
                         return;
-                    }
-                    else {
+                    } else {
                         restriction = tn;
                     }
                 }
@@ -1609,8 +1658,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 delete d.restriction."^attributes^";
 
                 parseData(d.restriction, unresolved, nsc);
-            }
-            else if (d.extension) {
+            } else if (d.extension) {
                 extension = d.extension."^attributes^".base;
 
                 # FIXME: check for soap encoding namespace
@@ -1619,11 +1667,9 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 WSDL::XsdBase::removeNS(\d.extension);
 
                 parseData(d.extension, unresolved, nsc);
-            }
-            else
+            } else
                 throw "XSD-COMPLEXCONTENT-ERROR", sprintf("can't parse complexContent %y %y information", getName(), d.firstKey());
-        }
-        else if (ct.simpleContent) {
+        } else if (ct.simpleContent) {
             d = ct.simpleContent;
             WSDL::XsdBase::removeNS(\d);
             cx_type = XET_SIMPLE;
@@ -1634,8 +1680,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             remove d.extension."^attributes^";
             WSDL::XsdBase::removeNS(\d.extension);
             parseAttributes(\d.extension, unresolved, nsc);
-        }
-        else if (ct)
+        } else if (ct)
             parseData(ct, unresolved, nsc);
         else {
             # empty complex type
@@ -1659,9 +1704,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             cast<XsdComplexType>(t).finalize(tmap, nsc);
             elementmap = cast<hash<string, XsdElement>>(cast<XsdComplexType>(t).elementmap + elementmap);
             #printf("DEBUG: extended %s with %s (%y)\n", name, restriction, cast<XsdComplexType>(t).elementmap.keys());
-        }
-        # process extension info
-        else if (extension) {
+        } else if (extension) {
+            # process extension info
             XsdAbstractType t = tmap_get(tmap, extension);
             if (!(t instanceof XsdComplexType))
                 throw WSDL_ERROR, sprintf("cannot extend complexType %y with type %y", name, t.name);
@@ -1706,13 +1750,11 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             cx_type = XET_ALL;
             WSDL::XsdBase::removeNS(\d.all);
             elementmap = parseElements(d.all.element, unresolved, nsc);
-        }
-        else if (k == "choice") {
+        } else if (k == "choice") {
             cx_type = XET_CHOICE;
             WSDL::XsdBase::removeNS(\d.choice);
             elementmap = parseElements(d.choice.element, unresolved, nsc);
-        }
-        else if (k == "sequence") {
+        } else if (k == "sequence") {
             cx_type = XET_SEQUENCE;
             WSDL::XsdBase::removeNS(\d.sequence);
             if (d.sequence.element)
@@ -1729,8 +1771,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                     choices += ech;
                 }
             }
-        }
-        else
+        } else
             throw "XSD-COMPLEXTYPE-ERROR", sprintf("unknown keys in %y", d);
     }
 
@@ -1788,6 +1829,26 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return h;
     }
 
+    AbstractDataProviderType getDataProviderType() {
+        if (array) {
+            return array.getDataProviderType();
+        }
+        switch (cx_type) {
+            case XET_SIMPLE:
+                return simpleType.getDataProviderType();
+
+            case XET_SEQUENCE:
+            case XET_ALL: {
+                HashDataType rv(name);
+                map rv.addField(new QoreDataField($1.key, NOTHING, $1.value.getDataProviderType())), elementmap.pairIterator();
+                return rv;
+            }
+
+            case XET_NONE:
+                return AbstractDataProviderType::get(AbstractDataProviderType::nothingType);
+        }
+    }
+
     private *hash<auto> serializeElement(Namespaces nsc, string key, XsdElement element, auto h, *softbool omitType) {
         auto v = h{key};
         string e_ons;
@@ -1810,7 +1871,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
     }
 
     *hash<auto> serialize(Namespaces nsc, auto h, *softbool omitType) {
-        if (exists array) {
+        if (array) {
             return array.serialize(nsc, h, omitType);
         }
 
@@ -1844,8 +1905,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             if (exists h."^value^")
                 h = h."^value^";
             rh."^value^" = simpleType.serialize(nsc, h, omitType);
-        }
-        else if (cx_type != XET_NONE) {
+        } else if (cx_type != XET_NONE) {
             if (exists h && h.typeCode() != NT_HASH)
                 throw SOAP_SERIALIZATION_ERROR, sprintf("expecting hash<auto> argument to serialize from complexType %y (got %y, type %y)", getName(), h, type(h));
 
@@ -1897,8 +1957,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             else { # "choice" - union
                 rh = serializeChoice(nsc, elementmap, h, omitType, False);
             }
-        }
-        else { # "none"
+        } else { # "none"
             rh."^value^" = NOTHING;
         }
 
@@ -2005,8 +2064,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 rh = sv;
             else
                 rh."^value^" = sv;
-        }
-        else if (cx_type != XET_NONE) {
+        } else if (cx_type != XET_NONE) {
             if (exists val && val.typeCode() != NT_HASH)
                 throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize element %y type %y from qore type %y (expecting hash)", en, getName(), val.type());
 
@@ -2035,8 +2093,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 delete val."^attributes^";
                 if (val)
                     throw SOAP_DESERIALIZATION_ERROR, sprintf("invalid element %y passed in type %y for element %y (expecting %y)", (keys val)[0], getName(), en, keys elementmap);
-            }
-            else { # "choice" - union
+            } else { # "choice" - union
                 rh += parseChoice(val, elementmap, en, tmap, mrh, True);
             }
         }
@@ -2372,7 +2429,6 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         #! args keys are part names for types reps. element names for element. Definition must provide unique values.
         hash<string, hash<WSDL::ArgInfo>> args;
 
-        #! part map; maps element names to part names
         #! maps part names to args key, all parts are in hash
         hash<string, string> pmap;
 
@@ -2408,18 +2464,19 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
                     throw WSDL_ERROR, sprintf("ambiguous element name %y in message %y", ename, name);
 
                 # is unique name required or not ?
-                if (!args{ename})
-                    args{ename} = new hash<ArgInfo>();
-                args{ename}.part = part.name;
+                if (!args{ename}) {
+                    args{ename} = <ArgInfo>{
+                        "name": part.name,
+                    };
+                }
                 pmap{part.name} = ename;
-
+                args{ename}.part = part.name;
                 args{ename}.element = emap_get(emap, nsc.getNamespaceUri(ns), ename);
-            }
-            else {
+            } else {
                 if (args{part.name})
                     throw WSDL_ERROR, sprintf("part name collides with element %y in message %y, ", part.name, name);
                 hash<auto> h;
-                args{part.name} = cast<hash<ArgInfo>>(part{("name", "part")});
+                args{part.name} = cast<hash<ArgInfo>>(part{"name", "part"});
                 if (!nsc.doType(part.type, \h, \args{part.name}.type, tmap))
                     throw WSDL_ERROR, sprintf("cannot resolve type %y for element %y in message %y", part.type, part.name, name);
                 pmap{part.name} = part.name;
@@ -2427,11 +2484,20 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         }
     }
 
+    #! Returns the data provider type for this message
+    AbstractDataProviderType getDataProviderType() {
+        HashDataType rv(name);
+        map rv.addField(new QoreDataField($1.name, NOTHING,
+            $1.type ? $1.type.getDataProviderType() : $1.element.getDataProviderType())),
+            args.iterator();
+        return rv;
+    }
+
     /**
         Just serialize value and return namespace
         @param ons is reference to string
     */
-    auto serializeRpcValue(string part, bool encoded, reference h, reference ons) {
+    auto serializeRpcValue(string part, bool encoded, reference<hash<auto>> h, reference<string> ons) {
         string key = pmap{part};
         auto v = getValueFromHash(key, \h, True);
         if (!exists v) {
@@ -2450,8 +2516,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         if (args{key}.element) {
             hv = args{key}.element.serialize(nsc, v, !encoded, key, name);
             ons = nsc.getOutputNamespacePrefix(args{key}.element.ns);
-        }
-        else {
+        } else {
             hv = args{key}.type.serialize(nsc, v, !encoded);
             ons = args{key}.type.getOutputNamespacePrefix();
         }
@@ -2468,7 +2533,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         @param h data to be serialized, keys are wsdl element names (or optionally the part name) and part names for simple types
         @param fault @ref True if serializing a fault response
      */
-    *hash<auto> serializeRpc(*softlist<auto> parts, *WSDL::BindingMessageDescription msginfo, *MultiPartRelatedMessage mpm, string n_name, bool encoded, reference h, bool fault) {
+    *hash<auto> serializeRpc(*softlist<auto> parts, *WSDL::BindingMessageDescription msginfo, *MultiPartRelatedMessage mpm, string n_name, bool encoded, reference<auto> h, bool fault) {
         hash<auto> rh;
         #printf("DEBUG: message %s: parts: %y, pmap: %y, h: %y\n", name , parts, pmap, ,h);
         foreach string part in (parts ?? keys pmap) {
@@ -2516,7 +2581,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
         @param h data to be serialized, keys are wsdl element names (optionally part name is also possible) and part names for simple types
         @param fault @ref True if serializing a fault response
      */
-    *hash<auto> serializeDocument(*softlist<auto> parts, *WSDL::BindingMessageDescription msginfo, *MultiPartRelatedMessage mpm, bool encoded, reference h, bool fault) {
+    *hash<auto> serializeDocument(*softlist<auto> parts, *WSDL::BindingMessageDescription msginfo, *MultiPartRelatedMessage mpm, bool encoded, reference<auto> h, bool fault) {
         hash<auto> rh;
 
         #printf("DEBUG: WSMessage::serializeDocument() parts: %y h: %y args: %y, pmap: %y\n", parts, h.typeCode()==NT_HASH ?  h.keys() : h, args.keys(), pmap);
@@ -2707,7 +2772,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
 
         @return resolved value, if not found then returns NOTHING
     */
-    private:internal auto getValueFromHash(string ename, reference v, bool removeFound) {
+    private:internal auto getValueFromHash(string ename, reference<auto> v, bool removeFound) {
         #printf("DEBUG: WSMessage::getValueFromHash() ename: %y v: %y rF: %y args: %y args{%y}.part: %y\n", ename, v, removeFound, args.keys(), ename, args{ename}.part);
 
         auto rv;
@@ -2749,7 +2814,7 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
     }
 
     #! when only one arg then try to get values based on element keys
-    private:internal auto getValueFromHash(*WSDL::XsdElement element, reference v, bool removeFound) {
+    private:internal auto getValueFromHash(*WSDL::XsdElement element, reference<auto> v, bool removeFound) {
         if (!element) return;
         if (element.type instanceof WSDL::XsdComplexType) {
             XsdComplexType type = cast<WSDL::XsdComplexType>(element.type);
@@ -2954,8 +3019,7 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
                 # bmd.body.encoded == False = literal encoding
                 #printf("parts: %y, args: %y\n", bmd.body.parts, msg.args.keys());
                 body = msg.serializeDocument(bmd.body.parts, bmd, mpm, encoded, \val, fault);
-            }
-            else {
+            } else {
                 string mname = (request ? op.output_name : op.input_name) ?? (op.name + (request ? "" : "Response"));
                 body = msg.serializeRpc(bmd.body.parts, bmd, mpm, mname, encoded, \val, fault);
             }
@@ -4449,6 +4513,16 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         #! flag if the object has a "try_import" closure or call reference
         bool has_try_import = False;
 
+        #! the name of the WebService
+        /** @since %WSDL 0.5
+        */
+        string name;
+
+        #! the digest of the WSDL source
+        /** @since %WSDL 0.5
+        */
+        string hash_str;
+
         #! namespace container
         transient Namespaces nsc;
 
@@ -4503,17 +4577,41 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         doInit(str, opts);
     }
 
+    #! returns the name of the service
+    /** @return the name of the service
+
+        @since %WSDL 0.5
+    */
+    string getName() {
+        return name;
+    }
+
+    #! returns a unique hash for the WSDL that can be used to compare schemas for equality
+    /** @return a unique hash for the WSDL that can be used to compare schemas for equality
+
+        @since %WSDL 0.5
+    */
+    synchronized string getHash() {
+        if (!hash_str) {
+            hash_str = digest("sha256", wsdl).toHex();
+        }
+        return hash_str;
+    }
+
     #! returns the given operation or throws an exception if it cannot be found; operations are searched in portTypes in the order they are declared
+    /** @throw WSDL-OPERATION-ERROR if the operation is unknown
+    */
     WSDL::WSOperation getOperation(string opname) {
         foreach hash<auto> pt in (portType.iterator()) {
             if (pt.operations{opname})
                 return pt.operations{opname};
         }
-        throw "WSDL-OPERATION-ERROR", sprintf("cannot retrieve operation %y; known operations: %y", opname, (foldl $1 + $2, (map $1.operations.keys(), portType.iterator())));
+        throw "WSDL-OPERATION-ERROR", sprintf("cannot retrieve operation %y; known operations: %y", opname,
+            (foldl $1 + $2, (map $1.operations.keys(), portType.iterator())));
     }
 
     #! returns a list of known operation names
-    softlist<auto> getOperationNames() {
+    softlist<string> getOperationNames() {
         return foldl $1 + $2, (map keys $1.operations, portType.iterator());
     }
 
@@ -4954,6 +5052,10 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         # remove namespace (normally "wsdl:") prefix from keys if present
         WSDL::XsdBase::removeNS(\h);
         WSDL::XsdBase::removeNS(\h.definitions);
+
+        # set name
+        name = h.service."^attributes^".name ?? "unknown";
+
         nsc = new Namespaces(h.definitions."^attributes^");
         if (opts.compat_empty_string_is_nothing || global_compat_empty_string_is_nothing) {
             nsc.opt_empty_string_is_nothing = True;
