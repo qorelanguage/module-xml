@@ -75,7 +75,7 @@ xml module.
 
 %files doc
 %defattr(-,root,root,-)
-%doc docs/xml docs/XmlRpcHandler test examples
+%doc docs/xml docs/XmlRpcHandler docs/SalesforceSoapClient docs/SoapClient docs/SoapDataProvider docs/SoapHandler docs/WSDL docs/XmlRpcConnection test examples
 
 %prep
 %setup -q
