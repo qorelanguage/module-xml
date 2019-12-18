@@ -22,7 +22,8 @@ USER_MODULES = qlib/XmlRpcHandler.qm qlib/WSDL.qm qlib/SoapClient.qm qlib/SoapHa
 
 USER_SPLIT_MODULES = qlib/SoapDataProvider
 
-SoapDataPRovider_moddir= $(moddir)/SoapDataProvider
+SoapDataProvider_moddir= $(moddir)/SoapDataProvider
+dist_SoapDataProvider_mod_DATA = $(wildcard qlib/SoapDataProvider/*.q[cm])
 
 EXTRA_DIST = COPYING.LGPL COPYING.MIT AUTHORS README \
 	RELEASE-NOTES \
