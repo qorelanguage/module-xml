@@ -43,11 +43,15 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
 
         #! The key name for responses not in hash format
         const ResponseSearchKey = "_response";
+
+        #! If the request supports a list of hashes in the response and therefore the record API
+        *hash<string, AbstractDataField> record_type;
     }
 
     #! Creates the object from the arguments
     constructor(WebService webservice, *SoapClient soapclient, WSOperation op) : SoapDataProviderBase(webservice, op) {
         self.soapclient = soapclient;
+        record_type = getRecordTypeIntern();
     }
 
     #! Returns the data provider name
@@ -71,10 +75,12 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     /** Returns the record type description for any successful response
     */
     *hash<string, AbstractDataField> getRecordType() {
-        AbstractDataProviderType type = op.output.getDataProviderType();
-        if (type.getBaseTypeCode() == NT_LIST && (*hash<string, AbstractDataField> rv = type.getElementType().getFields())) {
-            return rv;
-        }
+        return record_type;
+    }
+
+    #! Returns the description of a successful request message, if any
+    private *AbstractDataProviderType getRequestTypeImpl() {
+        return op.input.getDataProviderType();
     }
 
     #! Returns the description of a response message, if this object represents a response message
@@ -88,16 +94,21 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
         return op.output.getDataProviderType();
     }
 
-    #! Makes a request and returns the response
-    /**
+    #! Returns a hash of error responses, if any
+    private *hash<string, AbstractDataProviderType> getErrorResponseTypesImpl() {
+        return cast<*hash<string, AbstractDataProviderType>>(map {
+            $1.key: $1.value.getDataProviderType(),
+        }, op.getFaultMessages().pairIterator());
+    }
+
+    #! Makes a request and returned the response
+    /** @param req the request to serialize and make according to the request type
         @param request_options the request options; will be processed by validateRequestOptions()
 
         @return the response to the request
-
-        @throw INVALID-OPERATION the data provider does not support the request API
     */
-    private auto doRequestImpl(*hash<auto> request_options) {
-        return doRequestIntern(request_options);
+    private auto doRequestImpl(auto req, *hash<auto> request_options) {
+        return doRequestIntern(req, request_options);
     }
 
     #! Returns an iterator for zero or more records matching the search options
@@ -118,18 +129,19 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
                 i = new ListIterator(resp.response);
                 break;
             default:
-                i = new SingleValueIterator({ResponseSearchKey: resp.response});
+                throw "SOAP-SEARCH-ERROR", sprintf("the response has type %y, which does not support searching",
+                    resp.response.type());
                 break;
         }
         return new DefaultRecordIterator(i, where_cond);
     }
 
     #! Makes a REST request and returns the response
-    private hash<auto> doRequestIntern(*hash<auto> options) {
+    private hash<auto> doRequestIntern(auto req, *hash<auto> options) {
         SoapClient soap = getSoapClient();
         # make the call
         hash<auto> info;
-        auto resp = soap.callOperation(op.name, options.args, options, \info);
+        auto resp = soap.callOperation(op.name, req, options, \info);
         return {
             "response": resp,
             "info": info,
@@ -150,9 +162,9 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     private hash<DataProviderInfo> getStaticInfoImpl() {
         hash<DataProviderInfo> rv = SoapDataProvider::ProviderInfo - "constructor_options";
         rv += {
-            "supports_read": True,
+            "supports_read": exists record_type,
             "supports_request": True,
-            "has_record": True,
+            "has_record": exists record_type,
         };
         rv.request_options = rv.search_options = getApiOptions();
         return rv;
@@ -161,11 +173,6 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     #! Returns API options for the current operation
     private *hash<string, hash<DataProviderOptionInfo>> getApiOptions() {
         return {
-            "args": <DataProviderOptionInfo>{
-                "type": getArgumentType(),
-                "required": isArgumentRequired(),
-                "desc": "SOAP request arguments",
-            },
             "soap_header": <DataProviderOptionInfo>{
                 "type": new HashDataType(),
                 "desc": "a hash giving SOAP header information, if required by the message",
@@ -190,6 +197,14 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
                     "used",
             },
         };
+    }
+
+    #! Returns the description of the record type, if any
+    private:internal *hash<string, AbstractDataField> getRecordTypeIntern() {
+        AbstractDataProviderType type = op.output.getDataProviderType();
+        if (type.getBaseTypeCode() == NT_LIST && (*hash<string, AbstractDataField> rv = type.getElementType().getFields())) {
+            return rv;
+        }
     }
 }
 }

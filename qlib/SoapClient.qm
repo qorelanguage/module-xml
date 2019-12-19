@@ -25,16 +25,9 @@
 # make sure we have the required qore version
 %requires qore >= 0.9
 
-# requires XML functionality
 %requires(reexport) xml
-
-# requires the WSDL module
 %requires(reexport) WSDL
-
-# need mime definitions
 %requires(reexport) Mime >= 1.1
-
-# provides a connection class
 %requires(reexport) ConnectionProvider >= 1.1
 
 # do not use $ for vars
@@ -82,8 +75,8 @@ module SoapClient {
     @code{.py}
 %requires SoapClient
 SoapClient sc = new SoapClient(("wsdl" : "http://soap.server.org:8080/my-service?wsdl"));
-hash msg = getMessage();
-any result = sc.call("SubmitDocument", msg);
+hash<auto> msg = getMessage();
+auto result = sc.call("SubmitDocument", msg);
     @endcode
 
     The SoapClient::constructor() takes named arguments in the form of a hash; valid arguments are:
@@ -168,7 +161,7 @@ public namespace SoapClient {
             *code dbglogc;
 
             # send content encoding hash
-            *hash seh;
+            *hash<auto> seh;
         }
         #! @endcond
 
@@ -189,19 +182,19 @@ public namespace SoapClient {
                 "gzip": (
                     "ce": "gzip",
                     "func": \gzip(),
-                    ),
+                ),
                 "bzip2": (
                     "ce": "bzip2",
                     "func": \bzip2(),
-                    ),
+                ),
                 "deflate": (
                     "ce": "deflate",
                     "func": \compress(),
-                    ),
+                ),
                 "identity": (
                     "ce": NOTHING,
-                    ),
-                );
+                ),
+            );
 
             #! default threadhold for data compressions; transfers smaller than this size will not be compressed
             const CompressionThreshold = 1024;
@@ -221,7 +214,7 @@ public namespace SoapClient {
             - [\c dbglog]: a log closure or call reference taking a single string giving the debug log message
             - also all options from @ref SoapClient::SoapClient::HTTPOptions "SoapClient::HTTPOptions", which are passed to @ref Qore::HTTPClient::constructor() "HTTPClient::constructor()"
         */
-        constructor(hash h) : HTTPClient(h{HTTPOptions}) {
+        constructor(hash<auto> h) : HTTPClient(h{HTTPOptions}) {
             if (exists h.wsdl_file && exists h.wsdl)
                 throw "SOAP-CLIENT-ERROR", "only one of 'wsdl' or 'wsdl_file' keys can be given; both were passed";
 
@@ -230,8 +223,7 @@ public namespace SoapClient {
 
             if (h.wsdl instanceof WebService) {
                 wsdl = h.wsdl;
-            }
-            else {
+            } else {
                 *string def_path;
                 auto twsdl;
                 # get web service definition
@@ -250,12 +242,12 @@ public namespace SoapClient {
 
             # set service
             # get list of services in this wsdl
-            list svcl = wsdl.listServices();
+            list<auto> svcl = wsdl.listServices();
             if (svcl.size() > 1 && !h.service)
                 throw "SOAP-CLIENT-ERROR", sprintf("no 'service' key passed in the option hash argument to SoapClient::constructor() (WSDL defines the following services: %y)", (map $1.name, svcl));
             svc = h.service ?? svcl[0].name;
 
-            hash svch = wsdl.getService(svc);
+            hash<auto> svch = wsdl.getService(svc);
 
             # if no port is specified and there are multiple ports, take the first one for backwards-compatibility
             port = h.port ?? svch.port.firstKey();
@@ -311,7 +303,7 @@ public namespace SoapClient {
 
             @note content encoding is not applied here but rather internally by the call() methods
         */
-        hash getMsg(string operation, auto args, *hash<auto> soap_header, reference op, *hash<auto> http_header, *int xml_opts, *string soapaction) {
+        hash<auto> getMsg(string operation, auto args, *hash<auto> soap_header, reference<auto> op, *hash<auto> http_header, *int xml_opts, *string soapaction) {
             op = wsdl.getBindingOperation(binding, operation);
             hash msg = op.serializeRequest(args, soap_header, getEncoding(), NOTHING, xml_opts, soapaction, binding, http_header);
             return msg;
@@ -543,7 +535,7 @@ public namespace SoapClient {
         }
 
         #! returns a hash that can be used to ensure serialization with the XSD type given as the \a type argument
-        hash getType(string type, auto v) {
+        hash<auto> getType(string type, auto v) {
             return wsdl.getType(type, v);
         }
 
@@ -641,7 +633,7 @@ soap.addDefaultHeaders(("Accept-Encoding": "compress"));
         #! returns the hash of default headers to sent in all requests
         /** @par Example:
             @code{.py}
-hash h = soap.getDefaultHeaders();
+hash<auto> h = soap.getDefaultHeaders();
             @endcode
 
             @return the hash of default headers to sent in all requests
@@ -693,7 +685,7 @@ hash h = soap.getDefaultHeaders();
 
             @par Example:
             @code{.py}
-private nothing msglog(hash msg) {
+private nothing msglog(hash<auto> msg) {
     log(sprintf("%s:\n%s\n", msg.reason, msg.body));
 }
             @endcode
@@ -767,7 +759,7 @@ private nothing msglog(hash msg) {
 
             See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
          */
-        constructor(string name, string description, string url, hash attributes = {}, hash options = {})
+        constructor(string name, string description, string url, hash<auto> attributes = {}, hash<auto> options = {})
             : HttpBasedConnection(name, description, url, attributes, options) {
             constructorInit();
         }
@@ -811,7 +803,7 @@ private nothing msglog(hash msg) {
 
             @return a @ref SoapClient object
         */
-        private SoapClient getImpl(bool connect = True, *hash rtopts) {
+        private SoapClient getImpl(bool connect = True, *hash<auto> rtopts) {
             SoapClient sc(real_opts + rtopts.("log", "dbglog"));
             if (connect)
                 sc.connect();
@@ -835,13 +827,35 @@ private nothing msglog(hash msg) {
         }
 
         #! gets options
-        hash getOptions() {
+        hash<auto> getOptions() {
             return Options;
         }
 
         #! returns default options
-        *hash getDefaultOptions() {
+        *hash<auto> getDefaultOptions() {
             return HttpConnection::DefaultOptions;
+        }
+
+        #! returns a data provider object for this connection
+        /** @return a data provider object for this connection
+
+            @see hasDataProvider()
+        */
+        DataProvider::AbstractDataProvider getDataProvider() {
+            SoapClient soap = get();
+            # to avoid circular dependencies, this object loads the SwaggerDataProvider and creates the data provider
+            # object dynamically
+            load_module("SoapDataProvider");
+            return create_object("SoapDataProvider", soap.getWebService(), soap);
+        }
+
+        #! returns @ref True as this connection returns a data provider with the @ref getDataProvider() method
+        /** @return @ref True as this connection returns a data provider with the @ref getDataProvider() method
+
+            @see @ref getDataProvider()
+        */
+        bool hasDataProvider() {
+            return True;
         }
 
         #! DEPRECATED: static constructor
@@ -849,7 +863,7 @@ private nothing msglog(hash msg) {
          */
         deprecated
         static SoapConnection make(string name, string desc, string url, bool monitor, *hash<auto> opts, hash<auto> urlh) {
-            hash attributes = {
+            hash<auto> attributes = {
                 "monitor": monitor,
             };
 

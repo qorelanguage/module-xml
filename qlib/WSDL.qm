@@ -300,7 +300,12 @@ public class WSDL::WSDLLib {
             hc.setURL(url);
         else
             hc = new HTTPClient(("url": url));
-        string body = hc.get(path ? path : "/", headers);
+        string body;
+        try {
+            body = hc.get(path ? path : "/", headers);
+        } catch (hash<ExceptionInfo> ex) {
+            throw ex.err, sprintf("error loading WSDL from %y: %s", url, ex.desc), ex.arg;
+        }
         return as_string ? body : binary(body);
     }
 
@@ -2204,7 +2209,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
     }
 
     #! returns a hash of fault messages keyed by fault name
-    hash<string, WSMessage> getFaultMessages() {
+    *hash<string, WSMessage> getFaultMessages() {
         return faults;
     }
 
