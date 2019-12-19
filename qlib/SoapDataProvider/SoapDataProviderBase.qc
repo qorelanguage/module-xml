@@ -51,16 +51,6 @@ public class SoapDataProviderBase inherits AbstractDataProvider {
         self.op = op;
     }
 
-    #! Returns the type of the input message
-    AbstractDataProviderType getArgumentType() {
-        return op.input.getDataProviderType();
-    }
-
-    #! Returns True if the input message exists
-    bool isArgumentRequired() {
-        return exists op.input;
-    }
-
     #! Returns data provider static info
     private hash<DataProviderInfo> getStaticInfoImpl() {
         return SoapDataProvider::ProviderInfo - "constructor_options";

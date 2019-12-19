@@ -165,7 +165,7 @@ public class SoapDataProvider inherits AbstractDataProvider {
     private *AbstractDataProvider getChildProviderImpl(string name) {
         try {
             WSOperation op = webservice.getOperation(name);
-            return new SoapOperationDataProvider(webservice, soapclient, op);
+            return new SoapRequestDataProvider(webservice, soapclient, op);
         } catch (hash<ExceptionInfo> ex) {
             if (ex.err != "WSDL-OPERATION-ERROR") {
                 rethrow;
