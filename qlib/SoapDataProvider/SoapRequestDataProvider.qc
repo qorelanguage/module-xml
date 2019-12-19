@@ -140,12 +140,7 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     private hash<auto> doRequestIntern(auto req, *hash<auto> options) {
         SoapClient soap = getSoapClient();
         # make the call
-        hash<auto> info;
-        auto resp = soap.callOperation(op.name, req, options, \info);
-        return {
-            "response": resp,
-            "info": info,
-        };
+        return soap.callOperation(op.name, req, options);
     }
 
     #! Returns a REST client for HTTP operations
