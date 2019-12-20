@@ -84,7 +84,7 @@ public:
         if (!bufHolder)
             return -1;
         const BinaryNode* b = bufHolder->get<const BinaryNode>();
-        assert(b->size() <= len);
+        assert(b->size() <= (size_t)len);
         memcpy(buffer, b->getPtr(), b->size());
         return (int)b->size();
     }

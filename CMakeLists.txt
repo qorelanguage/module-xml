@@ -8,12 +8,14 @@ set (VERSION_PATCH 0)
 
 find_package(Qore 0.9 REQUIRED)
 find_package(LibXml2 REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBXML2_LIBRARIES})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBXML2_INCLUDE_DIR})
 
 include_directories( ${CMAKE_SOURCE_DIR}/src )
 include_directories( ${LIBXML2_INCLUDE_DIR} )
+include_directories( ${OPENSSL_INCLUDE_DIR} )
 include_directories( ${QORE_INCLUDE_DIR} )
 
 # Check for C++11.
