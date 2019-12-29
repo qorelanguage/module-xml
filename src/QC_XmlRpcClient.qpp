@@ -85,7 +85,7 @@ static QoreHashNode *make_xmlrpc_call(QoreHttpClientObject* client, QoreStringNo
         hdr->setKeyValue("Content-Type", new QoreStringNode(str.getBuffer()), xsink);
     }
 
-    ReferenceHolder<QoreHashNode> response(client->send("POST", 0, *hdr, msg->getBuffer(), msg->strlen(), true, info, xsink), xsink);
+    ReferenceHolder<QoreHashNode> response(client->send("POST", 0, *hdr, *msg, true, info, xsink), xsink);
     if (!response)
         return 0;
 
