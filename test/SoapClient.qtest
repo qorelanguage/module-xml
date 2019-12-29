@@ -32,11 +32,23 @@ const ResponseBody = ("result": 99.9);
 
 class TestSoapHandler inherits SoapHandler {
     public {
-        list msglogs;
+        list<hash<auto>> msglogs;
+        *Queue queue;
     }
-    constructor(HttpServer::AbstractAuthenticator auth, *code n_getLogMessage, bool dbg = False): SoapHandler(auth, n_getLogMessage, dbg) {}
 
-    nothing msglog(hash cx, hash msg) {
+    constructor(HttpServer::AbstractAuthenticator auth, *code n_getLogMessage, bool dbg = False, *Queue queue)
+        : SoapHandler(auth, n_getLogMessage, dbg) {
+        self.queue = queue;
+    }
+
+    hash<HttpResponseInfo> handleRequest(HttpListenerInterface listener, Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
+        if (queue) {
+            s.setEventQueue(queue, "server connection", True);
+        }
+        return SoapHandler::handleRequest(listener, s, cx, hdr, body);
+    }
+
+    nothing msglog(hash<auto> cx, hash<auto> msg) {
         push msglogs, msg;
     }
 }
@@ -45,19 +57,19 @@ class TestSoapServer inherits HttpServer {
     public {
         TestSoapHandler soap;
         string opname;
-        any mdata;
-        any rdata;
+        auto mdata;
+        auto rdata;
     }
 
     private {
         int verbose;
     }
 
-    constructor(WebService ws, int port, int verbose = 0) : HttpServer(\self.log(), \self.errlog(), verbose > 2) {
+    constructor(WebService ws, int port, int verbose = 0, *Queue queue) : HttpServer(\self.log(), \self.errlog(), verbose > 2) {
         self.verbose = verbose;
 
         # setup SOAP handler
-        soap = new TestSoapHandler(new PermissiveAuthenticator(), NOTHING, verbose > 2);
+        soap = new TestSoapHandler(new PermissiveAuthenticator(), NOTHING, verbose > 2, queue);
         setHandler("soap_prefix", "SOAP", MimeTypeSoapXml, soap, "soapaction", False);
         setDefaultHandler("soap", soap);
 
@@ -65,20 +77,22 @@ class TestSoapServer inherits HttpServer {
         soap.addMethod(ws, ws.getOperation("getInfo"), \getInfo(), NOTHING, NOTHING, NOTHING, "InfoService");
 
         # not yet supported
-        soap.addMethod(ws, ws.getOperation("urlRepl"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
-        soap.addMethod(ws, ws.getOperation("urlEncoded1"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
-#        soap.addMethod(ws, ws.getOperation("urlEncoded2"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
-        soap.addMethod(ws, ws.getOperation("getMimeXml"), \generalOutputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
-        soap.addMethod(ws, ws.getOperation("getBinary"), \generalOutputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b2");
+        soap.addMethod(ws, ws.getOperation("urlRepl"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b2");
+        soap.addMethod(ws, ws.getOperation("urlEncoded1"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b2");
+        soap.addMethod(ws, ws.getOperation("getMimeXml"), \generalOutputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b2");
+        soap.addMethod(ws, ws.getOperation("getBinary"), \generalOutputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b2");
 
-        soap.addMethod(ws, ws.getOperation("postForm"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
-        soap.addMethod(ws, ws.getOperation("postText"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
-        soap.addMethod(ws, ws.getOperation("postImg"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
-        soap.addMethod(ws, ws.getOperation("postImg2"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
-        soap.addMethod(ws, ws.getOperation("postImg3"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
-        soap.addMethod(ws, ws.getOperation("postData"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, /*path*/NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postForm"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postText"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postImg"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postImg2"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postImg3"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b3");
+        soap.addMethod(ws, ws.getOperation("postData"), \generalInputOnly(), NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, NOTHING, "b3");
 
         addListener(port);
+        if (queue) {
+            listeners.firstValue().setEventQueue(queue, "server", True);
+        }
     }
 
     hash getInfo(hash cx, hash h) {
@@ -136,18 +150,23 @@ class SoapClientTest inherits QUnit::Test {
             "port": "p,port=i",
             #"verbose": "verbose=i",  # already in Opts
             "host": "host=s",
+            "events": "e,show-events",
         );
 
-        const OptionColumn = 25;
         string url;
         int serverPort;
+
+        # event queue
+        Queue queue();
+
+        const OptionColumn = 25;
     }
 
     constructor() : QUnit::Test("SoapClientTest", "1.0", \ARGV, MyOpts) {
         WebService ws(WSDLLib::getFileFromURL(WsdlUrl));
 
         # start SOAP server server
-        server = new TestSoapServer(ws, m_options.port ?? DefaultPort, m_options.verbose);
+        server = new TestSoapServer(ws, m_options.port ?? DefaultPort, m_options.verbose, m_options.events ? queue : NOTHING);
         on_exit server.stop();
         serverPort = server.getListenerInfo(0).port;
         # when dual IPv4/IPv6 stack then may resolve gethostname() with unsupposed IP address where server is not listening
@@ -159,6 +178,11 @@ class SoapClientTest inherits QUnit::Test {
         addTestCase("HttpGetClientTest", \httpGetClientTest());
         addTestCase("HttpPostClientTest", \httpPostClientTest());
         addTestCase("SoapConnectionTest", \soapConnectionTest());
+
+        if (m_options.events) {
+            background eventThread();
+        }
+        on_exit if (m_options.events) queue.push();
 
         # execute tests
         set_return_value(main()); exit();
@@ -177,6 +201,10 @@ class SoapClientTest inherits QUnit::Test {
     soapClientTest() {
         #printf("url: %y\n", url);
         sc = new TestSoapClient(("wsdl": WsdlUrl, "port": "SoapPort", "url": url));
+
+        if (m_options.events) {
+            sc.setEventQueue(queue, "client", True);
+        }
 
         cleanMsgLog();
 
@@ -226,15 +254,19 @@ class SoapClientTest inherits QUnit::Test {
         #printf("url: %y\n", url);
         sc = new TestSoapClient(("wsdl": WsdlUrl, "port": "HttpGetPort", "url": url));
 
+        if (m_options.events) {
+            sc.setEventQueue(queue, "GET client", True);
+        }
+
         cleanMsgLog();
-        *hash h;
+        *hash<auto> h;
         assertThrows("HTTP-CLIENT-RECEIVE-ERROR", \sc.callOperation(), ("urlRepl", ("country": "CZ", "city": "Prague 2", "zip": 12000)));
         assertEq("/get/CZ/12000-Prague%202", sc.msglogs[0].path);
         assertEq(sc.msglogs[0].method, "GET");
 
         try {
             cleanMsgLog();
-            hash hi = ("country": "CZ", "city": "Prague_2", "zip": 12000);
+            hash<auto> hi = ("country": "CZ", "city": "Prague_2", "zip": 12000);
             h = sc.callOperation("urlEncoded1", hi);
             assertEq(server.opname, "urlEncoded1");
             assertEq(server.mdata, hi);
@@ -269,7 +301,12 @@ class SoapClientTest inherits QUnit::Test {
     httpPostClientTest() {
         #printf("url: %y\n", url);
         sc = new TestSoapClient(("wsdl": WsdlUrl, "port": "HttpPostPort", "url": url));
-        *hash h;
+
+        if (m_options.events) {
+            sc.setEventQueue(queue, "POST client", True);
+        }
+
+        *hash<auto> h;
         try {
             cleanMsgLog();
             hash hi = ("country": "CZ", "city": "Prague_2", "zip": 12000);
@@ -316,7 +353,6 @@ class SoapClientTest inherits QUnit::Test {
             assertEq(server.opname, "postData");
             assertEq(hi.payload."^attributes^"."^content-type^", sc.msglogs[0].header."Content-Type");
             assertEq(hi, server.mdata);
-
         } catch (hash<ExceptionInfo> ex) {
             printf("Exception: %s\n", get_exception_string(ex));
             rethrow;
@@ -332,45 +368,46 @@ class SoapClientTest inherits QUnit::Test {
 
         SoapConnection conn("test", "test", conn_url, False, ("target_url": url, "port": "SoapPort"), parse_url(conn_url));
         SoapClient sc2 = conn.get();
-        hash h = sc2.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": ""));
+        hash<auto> h = sc2.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": ""));
         assertEq(99.9, h.body.result);
         assertEq("ABC", h.docs);
         assertEq(binary(), h.logo);
 
-        hash<ConnectionConstructorInfo> conn_info = conn.getConstructorInfo();
-        assertEq("SoapClient", conn_info.module);
-        assertEq("SoapClient::SoapClient", conn_info.class_name);
-        assertEq(url, conn_info.args[0].target_url);
-        assertEq(url, conn_info.args[0].url);
-        assertEq(45s, conn_info.args[0].connect_timeout);
-        assertEq(45s, conn_info.args[0].timeout);
-        checkPreAndPostProcessing(conn_info);
+        # issue #3696: test connection serialization
+        SoapConnection conn2 = Serializable::deserialize(conn.serialize());
+        assertEq(conn.url, conn2.url);
     }
 
-    private checkPreAndPostProcessing(hash<ConnectionConstructorInfo> info) {
-        Program p(PO_NEW_STYLE | PO_STRICT_ARGS | PO_REQUIRE_TYPES);
-        if (info.module) {
-            p.loadModule(info.module);
-        }
-        if (info.pre_processing) {
-            string pre_processing = sprintf("sub pre_processing(reference<*softlist<auto>> args, bool connect, *hash rtopts) { %s }", info.pre_processing);
-            # ensure that the pre processing code can be parsed
-            p.parsePending(pre_processing, "pre processing");
-        }
-        if (info.post_processing) {
-            string post_processing = sprintf("sub post_processing(%s obj, bool connect, *hash rtopts) { %s }", info.class_name, info.post_processing);
-            # ensure that the post processing code can be parsed
-            p.parsePending(post_processing, "post processing");
-        }
+    private eventThread() {
+        while (True) {
+            # get a message from the event queue; a hash is returned with at
+            # least the following keys: "event" with the event code, and
+            # "source" with the event source identifier
 
-        if (info.pre_processing || info.post_processing) {
-            p.parseCommit();
-        }
-        if (info.pre_processing) {
-            assertTrue(True, "pre processing: " + info.class_name);
-        }
-        if (info.post_processing) {
-            assertTrue(True, "post processing: " + info.class_name);
+            *hash<auto> e = queue.get();
+
+            # stop listening when empty event posted to queue in constructor()
+            if (!e)
+                return;
+
+            if (e.data.typeCode() == NT_BINARY) {
+                string str = e.data.toString();
+                delete e.data;
+                for (int i = 0, int end = str.length(); i < end; ++i) {
+                    string char = str[i];
+                    int uc = char.getUnicode();
+                    if (uc < 32 || uc >= 127) {
+                        e.data += sprintf("<%x>", uc);
+                    } else {
+                        e.data += char;
+                    }
+                }
+            }
+
+            e.id = sprintf("%x", e.id);
+
+            printf("%s %s: %y\n", EVENT_SOURCE_MAP.(e.source), EVENT_MAP.(e.event), e - ("event", "source"));
+            flush(); # flush output
         }
     }
 }

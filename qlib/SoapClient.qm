@@ -43,7 +43,7 @@
 %enable-all-warnings
 
 module SoapClient {
-    version = "0.3";
+    version = "0.4";
     desc = "SoapClient module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -74,7 +74,7 @@ module SoapClient {
     Here is an example of how to use this module:
     @code{.py}
 %requires SoapClient
-SoapClient sc = new SoapClient(("wsdl" : "http://soap.server.org:8080/my-service?wsdl"));
+SoapClient sc = new SoapClient({"wsdl": "http://soap.server.org:8080/my-service?wsdl"});
 hash<auto> msg = getMessage();
 auto result = sc.call("SubmitDocument", msg);
     @endcode
@@ -99,6 +99,11 @@ auto result = sc.call("SubmitDocument", msg);
     - \c "timeout"
 
     @section soapclientrelnotes SoapClient Release Notes
+
+    @subsection soapclient_0_4 SoapClient v0.4
+    - removed the obsolete \c SoapConnection::getConstructorInfo() method as connection serialization is a
+      much more elegant and maintainable solution
+      (<a href="https://github.com/qorelanguage/qore/issues/3696">issue 3696</a>)
 
     @subsection soapclient_0_3 SoapClient v0.3
     - added the @ref SoapClient::SoapConnection::getConstructorInfo() "SoapConnection::getConstructorInfo()"
@@ -464,7 +469,15 @@ public namespace SoapClient {
             if (url_path) {
                 msg.path = rtrim(url_path, "/") + msg.path;
             }
-            msglog(('reason': 'request', 'method': msg.method, 'path': msg.path, 'header': hdr, 'content-type': msg."content-type" ?? msg.hdr."Content-Type" ?? msg.header."Content-Type", 'accept': msg.accept ?? msg.hdr.Accept ?? msg.header.Accept, 'body': msg.body));
+            msglog({
+                'reason': 'request',
+                'method': msg.method,
+                'path': msg.path,
+                'header': hdr,
+                'content-type': msg."content-type" ?? msg.hdr."Content-Type" ?? msg.header."Content-Type",
+                'accept': msg.accept ?? msg.hdr.Accept ?? msg.header.Accept,
+                'body': msg.body
+            });
             # apply content encoding here
             data body = msg.body ?? "";
             if (seh.ce && body.size() > CompressionThreshold) {
@@ -476,7 +489,8 @@ public namespace SoapClient {
             hash<auto> rh;
             try {
                 #printf("SoapClient::makeCallIntern: msg: %y\n", msg);
-                rh = send(body, msg.method, msg.path, hdr, True, \info);
+                # only try to read a message body in the response if the operation has an output message
+                rh = send(body, msg.method, msg.path, hdr, exists op.output, \info);
                 info."response-body" = rh.body;
                 http_status_code = rh.status_code;
             } catch (hash<ExceptionInfo> ex) {
@@ -808,22 +822,6 @@ private nothing msglog(hash<auto> msg) {
             if (connect)
                 sc.connect();
             return sc;
-        }
-
-        #! returns a hash that can be used to contruct the object dynamically
-        /** @since %SoapClient 0.3
-        */
-        private hash<ConnectionConstructorInfo> getConstructorInfoImpl() {
-            string my_pre_code = "args[0] += rtopts.(\"log\", \"dbglog\");";
-            string my_post_code = "if (connect) {obj.connect();}";
-
-            return new hash<ConnectionConstructorInfo>({
-                "module": "SoapClient",
-                "class_name": "SoapClient::SoapClient",
-                "args": real_opts,
-                "pre_processing": my_pre_code,
-                "post_processing": my_post_code,
-            });
         }
 
         #! gets options
