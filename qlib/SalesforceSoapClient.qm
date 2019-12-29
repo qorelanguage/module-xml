@@ -36,7 +36,7 @@
 %enable-all-warnings
 
 module SalesforceSoapClient {
-    version = "1.2";
+    version = "1.3";
     desc = "Salesforce SOAP Client Definition module";
     author = "Qore Technologies, s.r.o.";
     url = "http://qoretechnologies.com";
@@ -81,11 +81,16 @@ hash opts = (
 
 SalesforceSoapClient sc(opts);
 string ss = sprintf("select id, name, description, accountnumber from account where accountnumber = '%s'", AcctNo1);
-hash rh = sc.query(("queryString": ss));
+hash<auto> rh = sc.query({"queryString": ss});
 printf("%N\n", rh);
     @endcode
 
     @section salesforcesoapclientrelnotes SalesforceSoapClient Release Notes
+
+    @subsection salesfocesoapclient_1_3 SalesforceSoapClient v1.3
+    - removed the obsolete \c SalesforceSoapConnection::getConstructorInfo() method as connection serialization is a
+      much more elegant and maintainable solution
+      (<a href="https://github.com/qorelanguage/qore/issues/3696">issue 3696</a>)
 
     @subsection salesfocesoapclient_1_2 SalesforceSoapClient v1.2
     - added the @ref SalesforceSoapClient::SalesforceSoapConnection::getConstructorInfo() "SalesforceSoapConnection::getConstructorInfo()"
@@ -160,7 +165,7 @@ public namespace SalesforceSoapClient {
             - \c token: (required) Salesforce.com user API token
             - \c force_logout (optional) forces a logout when the SalesforceSoapClient object is destroyed; this should normally be @ref Qore::False "False" to allow for the session to remain valid
          */
-        constructor(hash opts) : SoapClient(opts) {
+        constructor(hash<auto> opts) : SoapClient(opts) {
             processOpts(opts);
         }
 
@@ -173,7 +178,7 @@ public namespace SalesforceSoapClient {
         }
 
         #! processes options given in the constructor()
-        private processOpts(hash opts) {
+        private processOpts(hash<auto> opts) {
             foreach string opt in (AuthorizationOpts) {
                 if (!opts{opt})
                     throw "SALESFORCE-SOAP-ERROR", sprintf("missing required option %y", opt);
@@ -243,7 +248,7 @@ public namespace SalesforceSoapClient {
 
             @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
          */
-        auto callOperation(string operation, auto args, *hash opts, *reference info) {
+        auto callOperation(string operation, auto args, *hash<auto> opts, *reference<auto> info) {
             lck.lock();
             on_exit lck.unlock();
 
@@ -282,7 +287,7 @@ public namespace SalesforceSoapClient {
 
             @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
          */
-        private auto callIntern(string operation, auto args, *hash opts, *reference info) {
+        private auto callIntern(string operation, auto args, *hash<auto> opts, *reference<auto> info) {
             # add session ID to SOAP call header
             if (sessionid)
                 opts.soap_header.sessionId = sessionid;
@@ -298,7 +303,7 @@ public namespace SalesforceSoapClient {
 
             @return the deserialized result of the SOAP call to the SOAP server
         */
-        auto call(string operation, auto args, *hash header) {
+        auto call(string operation, auto args, *hash<auto> header) {
             return callOperation(operation, args, ("soap_header": header));
         }
 
@@ -319,7 +324,7 @@ public namespace SalesforceSoapClient {
 
             @return the deserialized result of the SOAP call to the SOAP server
         */
-        auto call(string operation, auto args, reference info) {
+        auto call(string operation, auto args, reference<auto> info) {
             return callOperation(operation, args, NOTHING, \info);
         }
 
@@ -341,7 +346,7 @@ public namespace SalesforceSoapClient {
 
             @return the deserialized result of the SOAP call to the SOAP server
         */
-        auto call(reference info, string operation, auto args, *hash header) {
+        auto call(reference<auto> info, string operation, auto args, *hash<auto> header) {
             return callOperation(operation, args, ("soap_header": header), \info);
         }
 
@@ -464,7 +469,7 @@ public namespace SalesforceSoapClient {
 
             @throw SALESFORCE-SOAP-ERROR missing one or more of the required options: \c "username", \c "password", or \c "token"
          */
-        constructor(string name, string description, string url, hash attributes = {}, hash options = {})
+        constructor(string name, string description, string url, hash<auto> attributes = {}, hash<auto> options = {})
             : SoapConnection(name, description, url, attributes, options) {
             constructorInit();
         }
@@ -489,7 +494,7 @@ public namespace SalesforceSoapClient {
 
             @return a @ref SalesforceSoapClient object
         */
-        private SalesforceSoapClient getImpl(bool connect = True, *hash rtopts) {
+        private SalesforceSoapClient getImpl(bool connect = True, *hash<auto> rtopts) {
             hash callopts = real_opts + rtopts.("log", "dbglog");
             if (callopts.wsdl.typeCode() == NT_STRING)
                 callopts.wsdl = getWsdl(callopts.wsdl);
@@ -499,22 +504,6 @@ public namespace SalesforceSoapClient {
             if (connect)
                 sc.login();
             return sc;
-        }
-
-        #! returns a hash that can be used to contruct the object dynamically
-        /** @since %SalesforceSoapClient 1.1
-        */
-        private hash<ConnectionConstructorInfo> getConstructorInfoImpl() {
-            string my_pre_code = "*string def_path; string wsdl = WSDLLib::getWSDL(args[0].url, NOTHING, NOTHING, \def_path); args[0] += {\"wsdl\": new WebService(wsdl, {\"def_path\": def_path})} + rtopts.(\"log\", \"dbglog\");";
-            string my_post_code = "if (connect) {obj.login();}";
-
-            return new hash<ConnectionConstructorInfo>({
-                "module": "SalesforceSoapClient",
-                "class_name": "SalesforceSoapClient::SalesforceSoapClient",
-                "args": real_opts,
-                "pre_processing": my_pre_code,
-                "post_processing": my_post_code,
-            });
         }
 
         #! returns a WSDL::WebService object for the given URL using a cache for local files
@@ -562,7 +551,7 @@ public namespace SalesforceSoapClient {
         }
 
         #! gets options
-        hash getOptions() {
+        hash<auto> getOptions() {
             return Options;
         }
 
@@ -571,7 +560,7 @@ public namespace SalesforceSoapClient {
             - \c "log": a closure accepting a single string for logging
             - \c "dbglog": a closure taking a single string for detailed technical connection logging
         */
-        *hash getRuntimeOptions() {
+        *hash<auto> getRuntimeOptions() {
             return {
                 "log": True,
                 "dbglog": True,

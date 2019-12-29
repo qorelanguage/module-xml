@@ -51,8 +51,7 @@ class SalesforceTest inherits QUnit::Test {
 
         try {
             setupConnection();
-        }
-        catch (hash ex) {
+        } catch (hash<ExceptionInfo> ex) {
             if (m_options.verbose)
                 printf("%s: %s\n", ex.err, ex.desc);
         }
@@ -97,8 +96,7 @@ class SalesforceTest inherits QUnit::Test {
         sc = new SalesforceSoapClient(opts);
         try {
             sc.login();
-        }
-        catch (hash<ExceptionInfo> ex) {
+        } catch (hash<ExceptionInfo> ex) {
             if ((ex.err == "SOAP-SERVER-FAULT-RESPONSE" && ex.arg.faultcode == "INVALID_LOGIN")
                 || (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ex.desc =~ /Service Unavailable/)) {
                 delete sc;
@@ -112,8 +110,7 @@ class SalesforceTest inherits QUnit::Test {
             *list ids = getAccountIds(AcctNo1);
             if (ids)
                 sc.delete(("ids": ids));
-        }
-        catch (hash ex) {
+        } catch (hash<ExceptionInfo> ex) {
             printf("%s\n", get_exception_string(ex));
         }
     }
@@ -143,7 +140,7 @@ class SalesforceTest inherits QUnit::Test {
     string createAccount() {
         #hash del_note = get_qr(sc, "Note", ("Title": "Delete Me", "Body": del_text));
 
-        hash acct1 = {
+        hash<auto> acct1 = {
             "Name": AcctName1,
             "AccountNumber": AcctNo1,
             "Description": "test account",
@@ -154,8 +151,7 @@ class SalesforceTest inherits QUnit::Test {
         hash rh;
         try {
             rh = sc.create(("sObjects": sc.getType("Account", l)));
-        }
-        catch (hash<ExceptionInfo> ex) {
+        } catch (hash<ExceptionInfo> ex) {
             if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ex.arg.body =~ /INVALID_LOGIN/) {
                 delete sc;
                 testSkip("login failed");
@@ -250,54 +246,28 @@ class SalesforceTest inherits QUnit::Test {
             "done": True,
             "records": sc.getType(type, recs),
             "size": recs.size(),
-            );
+        );
     }
     */
 
     salesforceSoapConnectionTest() {
         # allow this test to run even if there is no Salesforce.com config in place
-        hash fake_opts = (
+        hash<auto> fake_opts = {
             "wsdl": get_script_dir() + "/test.wsdl",
             "username": "user",
             "password": "pass",
             "token": "token",
-        );
+        };
 
         string conn_url = "sfsoap://ignored";
         SalesforceSoapConnection conn("test", "test", conn_url, {"monitor": False}, fake_opts);
         SalesforceSoapClient sc = conn.get(False, opts.("log", "dbglog"));
+        # issue #3696: test connection serialization
+        SalesforceSoapConnection conn2 = Serializable::deserialize(conn.serialize());
+        assertEq(conn.url, conn2.url);
 
         string url = sc.getURL();
-        hash uh = parse_url(url);
+        hash<UrlInfo> uh = parse_url(url);
         assertEq("http", uh.protocol);
-
-        hash<ConnectionConstructorInfo> conn_info = conn.getConstructorInfo();
-        assertEq("SalesforceSoapClient", conn_info.module);
-        assertEq("SalesforceSoapClient::SalesforceSoapClient", conn_info.class_name);
-        assertEq(fake_opts, conn_info.args[0].(keys fake_opts));
-        assertEq(45s, conn_info.args[0].connect_timeout);
-        assertEq(45s, conn_info.args[0].timeout);
-        checkPreAndPostProcessing(conn_info);
-    }
-
-    private checkPreAndPostProcessing(hash<ConnectionConstructorInfo> info) {
-        if (info.pre_processing) {
-            Program p(PO_NEW_STYLE | PO_STRICT_ARGS | PO_REQUIRE_TYPES);
-            if (info.module)
-                p.loadModule(info.module);
-            string pre_processing = sprintf("sub pre_processing(reference<*softlist<auto>> args, bool connect, *hash rtopts) { %s }", info.pre_processing);
-            # ensure that the pre processing code can be parsed
-            p.parse(pre_processing, "pre processing");
-            assertTrue(True, "pre processing: " + info.class_name);
-        }
-        if (info.post_processing) {
-            Program p(PO_NEW_STYLE | PO_STRICT_ARGS | PO_REQUIRE_TYPES);
-            if (info.module)
-                p.loadModule(info.module);
-            string post_processing = sprintf("sub post_processing(%s obj, bool connect, *hash rtopts) { %s }", info.class_name, info.post_processing);
-            # ensure that the post processing code can be parsed
-            p.parse(post_processing, "post processing");
-            assertTrue(True, "post processing: " + info.class_name);
-        }
     }
 }

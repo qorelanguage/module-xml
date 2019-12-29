@@ -40,7 +40,7 @@
 %new-style
 
 module XmlRpcConnection {
-    version = "1.2";
+    version = "1.3";
     desc = "user module for providing XML-RPC client connections";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -67,6 +67,11 @@ module XmlRpcConnection {
     - @ref XmlRpcConnection::XmlRpcConnection "XmlRpcConnection"
 
     @section xmlrpcconnection_relnotes XmlRpcConnection Module Release History
+
+    @subsection xmlrpcconnection_v1_3 XmlRpcConnection v1.3
+    - removed the obsolete \c XmlRpcConnection::getConstructorInfo() method as connection serialization is a
+      much more elegant and maintainable solution
+      (<a href="https://github.com/qorelanguage/qore/issues/3696">issue 3696</a>)
 
     @subsection xmlrpcconnection_v1_2 XmlRpcConnection v1.2
     - new AbstractConnection infrastructure
@@ -98,7 +103,7 @@ public namespace XmlRpcConnection {
     */
     public class XmlRpcConnection inherits ConnectionProvider::HttpBasedConnection {
         public {
-            hash real_opts;
+            hash<auto> real_opts;
         }
 
         #! DEPRECATED: creates the XmlRpcConnection object
@@ -114,7 +119,7 @@ public namespace XmlRpcConnection {
         deprecated
         constructor(string name, string desc, string url, bool monitor, *hash opts, hash urlh)
             : HttpBasedConnection(name, desc, url, {"monitor": monitor}, opts ?? {}) {
-            real_opts = ("url": real_url) + self.opts;
+            real_opts = {"url": real_url} + self.opts;
         }
 
         #! creates the XmlRpcConnection object
@@ -126,9 +131,9 @@ public namespace XmlRpcConnection {
 
             See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
          */
-        constructor(string name, string description, string url, hash attributes = {}, hash options = {})
+        constructor(string name, string description, string url, hash<auto> attributes = {}, hash<auto> options = {})
             : HttpBasedConnection(name, description, url, attributes, options) {
-            real_opts = ("url": real_url) + opts;
+            real_opts = {"url": real_url} + opts;
         }
 
         #! returns a @ref Qore::Xml::XmlRpcClient object
@@ -137,20 +142,8 @@ public namespace XmlRpcConnection {
 
             @return a @ref Qore::Xml::XmlRpcClient object
         */
-        private Qore::Xml::XmlRpcClient getImpl(bool connect = True, *hash rtopts) {
+        private Qore::Xml::XmlRpcClient getImpl(bool connect = True, *hash<auto> rtopts) {
             return new Qore::Xml::XmlRpcClient(real_opts, !connect);
-        }
-
-        #! returns a hash that can be used to contruct the object dynamically
-        /** @since %XmlRpcConnection 1.1
-        */
-        private hash<ConnectionConstructorInfo> getConstructorInfoImpl() {
-            return new hash<ConnectionConstructorInfo>((
-                "module": "xml",
-                "class_name": "Qore::Xml::XmlRpcClient",
-                "args": real_opts,
-                "pre_processing": "args[1] = !connect;",
-            ));
         }
 
         #! gets options
@@ -163,12 +156,12 @@ public namespace XmlRpcConnection {
 
             @see @ref Qore::Xml::XmlRpcClient::constructor() "XmlRpcClient::constructor()" for more information on the above options
         */
-        hash getOptions() {
+        hash<auto> getOptions() {
             return HttpConnection::Options;
         }
 
         #! returns default options
-        *hash getDefaultOptions() {
+        *hash<auto> getDefaultOptions() {
             return HttpConnection::DefaultOptions;
         }
 

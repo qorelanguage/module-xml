@@ -332,6 +332,11 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @subsection xml15 xml Module Version 1.5
     <b>Changes and Bug Fixes in This Release</b>
+    - fixed a bug where the <a href="../../SoapClient/html/index.html">SoapClient</a> class would force the receipt of
+      a message body even if there was no output message defined for the operation
+      (<a href="https://github.com/qorelanguage/qore/issues/3706">issue 3706</a>)
+    - implemented support for serializing connection objects
+      (<a href="https://github.com/qorelanguage/qore/issues/3696">issue 3696</a>)
     - fixed a bug where serialization errors were not thrown wtih unserializable data types
       (<a href="https://github.com/qorelanguage/qore/issues/3588">issue 3588</a>)
     - added support for the data provider API
@@ -343,7 +348,8 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     - updated the <a href="../../SoapClient/html/index.html">SoapClient</a> and
       <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> modules to support the updated
       abstract connection API (<a href="https://github.com/qorelanguage/qore/issues/2628">issue 2628</a>)
-    - updated the <a href="../../WSDL/html/index.html">WSDL</a> module with serialization support for the \c WebService class
+    - updated the <a href="../../WSDL/html/index.html">WSDL</a> module with serialization support for the
+      \c WebService class
       (<a href="https://github.com/qorelanguage/qore/issues/2793">issue 2793</a>)
 
     @subsection xml142 xml Module Version 1.4.2
