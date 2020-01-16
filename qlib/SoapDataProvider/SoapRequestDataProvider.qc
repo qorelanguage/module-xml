@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! Qore SoapRequestDataProvider module definition
 
-/** SoapRequestDataProvider.qc Copyright 2019 Qore Technologies, s.r.o.
+/** SoapRequestDataProvider.qc Copyright 2019 - 2020 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -41,9 +41,6 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
         #! The SOAP client object for API calls
         *SoapClient soapclient;
 
-        #! The key name for responses not in hash format
-        const ResponseSearchKey = "_response";
-
         #! If the request supports a list of hashes in the response and therefore the record API
         *hash<string, AbstractDataField> record_type;
     }
@@ -65,7 +62,7 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
             "name": getName(),
             "supports_read": True,
             "supports_request": True,
-            "has_record": exists getRecordType(),
+            "has_record": exists record_type,
         });
         rv += getStaticInfoImpl();
         return rv;
@@ -74,7 +71,7 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     #! Returns the description of the record type, if any
     /** Returns the record type description for any successful response
     */
-    *hash<string, AbstractDataField> getRecordType() {
+    private *hash<string, AbstractDataField> getRecordTypeImpl(*hash<auto> search_options) {
         return record_type;
     }
 

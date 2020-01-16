@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 # @file SalesforceSoapClient.qm Salesforce SOAP Client Definition Module
 
-/*  SalesforceSoapClient.qm Copyright (C) 2015 - 2018 Qore Technologies, s.r.o.
+/*  SalesforceSoapClient.qm Copyright (C) 2015 - 2020 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -93,7 +93,7 @@ printf("%N\n", rh);
       (<a href="https://github.com/qorelanguage/qore/issues/3696">issue 3696</a>)
 
     @subsection salesfocesoapclient_1_2 SalesforceSoapClient v1.2
-    - added the @ref SalesforceSoapClient::SalesforceSoapConnection::getConstructorInfo() "SalesforceSoapConnection::getConstructorInfo()"
+    - added the \c SalesforceSoapConnection::getConstructorInfo()
       method to allow connections to be created dynamically, potentially in another process from a network
       call (<a href="https://github.com/qorelanguage/qore/issues/2628">issue 2628</a>)
 
