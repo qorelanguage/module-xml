@@ -31,8 +31,8 @@
 # need mime definitions
 %requires Mime >= 1.4.2
 
-# data provider
 %requires(reexport) DataProvider
+%requires(reexport) FileLocationHandler
 
 # do not use $ for vars
 %new-style
@@ -43,7 +43,7 @@
 %disable-warning unreferenced-variable
 
 module WSDL {
-    version = "0.5";
+    version = "0.5.1";
     desc = "WSDL module providing functionality for SOAP";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -78,6 +78,9 @@ module WSDL {
     - <a href="../../SoapHandler/html/index.html">SoapHandler user module</a>
 
     @section wsdlrelnotes WSDL Module Release Notes
+
+    @subsection wsdl_0_5_1 WSDL v0.5.1
+    - added support for the FileLocationHandler module
 
     @subsection wsdl_0_5 WSDL v0.5
     - added support for the data provider API
@@ -216,13 +219,13 @@ public namespace WSDL {
     public const SoapUseMap = (
         "encoded": True,
         "literal": False,
-        );
+    );
 
     #! SOAP "style" to "document" mappings
     public const SoapStyleMap = (
         "document": True,
         "rpc": False,
-        );
+    );
 
     #! soap encoding URI
     public const SOAP_ENCODING = "http://schemas.xmlsoap.org/soap/encoding/";
@@ -250,7 +253,7 @@ public namespace WSDL {
     #! known/supported transports
     public const SOAP_TRANSPORT = (
         SOAP_TRANSPORT_HTTP: True,
-        );
+    );
 
     #! range of "short" values (16 bits)
     public const RANGE_SHORT = (-32768, 32767);
@@ -330,18 +333,37 @@ public class WSDL::WSDLLib {
     #! retrieves a file from a URL
     /** in case the URL is actually a file path, environment variable substitution
         is performed on the path string
+
+        @note uses the \c FileLocationHandler module to retrieve file data for all schemes except \c "file://" and
+        \c "http(s)://", which uses @ref WSDL::WSDLLib::getFileFromUrl() "WSDLLib::getFileFromUrl()" and
+        @ref @ref WSDL::WSDLLib::getHTTP() "WSDLLib::getHTTP()" respectively for backwards compatibility
      */
     static data getFileFromURL(string url, string def_protocol = "file", *HTTPClient http_client, *hash<auto> http_headers, bool as_string = True, *string def_path, *reference new_def_path) {
-        return WSDLLib::getFileFromURL(url, parse_url(url), def_protocol, http_client, http_headers, as_string, def_path, \new_def_path);
+        try {
+            return WSDLLib::getFileFromURL(url, parse_url(url), def_protocol, http_client, http_headers, as_string, def_path, \new_def_path);
+        } catch (hash<ExceptionInfo> ex) {
+            # see if a scheme is given in the location
+            if (url !~ /^\w+:\/\//) {
+                url = def_protocol + "://";
+            }
+            return FileLocationHandler::getFileFromLocation(as_string, url);
+        }
     }
 
     #! retrieves a file from an already-parsed URL
     /** in case the URL is actually a file path, environment variable substitution
         is performed on the path string
+
+        @note uses the \c FileLocationHandler module to retrieve file data for all schemes except \c "file://" and
+        \c "http(s)://", which uses @ref WSDL::WSDLLib::getFileFromUrl() "WSDLLib::getFileFromUrl()" and
+        @ref @ref WSDL::WSDLLib::getHTTP() "WSDLLib::getHTTP()" respectively for backwards compatibility
      */
     static data getFileFromURL(string url, hash<auto> u, string def_protocol = "file", *HTTPClient http_client, *hash<auto> http_headers, bool as_string = False, *string def_path, *reference new_def_path) {
-        if (!exists u.protocol)
+        bool used_def_protocol;
+        if (!exists u.protocol) {
             u.protocol = def_protocol;
+            used_def_protocol = True;
+        }
 
         switch (u.protocol) {
             case "file": {
@@ -366,11 +388,11 @@ public class WSDL::WSDLLib {
             case /^http(s)?$/:
                 return WSDLLib::getHTTP(url, u.path, http_client, http_headers, as_string);
 
-            case /^ftp(s)?$/:
-                return WSDLLib::getFTP(url, u.path, as_string);
-
             default:
-                throw "WSDL-LIB-ERROR", sprintf("do not know how to retrieve data with scheme %y given in URL %y", u.protocol, url);
+                if (used_def_protocol) {
+                    url = def_protocol + "://" + url;
+                }
+                return FileLocationHandler::getFileFromLocation(as_string, url);
         }
     }
 
@@ -442,8 +464,7 @@ public class WSDL::WSDLLib {
                     b = binary(substr(m, ie + 4));
 
                     #File f(); f.open2("t.bin", O_CREAT|O_WRONLY|O_TRUNC); f.write(b); exit();
-                }
-                else {
+                } else {
                     b = substr(m, ie + 4);
 
                     if (hh."content-type" =~ /charset=/) {
@@ -463,8 +484,7 @@ public class WSDL::WSDLLib {
                 if ((!exists msg."_qore_multipart_start" && i == 1)
                     || (exists msg."_qore_multipart_start" && msg."_qore_multipart_start" == hh."content-id")) {
                     mpmsg.body = p;
-                }
-                else {
+                } else {
                     string id = substr(hh."content-id", 1, -1);
                     mpmsg.part{id} = p;
                 }
@@ -539,8 +559,7 @@ public class WSDL::WSDLLib {
             else if (xmldata{k}.typeCode() == NT_LIST) {
                 foreach auto e in (\xmldata{k})
                     WSDLLib::substHref(\e, parts);
-            }
-            else if (xmldata{k}.typeCode() == NT_HASH)
+            } else if (xmldata{k}.typeCode() == NT_HASH)
                 WSDLLib::substHref(\xmldata{k}, parts);
         }
     }
@@ -580,8 +599,7 @@ public class WSDL::XsdBase inherits Qore::Serializable {
                         softlist<auto> l = h{name};
                         l += remove h{k};
                         h{name} = l;
-                    }
-                    else
+                    } else
                         h{name} = remove h{k};
                 }
             }
@@ -601,8 +619,7 @@ public class WSDL::XsdBase inherits Qore::Serializable {
                         softlist<auto> l = h{name};
                         l += remove h{k};
                         h{name} = l;
-                    }
-                    else
+                    } else
                         h{name} = remove h{k};
                 }
             }
@@ -652,8 +669,7 @@ public class WSDL::XsdNamedData inherits WSDL::XsdData {
             # remove namespace
             (*string ns, *string n_name) = a.ref =~ x/([^:]+):([^:]+)/;
             name = n_name ?? a.ref;
-        }
-        else
+        } else
             name = desc_name ?? "<unnamed type>";
         # if the name has a space in it, then it's a descriptive name
         descriptive_name = (name =~ / /);
@@ -697,8 +713,7 @@ public class WSDL::XsdAbstractType inherits WSDL::XsdNamedData {
             if (!tns)
                 throw "WSDL-NAMESPACE-ERROR", sprintf("input namespace for %s %y was not given and there is no current target namespace", self.className(), name);
             ons = nsc.getOutputNamespacePrefix(tns);
-        }
-        else
+        } else
             ons = nsc.translateOutputNamespacePrefix(ns);
         #printf("DEBUG: type %y ns: %y ons: %y\n", name, ns, ons);
     }
@@ -1129,8 +1144,7 @@ public class WSDL::XsdArrayType inherits WSDL::XsdAbstractType {
         arrayType =~ s/\[\]$//;
         if (!nsc.doType(arrayType, \typeinfo, \elementType)) {
             unresolved.add(self);
-        }
-        else {
+        } else {
             finalized = True;
         }
     }
