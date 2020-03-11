@@ -20,10 +20,13 @@ noinst_HEADERS = src/QC_XmlDoc.h \
 
 USER_MODULES = qlib/XmlRpcHandler.qm qlib/WSDL.qm qlib/SoapClient.qm qlib/SoapHandler.qm qlib/XmlRpcConnection.qm qlib/SalesforceSoapClient.qm
 
-USER_SPLIT_MODULES = qlib/SoapDataProvider
+USER_SPLIT_MODULES = qlib/SoapDataProvider qlib/WebDAV
 
 SoapDataProvider_moddir= $(moddir)/SoapDataProvider
 dist_SoapDataProvider_mod_DATA = $(wildcard qlib/SoapDataProvider/*.q[cm])
+
+WebDAV_moddir= $(moddir)/WebDAV
+dist_WebDAV_mod_DATA = $(wildcard qlib/WebDAV/*.q[cm])
 
 EXTRA_DIST = COPYING.LGPL COPYING.MIT AUTHORS README \
 	RELEASE-NOTES \

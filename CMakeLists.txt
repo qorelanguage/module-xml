@@ -87,6 +87,7 @@ set(QMOD
     qlib/XmlRpcHandler.qm
     qlib/XmlRpcConnection.qm
     qlib/SoapDataProvider
+    qlib/WebDAV
 )
 
 set(SCRIPTS
