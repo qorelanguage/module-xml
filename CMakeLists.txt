@@ -91,7 +91,8 @@ set(QMOD
 )
 
 set(SCRIPTS
-	bin/soaputil
+    bin/soaputil
+    bin/webdav-server
 )
 
 qore_wrap_qpp_value(QPP_SOURCES ${QPP_SRC})

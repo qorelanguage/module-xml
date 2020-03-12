@@ -1524,7 +1524,8 @@ const XGF_ADD_FORMATTING = XGF_ADD_FORMATTING;
 //@}
 
 /** @defgroup xml_parsing_constants XML Parsing Constants
-    The constants in this group can be combined with @ref bitwise_or_operator "binary or" to affect the output of parsed XML
+    The constants in this group can be combined with @ref bitwise_or_operator "binary or" to affect the output of
+    parsed XML
  */
 //@{
 namespace Qore::Xml;
@@ -1533,16 +1534,22 @@ namespace Qore::Xml;
 const XPF_NONE = XPF_NONE;
 
 //! decode XML as data; do not try to preserve element order by re-writing hash keys
-/** If this option is given and duplicate, out-of-order XML elements are found in the input string, they are deserialized to %Qore hash elements with the same name as the XML element but including a caret \c '^' and a numeric prefix to maintain the same key order in the %Qore hash as in the input XML string.
+/** If this option is given and duplicate, out-of-order XML elements are found in the input string, they are
+    deserialized to %Qore hash elements with the same name as the XML element but including a suffix with caret \c '^'
+    and a prefix to maintain the same key order in the %Qore hash as in the input XML string (ex: \c "key^1").
 
-    In this case, if the data structure is reserialized with make_xml(), an XML string corresponding to the original input should be generated.
+    In this case, if the data structure is reserialized with make_xml(), an XML string corresponding to the original
+    input will be generated.
 
-    This option should only be used when it is important to maintain the XML element order in the resulting %Qore data structure (for example, when the data must be re-serialized to an XML string and the element order within a subelement must be maintained), for example, when parsing and reserializing an OSX property list in XML format.
+    This option should only be used when it is important to maintain the XML element order in the resulting %Qore data
+    structure (for example, when the data must be re-serialized to an XML string and the element order within a
+    subelement must be maintained), for example, when parsing and reserializing an OSX property list in XML format.
  */
 const XPF_PRESERVE_ORDER = XPF_PRESERVE_ORDER;
 
 //! decode XML comments
-/** If this option is given, then parse_xml() creates hash elements with \c'^comment^' keys corresponding to comments found in the XML
+/** If this option is given, then parse_xml() creates hash elements with \c'^comment^' keys corresponding to comments
+    found in the XML
  */
 const XPF_ADD_COMMENTS = XPF_ADD_COMMENTS;
 

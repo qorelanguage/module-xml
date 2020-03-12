@@ -5,26 +5,33 @@
 %require-types
 %strict-args
 
+#! Main public WebDAV namespace
 public namespace WebDAV {
-#! Abstract WebDAV handler class.
+#! WebDAV HTTP handler class
 public class WebdavHandler inherits public HttpServer::AbstractHttpRequestHandler {
     private {
+        #! The actual WebDAV implementation
         AbstractWebdavInterface m_interface;
     }
 
-    constructor(AbstractWebdavInterface interface, *AbstractAuthenticator n_auth)
-        : HttpServer::AbstractHttpRequestHandler(n_auth) {
+    #! Creates the object from the arguments passed
+    /** @param interface the WebDAV implementation
+        @param auth the connection authenticator object
+    */
+    constructor(AbstractWebdavInterface interface, *AbstractAuthenticator auth) : HttpServer::AbstractHttpRequestHandler(auth) {
         m_interface = interface;
     }
 
+    #! Handles HTTP/WebDAV requests and returns the response
     hash<HttpResponseInfo> handleRequest(HttpListenerInterface listener, Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
-        if (AbstractWebdavInterface::REQUEST_METHODS.hasKey(hdr.method)) {
-            #listener.log("cx: %N", cx);
-            #listener.log("hdr: %N", hdr);
+        if (AbstractWebdavInterface::RequestMethods{hdr.method}) {
+            #listener.log("CX: %N", cx);
+            #listener.log("HDR: %N", hdr);
+            #listener.log("BODY: %y", body);
             hash<HttpResponseInfo> r = call_object_method(m_interface,
-                                        AbstractWebdavInterface::REQUEST_METHODS{hdr.method},
+                                        AbstractWebdavInterface::RequestMethods{hdr.method},
                                         cx, hdr, body);
-            # MUST have a content-length, even for HTTP responses that cannot return a msg body
+            # MUST have a Content-Length header in the response, even for HTTP responses that cannot return a msg body
             if (!r.body && !r.hdr."Content-Length") {
                 r.hdr."Content-Length" = "0";
             }
@@ -35,6 +42,7 @@ public class WebdavHandler inherits public HttpServer::AbstractHttpRequestHandle
         return m_interface.response(405, "Method Not Allowed");
     }
 
+    #! Redirects method calls to the WebDAV implementation object
     auto methodGate(string method_name) {
         return call_object_method_args(m_interface, method_name, argv);
     }

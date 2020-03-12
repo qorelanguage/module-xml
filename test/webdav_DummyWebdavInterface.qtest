@@ -42,7 +42,10 @@ class Server inherits HttpServer {
 } # class Server
 
 class Client inherits HTTPClient {
-    constructor(string url) : HTTPClient({"url": url, "additional_methods": WebDAV::AbstractWebdavInterface::REQUEST_METHODS}) {
+    constructor(string url) : HTTPClient({
+        "url": url,
+        "additional_methods": WebDAV::AbstractWebdavInterface::RequestMethods,
+    }) {
     }
 }
 
@@ -64,7 +67,7 @@ class Main inherits QUnit::Test {
             srv.stop();
         }
 
-        HashIterator it(WebDAV::AbstractWebdavInterface::REQUEST_METHODS);
+        HashIterator it(WebDAV::AbstractWebdavInterface::RequestMethods);
         auto methods = srv.httpMethods();
         while (it.next()) {
             assertEq(True, methods.hasKey(it.getKey()), it.getKey());
@@ -114,7 +117,7 @@ class Main inherits QUnit::Test {
 
         Client http("http://localhost:" + srv.getPort());
 
-        HashIterator it(WebDAV::AbstractWebdavInterface::REQUEST_METHODS);
+        HashIterator it(WebDAV::AbstractWebdavInterface::RequestMethods);
         while (it.next()) {
             try {
                 if (m_options.verbose) {

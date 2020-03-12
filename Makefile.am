@@ -52,7 +52,7 @@ EXTRA_DIST = COPYING.LGPL COPYING.MIT AUTHORS README \
 ACLOCAL_AMFLAGS=-I m4
 
 dist_mod_DATA = $(USER_MODULES)
-dist_bin_SCRIPTS = bin/soaputil
+dist_bin_SCRIPTS = bin/soaputil bin/webdav-server
 
 if COND_DOXYGEN
 USER_MODS = $(basename $(notdir $(USER_MODULES)))

@@ -7,7 +7,7 @@
 
 #! Main public WebDAV namespace
 public namespace WebDAV {
-#! The abstract WebDAV property handler class
+#! The abstract WebDAV property handler class interface
 public class AbstractWebdavPropertyHandler {
     #! Retrieves the value(s) of the given properties in the given namespace
     abstract auto get(string resource, string ns = DavNs, list<string> prop_names);

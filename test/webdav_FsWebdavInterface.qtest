@@ -41,7 +41,7 @@ class Server inherits HttpServer {
 class Client inherits HTTPClient {
     constructor(string url) : HTTPClient({
         "url": url,
-        "additional_methods": WebDAV::AbstractWebdavInterface::REQUEST_METHODS,
+        "additional_methods": WebDAV::AbstractWebdavInterface::RequestMethods,
     }) {
     }
 }

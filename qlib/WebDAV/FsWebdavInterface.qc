@@ -16,15 +16,24 @@ public namespace WebDAV {
 #! Filesystem WebDAV inteface class
 public class FsWebdavInterface inherits AbstractWebdavInterface {
     private {
+        #! The root directory for serving files
         string basePath;
         bool debug;
     }
 
-    constructor(AbstractWebdavPropertyHandler property_handler, string path, string relative_path_base = "/")
-        : AbstractWebdavInterface(property_handler, relative_path_base) {
+    #! Creates the object with the given options
+    /** @param property_handler to handle properties
+        @param path the root directory for serving files
+        @param virtual_relative_path_base the virtual base path for WebDAV requests; this path will be stripped from
+        requests internally when serving WebDAV resources
+    */
+    constructor(AbstractWebdavPropertyHandler property_handler, string path, string virtual_relative_path_base = "/") : AbstractWebdavInterface(property_handler, virtual_relative_path_base) {
         basePath = normalize_dir(path);
     }
 
+    #! Converts a request path to a normalized real path on the filesystem in the root WebDAV directory
+    /** @throw WEBDAV-FORBIDDEN if the path is not valid
+    */
     private string getPath(string raw_path) {
         string tmp = AbstractWebdavInterface::getRelativePath(raw_path);
 
@@ -36,6 +45,9 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         return checkPathScope(tmp);
     }
 
+    #! Ensures that the path is valid and returns a normalized path
+    /** @throw WEBDAV-FORBIDDEN if the path is not valid
+    */
     private string checkPathScope(string tmp) {
         # it's strictly prohibitted to make file operations
         # out of the basePath prefix
@@ -48,21 +60,22 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         return tmp;
     }
 
+    #! Returns the content type for the file based on its extension
     private *string getContentType(string filePath) {
         return get_mime_type_from_ext(filePath, MimeTypeOctetStream);
-        #return "application/octet-stream";
     }
 
+    #! Returns resources for use in a PROPFIND request based on a StatInfo hash
     private hash<auto> hstat2Resource(string path, string displayname, hash<StatInfo> h) {
         return {
-            "displayname": displayname,
-            "size": h.size,
-            "creationdate": h.ctime,
-            "getlastmodified": h.mtime,
-            "getcontentlength": h.type == "DIRECTORY" ? getContentType(path).size() : h.size,
-            "getetag": getETag(path),
-            "resourcetype": h.type == "DIRECTORY" ? "collection" : "",
-            "getcontenttype": h.type == "DIRECTORY" ? MimeTypeText : getContentType(path),
+            "DAV:displayname": displayname,
+            "DAV:size": h.size,
+            "DAV:creationdate": h.ctime,
+            "DAV:getlastmodified": h.mtime,
+            "DAV:getcontentlength": h.type == "DIRECTORY" ? getContentType(path).size() : h.size,
+            "DAV:getetag": getETag(path),
+            "DAV:resourcetype": h.type == "DIRECTORY" ? "DAV:collection" : "",
+            "DAV:getcontenttype": h.type == "DIRECTORY" ? MimeTypeText : getContentType(path),
         };
     }
 
@@ -76,7 +89,7 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
     }
 
     #! Returns responses for each relevant resource
-    private list<hash<auto>> preparePropFindResponse(string raw_path, string depth = "infinity", hash<StatInfo> h, bool all_props, *hash<string, hash<string, bool>> additional_props) {
+    private:internal list<hash<auto>> preparePropFindResponse(string raw_path, string depth = "infinity", hash<StatInfo> h, bool all_props, *hash<string, hash<string, bool>> additional_props) {
         string local_path = getNormalizedPath(raw_path);
         if (debug) {
             printf("FsWebdavInterface::preparePropFindResponse() AAA %n -- %n\n", raw_path, basename(raw_path));
@@ -107,20 +120,6 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         }
 
         return res;
-    }
-
-    /**
-        OPTIONS
-    */
-    hash<HttpResponseInfo> handleOptions(hash<auto> cx, hash<auto> hdr, *data body) {
-        return <HttpResponseInfo>{
-            "code" : 200,
-            "hdr": {
-                "DAV": "1,2",
-                "Depth": "0",
-                "Allow": AbstractWebdavInterface::REQUEST_METHODS.keys().join(","),
-            },
-        };
     }
 
     private:internal string getETag(string path) {
@@ -189,32 +188,122 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         return (foldl $1 + "\n" + $2, d.list()) ?? "";
     }
 
-    /**
-        GET
+    #! Handles HTTP GET requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
 
-        Get a resource.
+        @return the response to the HTTP request
     */
-    hash<HttpResponseInfo> handleGet(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleGetImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         # True = GET, False = HEAD
         return internalGet(cx, hdr, body, True);
     }
 
-    /**
-        HEAD
+    #! Handles HTTP HEAD requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
 
-        Same like GET but without sending a body.
+        @return the response to the HTTP request
     */
-    hash<HttpResponseInfo> handleHead(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleHeadImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         # True = GET, False = HEAD
         return internalGet(cx, hdr, body, False);
     }
 
-    /**
-        POST
+    #! Handles HTTP POST requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
 
-        Create new resource.
+        @return the response to the HTTP request
     */
-    hash<HttpResponseInfo> handlePost(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handlePostImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         string path = getPath(cx.raw_path);
         if (path =~ /\/$/) {
             return response(400, "root directory already exists");
@@ -249,21 +338,81 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         return response(201, hdr_resp);
     }
 
-    /**
-        PUT
+    #! Handles HTTP PUT requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
 
-        Modify resource.
+        @return the response to the HTTP request
     */
-    hash<HttpResponseInfo> handlePut(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handlePutImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         return handlePost(cx, hdr, body);
     }
 
-    /**
-        DELETE
+    #! Handles HTTP DELETE requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
 
-        Delete a resource.
+        @return the response to the HTTP request
     */
-    hash<HttpResponseInfo> handleDelete(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleDeleteImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         string path = getPath(cx.raw_path);
 
         *hash<StatInfo> h = hstat(path);
@@ -276,7 +425,416 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         return response(204);
     }
 
-    private:internal internalCopy(hash<auto> cx, hash<auto> hdr, *data body, bool copy_props) {
+    #! Handles WebDAV COPY requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
+
+        @return the response to the WebDAV request
+    */
+    private hash<HttpResponseInfo> handleCopyImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+        return doCopyMoveIntern(cx, hdr, body, True);
+    }
+
+    #! Handles WebDAV MOVE requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
+
+        @return the response to the WebDAV request
+    */
+    private hash<HttpResponseInfo> handleMoveImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+        # additional deletion of source
+        string src_path = getPath(cx.raw_path);
+        # copy to target first
+        hash<HttpResponseInfo> ret = doCopyMoveIntern(cx, hdr, body, False);
+        # then remove src
+        if (ret.code >= 200 && ret.code < 300) {
+            FsUtil::remove_path(src_path);
+        }
+        return ret;
+    }
+
+    #! Handles WebDAV LOCK requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
+
+        @return the response to the WebDAV request
+    */
+    private hash<HttpResponseInfo> handleLockImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+        return response(501);
+    }
+
+    #! Handles WebDAV UNLOCK requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
+
+        @return the response to the WebDAV request
+    */
+    private hash<HttpResponseInfo> handleUnlockImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+        return response(501);
+    }
+
+    #! Handles WebDAV MKCOL requests for WebDAV resources
+    /**  @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
+
+        @return the response to the WebDAV request
+    */
+    private hash<HttpResponseInfo> handleMkcolImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+        # litmus: MKCOL with weird body must fail (RFC2518:8.3.1)
+        if (exists body) {
+            return response(415, "Unsupported Media Type");
+        }
+
+        # don't allow dirs creation out of given prefix
+        string dir_path;
+        try {
+            dir_path = getPath(cx.raw_path);
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "WEBDAV-FORBIDDEN") {
+                return response(403, "Forbidden");
+            };
+            rethrow;
+        }
+
+        if (dir_path =~ /\/$/) {
+            dir_path = dir_path.substr(0, dir_path.size()-1);
+        }
+
+        # litmus: MKCOL on existing collection should return 405
+        if (is_dir(dir_path)) {
+            return response(405, "Collection Already Exists");
+        } else if (!is_dir(normalize_dir(dir_path + "/.."))) {
+            return response(409, "Previous directories in the path do not exist");
+        }
+
+        Dir d();
+        d.chdir(dir_path);
+        try {
+            d.create(0755);
+        } catch (hash<ExceptionInfo> ex) {
+            return resp500("Could not create directory structure");
+        }
+
+        return response(201);
+    }
+
+    #! Handles WebDAV PROPFIND requests for WebDAV resources; reetrieves properties from WebDAV resources
+    /**
+        @param cx call context hash; this hash will have the following keys:
+        - \c header-info: a hash of information about the request header with the following keys:
+          - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
+            any of \c "*", \c "utf8", or \c "utf-8" are present, then this will be set to \c "utf8", otherwise it will
+            be set to the first requested character encoding in the list
+          - \c accept-encoding: a hash where keys are values from any \c "Accept-Encoding" header and the values are
+            @ref True
+          - \c body-content-type: this is the \c "Content-Type" header without any charset declaration
+          - \c charset: if there is a charset declaration in the \c "Content-Type" header, the value is returned in
+            this key
+          - \c client-cert: if the server is configured to capture remote client certificates, and the client supplied
+            a certificate, this key will be populated with the @ref Qore::SSLCertificate "SSLCertificate" for the client
+          - \c close: set to @ref True "True" if the connection should be closed after responding,
+            @ref False "False" if not (as derived from the request header)
+          - \c headers-raw: a hash of raw request headers without any case conversions or other processing
+          - \c request-uri: gives the request URI in an HTTP request
+        - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
+        - \c socket-info: a hash of socket information for the listening socket (as returned by
+          @ref Qore::Socket::getSocketInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
+        - \c id: the unique HTTP connection ID
+        - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
+        - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
+        - \c user: the current RBAC username (if any)
+        - \c root_path: the root URL path matched if the request was matched by a URL prefix
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
+        - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
+        - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
+        @param body message body, if any
+
+        @return the response to the WebDAV request
+    */
+    private hash<HttpResponseInfo> handlePropfindImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+        if (debug) {
+            printf("FsWebdavInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
+        }
+        string path = getNormalizedPath(cx.raw_path);
+        *hash<StatInfo> h = hstat(path);
+        if (!h) {
+            return response(404, "%s: %s", path, strerror());
+        }
+
+        # property map: ns -> property -> True
+        hash<string, hash<string, bool>> additional_props;
+        bool all_props = False;
+        if (body) {
+            # parse the mandatory XML body
+            hash<auto> request_xml;
+            try {
+                request_xml = parse_xml(body, Qore::Xml::XPF_STRIP_NS_PREFIXES);
+            } catch (hash<ExceptionInfo> ex) {
+                return response(400, sprintf("%s: %s", ex.err, ex.desc));
+            }
+
+            if (!request_xml.hasKey("propfind")) {
+                return response(400, "XML body does not contain 'propfind' root tag");
+            }
+
+            if (request_xml.propfind.prop) {
+                foreach hash<auto> i in (request_xml.propfind.prop.pairIterator()) {
+                    map additional_props{$1."^attributes^".xmlns ?? DavNs}{i.key} = True, i.value;
+                }
+            } else if (request_xml.propfind.hasKey("allprop")) {
+                all_props = True;
+            }
+            #if (debug) {
+                printf("FsWebdavInterface::handlePropfindImpl() Z %N\n", additional_props);
+            #}
+        }
+
+        # TODO/FIXME: proper PROPFIND xml body handling!
+        #   - propname
+
+        # prepare response
+        hash<auto> resp;
+        resp."DAV:multistatus"."DAV:response" = preparePropFindResponse(cx.raw_path, hdr.depth, h, all_props, additional_props);
+        resp."DAV:multistatus"."^attributes^" = {"xmlns:DAV": "DAV:"};
+        if (debug) {
+            printf("FsWebdavInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
+            printf("PROPFIND RV: %y\nxml: %s\n", resp, make_xml(resp, XGF_ADD_FORMATTING));
+        }
+        return <HttpResponseInfo>{
+            "code": 207,
+            "body": make_xml(resp),
+        };
+    }
+
+    #! Internal method for handling PROPPATCH requests
+    /** Create, change and delete one or more properties on a resource in a single atomic action
+
+        @param cx the HTTP call context
+        @param hdr as hash HTTP headers
+        @param request_xml the parsed XML in the request
+        @param actions a list of set and remove actions to execute on the given properties
+
+        @return a status map of HTTP code -> namespace -> property -> True
+
+        @throw WEBDAV-ERROR an error occured
+    */
+    private *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx, hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions) {
+        string path = getNormalizedPath(cx.raw_path);
+        href = path;
+
+        *hash<StatInfo> h = hstat(path);
+        if (!h) {
+            throw "WEBDAV-ERROR", sprintf("%s: %s", path, strerror()), 404;
+        }
+
+        # property status map: code -> ns -> property -> True
+        hash<string, hash<string, hash<string, bool>>> status_map;
+
+        # verify and then execute property updates
+        if (request_xml) {
+            *hash<string, hash<string, hash<string, bool>>> verify_status_map = verifyPropertyUpdates(path, actions);
+            if (verify_status_map) {
+                status_map = verify_status_map;
+            } else {
+                foreach hash<PropPatchActionInfo> action in (actions) {
+                    printf("action: %y\n", action);
+                    if (action.action == PPA_Set) {
+                        m_property_handler.set(path, action.ns, action.prop, action.val);
+                        status_map{200}{action.ns}{action.prop} = True;
+                    } else {
+                        m_property_handler.del(path, action.ns, action.prop);
+                        status_map{200}{action.ns}{action.prop} = True;
+                    }
+                }
+            }
+        }
+        return status_map;
+    }
+
+    #! Verifies that all property updates can be performed before executing them
+    private *hash<string, hash<string, hash<string, bool>>> verifyPropertyUpdates(string path, *list<hash<PropPatchActionInfo>> actions) {
+        hash<string, hash<string, hash<string, bool>>> status_map;
+
+        # verify that all operations can succeed
+        map status_map{409}{DavNs}{$1.prop} = True, actions, $1.ns == DavNs;
+
+        # all updates fail if one fails
+        if (!status_map) {
+            return;
+        }
+
+        # set a 424 status for all other updates
+        map status_map{424}{$1.ns}{$1.prop} = True, actions, !status_map{409}{$1.ns}{$1.prop};
+
+        return status_map;
+    }
+
+    #! Process copy and moves (without deletion) internally including properties (properties are moved, files are copied)
+    private:internal hash<HttpResponseInfo> doCopyMoveIntern(hash<auto> cx, hash<auto> hdr, *data body, bool copy_props) {
+        try {
+            internalCopyMove(cx, hdr, body, copy_props);
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err =~ /^[0-9]{3}$/) {
+                return response(ex.err.toInt(), ex.desc);
+            } else if (ex.err == "WEBDAV-FORBIDDEN") {
+                return response(403, "Cannot copy out of current jail");
+            }
+            rethrow;
+        }
+
+        return response(hdr.overwrite == "F" ? 201 : 204);
+    }
+
+    #! Copy or move the file and any properties
+    private:internal internalCopyMove(hash<auto> cx, hash<auto> hdr, *data body, bool copy_props) {
         string dest = hdr.destination;
         *hash<UrlInfo> url = parseURL(dest);
         string dest_path = getNormalizedPath(url.path);
@@ -330,259 +888,6 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         } else {
             moveProperties(src_path, dest_path);
         }
-    }
-
-    /**
-        COPY
-
-        Copy a resource from one URI to another.
-    */
-    hash<HttpResponseInfo> handleCopy(hash<auto> cx, hash<auto> hdr, *data body) {
-        return doCopyIntern(cx, hdr, body, True);
-    }
-
-    private hash<HttpResponseInfo> doCopyIntern(hash<auto> cx, hash<auto> hdr, *data body, bool copy_props) {
-        try {
-            internalCopy(cx, hdr, body, copy_props);
-        } catch (hash<ExceptionInfo> ex) {
-            if (ex.err =~ /^[0-9]{3}$/) {
-                return response(ex.err.toInt(), ex.desc);
-            } else if (ex.err == "WEBDAV-FORBIDDEN") {
-                return response(403, "Cannot copy out of current jail");
-            }
-            rethrow;
-        }
-
-        return response(hdr.overwrite == "F" ? 201 : 204);
-    }
-
-    /**
-        MOVE
-
-        Move a resource from one URI to another.
-    */
-    hash<HttpResponseInfo> handleMove(hash<auto> cx, hash<auto> hdr, *data body) {
-        # additional deletion of source
-        string src_path = getPath(cx.raw_path);
-        # copy to target first
-        hash<HttpResponseInfo> ret = handleCopy(cx, hdr, body);
-        # then remove src
-        if (ret.code >= 200 && ret.code < 300) {
-            FsUtil::remove_path(src_path);
-        }
-        return ret;
-    }
-
-    /**
-        LOCK
-
-        Put a lock on a resource. WebDAV supports both shared and exclusive locks.
-    */
-    hash<HttpResponseInfo> handleLock(hash<auto> cx, hash<auto> hdr, *data body) {
-        return response(501);
-    }
-
-    /**
-        UNLOCK
-
-        Remove a lock from a resource.
-    */
-    hash<HttpResponseInfo> handleUnlock(hash<auto> cx, hash<auto> hdr, *data body) {
-        return response(501);
-    }
-
-    /**
-        MKCOL
-
-        Create collections (aka a directory).
-    */
-    hash<HttpResponseInfo> handleMkcol(hash<auto> cx, hash<auto> hdr, *data body) {
-        # litmus: MKCOL with weird body must fail (RFC2518:8.3.1)
-        if (exists body) {
-            return response(415, "Unsupported Media Type");
-        }
-
-        # don't allow dirs creation out of given prefix
-        string dir_path;
-        try {
-            dir_path = getPath(cx.raw_path);
-        } catch (hash<ExceptionInfo> ex) {
-            if (ex.err == "WEBDAV-FORBIDDEN") {
-                return response(403, "Forbidden");
-            };
-            rethrow;
-        }
-
-        if (dir_path =~ /\/$/) {
-            dir_path = dir_path.substr(0, dir_path.size()-1);
-        }
-
-        # litmus: MKCOL on existing collection should return 405
-        if (is_dir(dir_path)) {
-            return response(405, "Collection Already Exists");
-        } else if (!is_dir(normalize_dir(dir_path + "/.."))) {
-            return response(409, "Previous directories in the path do not exist");
-        }
-
-        Dir d();
-        d.chdir(dir_path);
-        try {
-            d.create(0755);
-        } catch (hash<ExceptionInfo> ex) {
-            return resp500("Could not create directory structure");
-        }
-
-        return response(201);
-    }
-
-    /**
-        PROPFIND
-
-        Retrieve properties, stored as XML, from a web resource. It is also
-        overloaded to allow one to retrieve the collection structure (also
-        known as directory hierarchy) of a remote system.
-    */
-    hash<HttpResponseInfo> handlePropfind(hash<auto> cx, hash<auto> hdr, *data body) {
-        #if (debug) {
-            #printf("FsWebdavInterface::handlePropfind() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
-        #}
-        string path = getNormalizedPath(cx.raw_path);
-        *hash<StatInfo> h = hstat(path);
-        if (!h) {
-            return response(404, "%s: %s", path, strerror());
-        }
-
-        # property map: ns -> property -> True
-        hash<string, hash<string, bool>> additional_props;
-        bool all_props = False;
-        if (body) {
-            # parse the mandatory XML body
-            hash<auto> request_xml;
-            try {
-                request_xml = parse_xml(body, Qore::Xml::XPF_STRIP_NS_PREFIXES);
-            } catch (hash<ExceptionInfo> ex) {
-                return response(400, sprintf("%s: %s", ex.err, ex.desc));
-            }
-
-            if (!request_xml.hasKey("propfind")) {
-                return response(400, "XML body does not contain 'propfind' root tag");
-            }
-
-            if (request_xml.propfind.prop) {
-                map additional_props{$1.value."^attributes^".xmlns ?? DavNs}{$1.key} = True, request_xml.propfind.prop.pairIterator();
-            } else if (request_xml.propfind.hasKey("allprop")) {
-                all_props = True;
-            }
-            #if (debug) {
-                #printf("FsWebdavInterface::handlePropfind() Z %N\n", additional_props);
-            #}
-        }
-
-        # TODO/FIXME: proper PROPFIND xml body handling!
-        #   - propname
-
-        # prepare response
-        hash<auto> resp;
-        resp.multistatus.response = preparePropFindResponse(cx.raw_path, hdr.depth, h, all_props, additional_props);
-        resp.multistatus."^attributes^" = {"xmlns": "DAV:"};
-        if (debug) {
-            printf("FsWebdavInterface::handlePropfind() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
-            printf("PROPFIND RV: %y\nxml: %s\n", resp, make_xml(resp, XGF_ADD_FORMATTING));
-        }
-        return <HttpResponseInfo>{
-            "code": 207,
-            "body": make_xml(resp),
-        };
-    }
-
-    #! Internal method for handling PROPPATCH requests
-    /** Create, change and delete one or more properties on a resource in a single atomic action
-
-        @param cx the HTTP call context
-        @param hdr as hash HTTP headers
-        @param request_xml the parsed XML in the request
-        @param update_hash a hash of property update requests: NS -> key -> value
-        @param remove_hash a hash of property remove requests: NS -> key -> True
-
-        @return a status map of HTTP code -> namespace -> property -> True
-
-        @throw WEBDAV-ERROR an error occured
-    */
-    private *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx, hash<auto> hdr, *hash<auto> request_xml, *hash<string, hash<auto>> update_hash, *hash<string, hash<string, bool>> remove_hash) {
-        string path = getNormalizedPath(cx.raw_path);
-        href = path;
-
-        *hash<StatInfo> h = hstat(path);
-        if (!h) {
-            throw "WEBDAV-ERROR", sprintf("%s: %s", path, strerror()), 404;
-        }
-
-        # property status map: code -> ns -> property -> True
-        hash<string, hash<string, hash<string, bool>>> status_map;
-
-        # verify and then execute property updates
-        if (request_xml) {
-            *hash<string, hash<string, hash<string, bool>>> verify_status_map = verifyPropertyUpdates(path, update_hash, remove_hash);
-            if (verify_status_map) {
-                status_map = verify_status_map;
-            } else {
-                foreach hash<auto> nsi in (update_hash.pairIterator()) {
-                    foreach hash<auto> pi in (nsi.value.pairIterator()) {
-                        #printf("PROPPATCH set %y (%y) = %y\n", pi.key, nsi.key, pi.value);
-                        m_property_handler.set(path, nsi.key, pi.key, pi.value);
-                        status_map{200}{nsi.key}{pi.key} = True;
-                    }
-                }
-
-                foreach hash<auto> nsi in (remove_hash.pairIterator()) {
-                    m_property_handler.del(path, nsi.key, keys nsi.value);
-                    map status_map{200}{nsi.key}{$1} = True, keys nsi.value;
-                }
-            }
-        }
-        return status_map;
-    }
-
-    #! Verifies that all property updates can be performed before executing them
-    private *hash<string, hash<string, hash<string, bool>>> verifyPropertyUpdates(string path, *hash<string, hash<auto>> update_hash, *hash<string, hash<string, bool>> remove_hash) {
-        hash<string, hash<string, hash<string, bool>>> status_map;
-
-        # verify that all operations can succeed
-        # verify sets
-        foreach hash<auto> nsi in (update_hash.pairIterator()) {
-            if (nsi.key == DavNs) {
-                map status_map{409}{DavNs}{$1} = True, keys nsi.value;
-            }
-        }
-
-        # verify removes
-        foreach hash<auto> nsi in (remove_hash.pairIterator()) {
-            if (nsi.key == DavNs) {
-                map status_map{409}{DavNs}{$1} = True, keys nsi.value;
-            }
-        }
-
-        # all updates fail if one fails
-        if (!status_map) {
-            return;
-        }
-
-        foreach hash<auto> nsi in (update_hash.pairIterator()) {
-            foreach hash<auto> pi in (nsi.value.pairIterator()) {
-                if (!status_map{409}{nsi.key}{pi.key}) {
-                    status_map{424}{nsi.key}{pi.key} = True;
-                }
-            }
-        }
-
-        foreach hash<auto> nsi in (remove_hash.pairIterator()) {
-            foreach hash<auto> pi in (nsi.value.pairIterator()) {
-                if (!status_map{409}{nsi.key}{pi.key}) {
-                    status_map{424}{nsi.key}{pi.key} = True;
-                }
-            }
-        }
-        return status_map;
     }
 } # class FsWebdavInterface
 } # namespace WebDAV

@@ -18,20 +18,6 @@ public class WebdavProxyInterface inherits AbstractWebdavInterface {
         m_ifaces = interfaces;
     }
 
-    /**
-        OPTIONS
-    */
-    hash<HttpResponseInfo> handleOptions(hash<auto> cx, hash<auto> hdr, *data body) {
-        return new hash<HttpResponseInfo>({
-            "code": 200,
-            "hdr": {
-                "DAV": "1,2",
-                "Depth": "0",
-                "Allow": AbstractWebdavInterface::REQUEST_METHODS.keys().join(","),
-            },
-        });
-    }
-
     private *hash<auto> handleChildRaw(string method_name, hash<auto> cx, hash<auto> hdr, *data body) {
 printf("---- %s\n", method_name);
 printf("---- raw path %s\n", cx.raw_path);

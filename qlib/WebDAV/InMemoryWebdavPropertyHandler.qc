@@ -78,7 +78,6 @@ public class InMemoryWebdavPropertyHandler inherits AbstractWebdavPropertyHandle
         delete m_cache{resource}{ns}{prop_names};
     }
 
-
     #! Deletes a property
     del(string resource, string ns = DavNs, string prop_name) {
         AutoWriteLock al(m_lock);
