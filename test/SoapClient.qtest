@@ -2,7 +2,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
 # make sure we have the right version of qore
-%requires qore >= 0.8.13
+%requires qore >= 0.9.5
 
 %new-style
 %require-types
@@ -319,7 +319,7 @@ class SoapClientTest inherits QUnit::Test {
             hi = ("info": "very important text");
             h = sc.callOperation("postText", hi);
             assertEq(server.opname, "postText");
-            assertEq("text/plain;charset=ISO-8859-1", sc.msglogs[0].header."Content-Type");
+            assertEq("text/plain;charset=UTF-8", sc.msglogs[0].header."Content-Type");
             assertEq(("info": ("^attributes^": ("^content-type^": "text/plain"), "^value^": hi.info)), server.mdata);
 
             cleanMsgLog();
@@ -366,9 +366,9 @@ class SoapClientTest inherits QUnit::Test {
         if (m_options.verbose > 2)
             printf("conn_url: %y\n", conn_url);
 
-        SoapConnection conn("test", "test", conn_url, False, ("target_url": url, "port": "SoapPort"), parse_url(conn_url));
+        SoapConnection conn("test", "test", conn_url, {}, {"target_url": url, "port": "SoapPort"});
         SoapClient sc2 = conn.get();
-        hash<auto> h = sc2.callOperation("getInfo", ("GetInfo": ("tickerSymbol": "ABC")), ("soapaction": ""));
+        hash<auto> h = sc2.callOperation("getInfo", {"GetInfo": {"tickerSymbol": "ABC"}}, {"soapaction": ""});
         assertEq(99.9, h.body.result);
         assertEq("ABC", h.docs);
         assertEq(binary(), h.logo);

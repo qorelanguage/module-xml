@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file SoapClient.qm SOAP Client module implementation based on the WSDL classes
 
-/*  SoapClient.qm Copyright (C) 2012 - 2019 Qore Technologies, s.r.o.
+/*  SoapClient.qm Copyright (C) 2012 - 2020 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -23,12 +23,12 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.9
+%requires qore >= 0.9.5
 
 %requires(reexport) xml
 %requires(reexport) WSDL
 %requires(reexport) Mime >= 1.1
-%requires(reexport) ConnectionProvider >= 1.1
+%requires(reexport) ConnectionProvider >= 1.4
 
 # do not use $ for vars
 %new-style
@@ -43,11 +43,15 @@
 %enable-all-warnings
 
 module SoapClient {
-    version = "0.4";
+    version = "0.5";
     desc = "SoapClient module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
     license = "MIT";
+    init = sub () {
+        ConnectionSchemeCache::registerScheme("soap", SoapConnection::ConnectionScheme);
+        ConnectionSchemeCache::registerScheme("soaps", SoapConnection::ConnectionScheme);
+    };
 }
 
 /** @mainpage SoapClient Module
@@ -100,6 +104,10 @@ auto result = sc.call("SubmitDocument", msg);
 
     @section soapclientrelnotes SoapClient Release Notes
 
+    @subsection soapclient_0_5 SoapClient v0.5
+    - implemented support for a data provider scheme cache and rich option information for connections
+      (<a href="https://github.com/qorelanguage/qore/issues/4025">issue 4025</a>)
+
     @subsection soapclient_0_4 SoapClient v0.4
     - removed the obsolete \c SoapConnection::getConstructorInfo() method as connection serialization is a
       much more elegant and maintainable solution
@@ -141,731 +149,704 @@ auto result = sc.call("SubmitDocument", msg);
 
 #! main SoapClient namespace
 public namespace SoapClient {
-    #! SOAP client class implementation, publically inherits qore's HTTPClient class
-    public class SoapClient inherits HTTPClient {
-        #! version of the implementation of this class
-        const Version = "0.2.5";
+#! SOAP client class implementation, publically inherits qore's HTTPClient class
+public class SoapClient inherits HTTPClient {
+    #! version of the implementation of this class
+    const Version = "0.2.5";
 
-        #! default HTTP headers
-        const Headers = ("User-Agent": ("Qore-Soap-Client/" + SoapClient::Version));
+    #! default HTTP headers
+    const Headers = {"User-Agent": ("Qore-Soap-Client/" + SoapClient::Version)};
 
-        #! option keys passed to the HTTPClient constructor
-        const HTTPOptions = ("connect_timeout", "http_version", "max_redirects", "proxy", "timeout");
+    #! option keys passed to the HTTPClient constructor
+    const HTTPOptions = keys HttpConnection::ConnectionScheme.options;
 
-        #! @cond nodoc
-        private {
-            # web service definition
-            WSDL::WebService wsdl;
-            # service name
-            string svc;
-            string port;
-            string binding;
-            *string url_path;
+    #! @cond nodoc
+    private {
+        # web service definition
+        WSDL::WebService wsdl;
+        # service name
+        string svc;
+        string port;
+        string binding;
+        *string url_path;
 
-            *code logc;
-            *code dbglogc;
+        *code logc;
+        *code dbglogc;
 
-            # send content encoding hash
-            *hash<auto> seh;
-        }
-        #! @endcond
+        # send content encoding hash
+        *hash<auto> seh;
+    }
+    #! @endcond
 
-        public {
-            #! target URL
-            string url;
-            #! HTTP headers to use
-            hash headers = Headers;
+    public {
+        #! target URL
+        string url;
+        #! HTTP headers to use
+        hash headers = Headers;
 
-            #! Send content encoding options
-            /** Send content encoding options are as follows:
-                - \c "bzip": use bzip2 compression
-                - \c "gzip": use gzip compression
-                - \c "deflate": use deflate compression
-                - \c "identity": use no content encoding
-             */
-            const EncodingSupport = (
-                "gzip": (
-                    "ce": "gzip",
-                    "func": \gzip(),
-                ),
-                "bzip2": (
-                    "ce": "bzip2",
-                    "func": \bzip2(),
-                ),
-                "deflate": (
-                    "ce": "deflate",
-                    "func": \compress(),
-                ),
-                "identity": (
-                    "ce": NOTHING,
-                ),
-            );
-
-            #! default threadhold for data compressions; transfers smaller than this size will not be compressed
-            const CompressionThreshold = 1024;
-        }
-
-        #! creates the object based on a %WSDL which is parsed to a @ref WSDL::WebService "WebService" object which provides the basis for all communication with this object
-        /** one of either the \c wsdl or \c wsdl_file keys is required in the hash given to the constructor or an exception will be thrown
-            @param h valid option keys:
-            - \c wsdl: the URL of the web service or a @ref WSDL::WebService "WebService" object itself
-            - \c wsdl_file: a path to use to load the %WSDL and create the @ref WSDL::WebService "WebService" object
-            - \c url: override the target URL given in the %WSDL
-            - \c send_encoding: a @ref EncodingSupport "send data encoding option" or the value \c "auto" which means to use automatic encoding; if not present defaults to no content-encoding on sent message bodies
-            - \c content_encoding: for possible values, see @ref EncodingSupport; this sets the send encoding (if the \c "send_encoding" option is not set) and the requested response encoding
-            - [\c service]: in case multiple service entries are found in the WSDL, give the one to be used here
-            - [\c port]: in case multiple port entries are found in the WSDL, give the one to be used here; note that the SOAP binding is resolved from the \a service and \a port options.
-            - [\c log]: a log closure or call reference taking a single string giving the log message
-            - [\c dbglog]: a log closure or call reference taking a single string giving the debug log message
-            - also all options from @ref SoapClient::SoapClient::HTTPOptions "SoapClient::HTTPOptions", which are passed to @ref Qore::HTTPClient::constructor() "HTTPClient::constructor()"
+        #! Send content encoding options
+        /** Send content encoding options are as follows:
+            - \c "bzip": use bzip2 compression
+            - \c "gzip": use gzip compression
+            - \c "deflate": use deflate compression
+            - \c "identity": use no content encoding
         */
-        constructor(hash<auto> h) : HTTPClient(h{HTTPOptions}) {
-            if (exists h.wsdl_file && exists h.wsdl)
-                throw "SOAP-CLIENT-ERROR", "only one of 'wsdl' or 'wsdl_file' keys can be given; both were passed";
-
-            if (h.event_queue)
-                setEventQueue(h.event_queue);
-
-            if (h.wsdl instanceof WebService) {
-                wsdl = h.wsdl;
-            } else {
-                *string def_path;
-                auto twsdl;
-                # get web service definition
-                if (exists h.wsdl_file)
-                    twsdl = WSDLLib::getWSDL(h.wsdl_file, self, h.headers, \def_path);
-                else if (exists h.wsdl)
-                    twsdl = WSDLLib::getWSDL(h.wsdl, self, h.headers, \def_path);
-                else
-                    throw "SOAP-CLIENT-ERROR", "neither one of required 'wsdl' or 'wsdl_file' keys is present in the hash argument to SoapClient::constructor()";
-
-                if (!exists twsdl)
-                    throw "SOAP-CLIENT-ERROR", "missing wsdl in SoapClient::constructor()";
-
-                wsdl = twsdl = twsdl instanceof WebService ? twsdl : new WebService(twsdl, ("http_client" : self, "http_headers" : h.headers, "def_path": def_path) + h.wsdl_opt);
-            }
-
-            # set service
-            # get list of services in this wsdl
-            list<auto> svcl = wsdl.listServices();
-            if (svcl.size() > 1 && !h.service)
-                throw "SOAP-CLIENT-ERROR", sprintf("no 'service' key passed in the option hash argument to SoapClient::constructor() (WSDL defines the following services: %y)", (map $1.name, svcl));
-            svc = h.service ?? svcl[0].name;
-
-            hash<auto> svch = wsdl.getService(svc);
-
-            # if no port is specified and there are multiple ports, take the first one for backwards-compatibility
-            port = h.port ?? svch.port.firstKey();
-            binding = svch.port{port}.binding.name;
-
-            url = h.url ?? svch.port{port}.address;
-
-            url_path = parse_url(url).path;
-
-            headers += h.headers;
-            # setup default headers
-
-            if (h.send_encoding)
-                setSendEncoding(h.send_encoding);
-
-            if (h.content_encoding) {
-                if (!h.send_encoding)
-                    setSendEncoding(h.content_encoding);
-                else if (!EncodingSupport.(h.content_encoding))
-                    throw "SOAPCLIENT-ERROR", sprintf("content encoding option %y is unknown; valid options: %y", h.content_encoding, EncodingSupport.keys());
-                headers."Accept-Encoding" = h.content_encoding;
-            }
-
-            # unconditionally set the encoding to utf-8
-            setEncoding("utf-8");
-
-            # set URL
-            setURL(url);
-
-            if (h.log)
-                logc = h.log;
-            if (h.dbglog)
-                dbglogc = h.dbglog;
-        }
-
-        #! returns a hash representing the serialized SOAP request for a given @ref WSDL::WSOperation "WSOperation"
-        /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class and port/binding, an exception will be thrown
-            @param args the arguments to the SOAP operation
-            @param soap_header data structure for the SOAP header, if required by the message
-            @param op a reference to return the @ref WSDL::WSOperation "WSOperation" object found
-            @param http_header a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
-            @param xml_opts an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
-            @param soapaction an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
-
-            @return a hash with the following keys:
-            - \c hdr: a hash of message headers
-            - \c body: the serialized message body
-            - \c path: the path part of URL
-            - \c method: the HTTP request method
-
-            @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
-            @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
-
-            @note content encoding is not applied here but rather internally by the call() methods
-        */
-        hash<auto> getMsg(string operation, auto args, *hash<auto> soap_header, reference<auto> op, *hash<auto> http_header, *int xml_opts, *string soapaction) {
-            op = wsdl.getBindingOperation(binding, operation);
-            hash msg = op.serializeRequest(args, soap_header, getEncoding(), NOTHING, xml_opts, soapaction, binding, http_header);
-            return msg;
-        }
-
-        #! makes a server call with the given operation, arguments, options, and optional info hash reference and returns the result
-        /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
-            @param args the arguments to the SOAP operation
-            @param opts an optional hash of options for the call as follows:
-            - \c soap_header: a hash giving SOAP header information, if required by the message
-            - \c http_header: a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
-            - \c xml_opts: an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
-            - \c soapaction: an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
-            - \c binding: the SOAP binding name, if not provided the first binding assigned to the operation will be used
-            @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
-            - \c "headers": a hash of HTTP request headers
-            - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
-            - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
-            - \c "charset": the character encoding string (ex: \c "UTF-8")
-            - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
-            - \c "accept-charset": the valus of any \c Accept-Charset header in the response
-            - \c "response-headers": a hash of HTTP response headers
-            - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
-            - \c "request-body": the raw XML request body
-            - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
-
-            @return a hash with the following keys:
-            - \c hdr: a hash of message headers
-            - \c body: the serialized message body
-
-            @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
-            @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
-            @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
-
-            @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
-
-            @since %SoapClient 0.2.4.1
-         */
-        auto callOperation(string operation, auto args, *hash<auto> opts, *reference info) {
-            return makeCallIntern(\info, operation, args, opts);
-        }
-
-        #! makes a server call with the given operation and arguments and returns the deserialized result
-        /** @param operation the operation name for the SOAP call
-            @param args the arguments to the SOAP operation
-            @param soap_header optional soap headers (if required by the operation)
-            @param http_header a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
-            @param binding the SOAP binding name, if not provided, the first binding assigned to the operation will be used
-
-            @return the deserialized result of the SOAP call to the SOAP server
-
-            @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
-            @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
-            @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
-
-            @see SoapClient::callOperation()
-
-            @note
-            - this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
-            - it's recommended to use callOperation() instead, which was a cleaner and more extensible API
-        */
-        auto call(string operation, auto args, *hash<auto> soap_header, *hash<auto> http_header, *string binding) {
-            return makeCallIntern(NOTHING, operation, args, {"soap_header": soap_header, "http_header": http_header, "binding": binding});
-        }
-
-        #! makes a server call with the given operation and arguments and returns the deserialized result
-        /** @param operation the operation name for the SOAP call
-            @param args the arguments to the SOAP operation
-            @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
-            - \c "headers": a hash of HTTP request headers
-            - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
-            - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
-            - \c "charset": the character encoding string (ex: \c "UTF-8")
-            - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
-            - \c "accept-charset": the valus of any \c Accept-Charset header in the response
-            - \c "response-headers": a hash of HTTP response headers
-            - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
-            - \c "request-body": the raw XML request body
-            - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
-            @param binding the SOAP binding name, if not provided, the first binding assigned to the operation will be used
-
-            @return the deserialized result of the SOAP call to the SOAP server
-
-            @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
-            @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
-            @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
-
-            @see SoapClient::callOperation()
-
-            @note
-            - this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
-            - it's recommended to use callOperation() instead, which was a cleaner and more extensible API
-        */
-        auto call(string operation, auto args, *reference info, *string binding) {
-            return makeCallIntern(\info, operation, args, {"binding": binding});
-        }
-
-        #! makes a server call with the given operation and arguments and returns the deserialized result with an output argument giving technical information about the call
-        /** @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
-            - \c "headers": a hash of HTTP request headers
-            - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
-            - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
-            - \c "charset": the character encoding string (ex: \c "UTF-8")
-            - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
-            - \c "accept-charset": the valus of any \c Accept-Charset header in the response
-            - \c "response-headers": a hash of HTTP response headers
-            - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
-            - \c "request-body": the raw XML request body
-            - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
-            @param operation the operation name for the SOAP call
-            @param args the arguments to the SOAP operation
-            @param soap_header optional soap headers (if required by the operation)
-            @param http_header a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
-
-            @return the deserialized result of the SOAP call to the SOAP server
-
-            @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
-            @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
-            @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
-
-            @see SoapClient::callOperation()
-
-            @note
-            - this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
-            - it's recommended to use callOperation() instead, which was a cleaner and more extensible API
-        */
-        auto call(reference info, string operation, auto args, *hash<auto> soap_header, *hash<auto> http_header) {
-            return makeCallIntern(\info, operation, args, {"soap_header": soap_header, "http_header": http_header});
-        }
-
-        #! makes the call to the SOAP server and ensures that SOAP fault responses returned with a 500-series status code are processed as a SOAP fault so that error information is returned in the resulting exception
-        private:internal auto makeCallIntern(*reference info, string operation, auto args, *hash<auto> opts) {
-            *hash<auto> soap_headers = opts.soap_header;
-            *hash<auto> http_headers = opts.http_header;
-            *int xml_opts = opts.xml_opts;
-            *string soapaction = opts.soapaction;
-            #printf("DEBUG: makeCallIntern: info: %y, operation: %y, args: %y, opts: %y\n", operation, header, args, opts);
-
-            WSOperation op;
-            hash<auto> msg = getMsg(operation, args, soap_headers, \op, http_headers, xml_opts, soapaction);
-            #printf("DEBUG: msg: %y\n", msg);
-            hash<auto> hdr = headers + msg.hdr;
-
-            date now = now_us();
-            on_exit {
-                log("completed call to %y: %y", operation, now_us() - now);
-                dbglog("info: %N", info);
-            }
-
-            # we have to write the request key after the HTTPClient::post() call but before the log message above
-            # (on_exit statements are executed in reverse order when the block is exited)
-            on_exit info += ("request-body": msg.body, "request-soap-headers": soap_headers);
-            if (msg.path) {
-                if (msg.path !~ /^[\/\?]/ ) {
-                    msg.path = "/" + msg.path;
-                }
-            }
-            if (url_path) {
-                msg.path = rtrim(url_path, "/") + msg.path;
-            }
-            msglog({
-                'reason': 'request',
-                'method': msg.method,
-                'path': msg.path,
-                'header': hdr,
-                'content-type': msg."content-type" ?? msg.hdr."Content-Type" ?? msg.header."Content-Type",
-                'accept': msg.accept ?? msg.hdr.Accept ?? msg.header.Accept,
-                'body': msg.body
-            });
-            # apply content encoding here
-            data body = msg.body ?? "";
-            if (seh.ce && body.size() > CompressionThreshold) {
-                hdr."Content-Encoding" = seh.ce;
-                body = seh.func(body);
-            }
-
-            int http_status_code;
-            hash<auto> rh;
-            try {
-                #printf("SoapClient::makeCallIntern: msg: %y\n", msg);
-                # only try to read a message body in the response if the operation has an output message
-                rh = send(body, msg.method, msg.path, hdr, exists op.output, \info);
-                info."response-body" = rh.body;
-                http_status_code = rh.status_code;
-            } catch (hash<ExceptionInfo> ex) {
-                # issue #3336 an HTTP status code is not available with all errors (ex: SOCKET-CONNECT-ERROR)
-                http_status_code = ex.arg.status_code ?? -1;
-                # allow fault responses returned with a 500-series status code to be processed as a SOAP fault so that error information is returned in the exception
-                #printf("response exception: %s\n", get_exception_string(ex));
-                if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ((http_status_code == 400 ||
-                    (http_status_code >= 500 && http_status_code < 600))
-                    && ex.arg.body =~ /<\?xml.*Fault/s)) {
-                    info."response-body" = ex.arg.body;
-                    rh = ex.arg;
-                } else {
-                    if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR") {
-                        msglog({
-                            "reason": "error",
-                            "code": http_status_code,
-                            "header": ex.arg.header,
-                            "body": ex.arg.body,
-                        });
-                    }
-                    rethrow;
-                }
-            }
-            hash<auto> rmsg = WSDLLib::parseMultiPartSOAPMessage(rh);
-            *hash<auto> pdata = WSDLLib::parseSOAPMessage(rmsg);
-            #printf("DEBUG ans: %s\n", rh);
-
-            hash<auto> msg_hash = {
-                "code": http_status_code,
-                "header": rmsg.header,
-                "content-type": rmsg."content-type",
-                "body": rmsg.body,
-            };
-            on_success msglog({"reason": "response"} + msg_hash);
-            on_error msglog({"reason": "error"} + msg_hash);
-
-            return op.deserializeResponse(pdata, binding);
-        }
-
-        #! uses SoapClient::call() to transparently serialize the argument and make a call to the given operation and return the deserialized results
-        /** @param op the operation name, which is the method name passed to methodGate()
-            @param ... zero or more arguments for the operation
-
-            @return the deserialized result of the SOAP call to the SOAP server
-
-            @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
-            @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
-
-            @see SoapClient::callOperation()
-
-            @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
-        */
-        auto methodGate(string op) {
-            return call(op, argv.typeCode() == NT_LIST && argv.size() == 1 ? argv[0] : argv);
-        }
-
-        #! returns a hash that can be used to ensure serialization with the XSD type given as the \a type argument
-        hash<auto> getType(string type, auto v) {
-            return wsdl.getType(type, v);
-        }
-
-        #! returns the WSDL::WebService object associated with this object
-        WSDL::WebService getWebService() {
-            return wsdl;
-        }
-
-        #! returns a hash of information about the current WSDL
-        /** @return a hash with the following keys:
-            - \c "service": the name of the SOAP service used
-            - \c "pore": the name of the SOAP port used
-            - \c "binding": the name of the binding used
-            - \c "url": the target URL
-         */
-        hash<auto> getInfo() {
-            return (
-                "service": svc,
-                "port": port,
-                "binding": binding,
-                "url": url,
-            );
-        }
-
-        #! change the data content encoding (compression) option for the object; see @ref EncodingSupport for valid options
-        /** @par Example:
-            @code{.py}
-sc.setSendEncoding("gzip");
-            @endcode
-
-            The default is to send requests unencoded/uncompressed.
-
-            @param enc the data content encoding (compression) option for the object; see @ref EncodingSupport for valid options; if the value \c "auto" is passed then \c "gzip" encoding is used
-
-            @throw SOAPCLIENT-ERROR invalid or unsupported data content encoding / compression option
-
-            @see
-            - @ref setContentEncoding()
-            - @ref getSendEncoding()
-        */
-        setSendEncoding(string enc = "auto") {
-            if (enc == "auto")
-                seh = EncodingSupport.firstValue();
-            else {
-                if (!EncodingSupport{enc})
-                    throw "SOAPCLIENT-ERROR", sprintf("send content encoding option %y is unknown; valid options: %y", enc, EncodingSupport.keys());
-                seh = EncodingSupport{enc};
-            }
-        }
-
-        #! sets the request and desired response encoding for the object; see @ref EncodingSupport for valid options
-        /** @par Example:
-            @code{.py}
-soap.setContentEncoding("gzip");
-            @endcode
-
-            @param enc the data content encoding (compression) option for requests and the desired response content encoding for the object; see @ref EncodingSupport for valid options; if the value \c "auto" is passed then \c "gzip" encoding is used for outgoing requests and requested for responses
-
-            @throw SOAPCLIENT-ERROR invalid or unsupported data content encoding / compression option
-
-            @see
-            - @ref getSendEncoding()
-            - @ref setSendEncoding()
-
-            @since %SoapClient 0.2.4
-        */
-        setContentEncoding(string enc = "auto") {
-            if (enc == "auto")
-                seh = EncodingSupport.firstValue();
+        const EncodingSupport = (
+            "gzip": (
+                "ce": "gzip",
+                "func": \gzip(),
+            ),
+            "bzip2": (
+                "ce": "bzip2",
+                "func": \bzip2(),
+            ),
+            "deflate": (
+                "ce": "deflate",
+                "func": \compress(),
+            ),
+            "identity": (
+                "ce": NOTHING,
+            ),
+        );
+
+        #! default threadhold for data compressions; transfers smaller than this size will not be compressed
+        const CompressionThreshold = 1024;
+    }
+
+    #! creates the object based on a %WSDL which is parsed to a @ref WSDL::WebService "WebService" object which provides the basis for all communication with this object
+    /** one of either the \c wsdl or \c wsdl_file keys is required in the hash given to the constructor or an exception will be thrown
+        @param h valid option keys:
+        - \c wsdl: the URL of the web service or a @ref WSDL::WebService "WebService" object itself
+        - \c wsdl_file: a path to use to load the %WSDL and create the @ref WSDL::WebService "WebService" object
+        - \c url: override the target URL given in the %WSDL
+        - \c send_encoding: a @ref EncodingSupport "send data encoding option" or the value \c "auto" which means to use automatic encoding; if not present defaults to no content-encoding on sent message bodies
+        - \c content_encoding: for possible values, see @ref EncodingSupport; this sets the send encoding (if the \c "send_encoding" option is not set) and the requested response encoding
+        - [\c service]: in case multiple service entries are found in the WSDL, give the one to be used here
+        - [\c port]: in case multiple port entries are found in the WSDL, give the one to be used here; note that the SOAP binding is resolved from the \a service and \a port options.
+        - [\c log]: a log closure or call reference taking a single string giving the log message
+        - [\c dbglog]: a log closure or call reference taking a single string giving the debug log message
+        - also all options from @ref SoapClient::SoapClient::HTTPOptions "SoapClient::HTTPOptions", which are passed to @ref Qore::HTTPClient::constructor() "HTTPClient::constructor()"
+    */
+    constructor(hash<auto> h) : HTTPClient(h{HTTPOptions}) {
+        if (exists h.wsdl_file && exists h.wsdl)
+            throw "SOAP-CLIENT-ERROR", "only one of 'wsdl' or 'wsdl_file' keys can be given; both were passed";
+
+        if (h.event_queue)
+            setEventQueue(h.event_queue);
+
+        if (h.wsdl instanceof WebService) {
+            wsdl = h.wsdl;
+        } else {
+            *string def_path;
+            auto twsdl;
+            # get web service definition
+            if (exists h.wsdl_file)
+                twsdl = WSDLLib::getWSDL(h.wsdl_file, self, h.headers, \def_path);
+            else if (exists h.wsdl)
+                twsdl = WSDLLib::getWSDL(h.wsdl, self, h.headers, \def_path);
             else
-                setSendEncoding(enc);
+                throw "SOAP-CLIENT-ERROR", "neither one of required 'wsdl' or 'wsdl_file' keys is present in the hash argument to SoapClient::constructor()";
 
-            headers."Accept-Encoding" = seh.ce ?? "identity";
+            if (!exists twsdl)
+                throw "SOAP-CLIENT-ERROR", "missing wsdl in SoapClient::constructor()";
+
+            wsdl = twsdl = twsdl instanceof WebService ? twsdl : new WebService(twsdl, ("http_client" : self, "http_headers" : h.headers, "def_path": def_path) + h.wsdl_opt);
         }
 
-        #! adds default headers to each request; these headers will be sent in all requests but can be overridden in requests as well
-        /** @par Example:
-            @code{.py}
-# disable gzip and bzip encoding in responses
-soap.addDefaultHeaders(("Accept-Encoding": "compress"));
-            @endcode
+        # set service
+        # get list of services in this wsdl
+        list<auto> svcl = wsdl.listServices();
+        if (svcl.size() > 1 && !h.service)
+            throw "SOAP-CLIENT-ERROR", sprintf("no 'service' key passed in the option hash argument to SoapClient::constructor() (WSDL defines the following services: %y)", (map $1.name, svcl));
+        svc = h.service ?? svcl[0].name;
 
-            @param h a hash of headers to add to the default headers to send on each request
+        hash<auto> svch = wsdl.getService(svc);
 
-            @note default headers can also be set in the constructor
+        # if no port is specified and there are multiple ports, take the first one for backwards-compatibility
+        port = h.port ?? svch.port.firstKey();
+        binding = svch.port{port}.binding.name;
 
-            @see @ref SoapClient::SoapClient::getDefaultHeaders() "SoapClient::getDefaultHeaders()"
+        url = h.url ?? svch.port{port}.address;
 
-            @since %SoapClient 0.2.4
-        */
-        addDefaultHeaders(hash<auto> h) {
-            headers += h;
+        url_path = parse_url(url).path;
+
+        headers += h.headers;
+        # setup default headers
+
+        if (h.send_encoding)
+            setSendEncoding(h.send_encoding);
+
+        if (h.content_encoding) {
+            if (!h.send_encoding)
+                setSendEncoding(h.content_encoding);
+            else if (!EncodingSupport.(h.content_encoding))
+                throw "SOAPCLIENT-ERROR", sprintf("content encoding option %y is unknown; valid options: %y", h.content_encoding, EncodingSupport.keys());
+            headers."Accept-Encoding" = h.content_encoding;
         }
 
-        #! returns the hash of default headers to sent in all requests
-        /** @par Example:
-            @code{.py}
-hash<auto> h = soap.getDefaultHeaders();
-            @endcode
+        # unconditionally set the encoding to utf-8
+        setEncoding("utf-8");
 
-            @return the hash of default headers to sent in all requests
+        # set URL
+        setURL(url);
 
-            @note default headers can be set in the constructor and in addDefaultHeaders()
+        if (h.log)
+            logc = h.log;
+        if (h.dbglog)
+            dbglogc = h.dbglog;
+    }
 
-            @see @ref getDefaultHeaders()
+    #! returns a hash representing the serialized SOAP request for a given @ref WSDL::WSOperation "WSOperation"
+    /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class and port/binding, an exception will be thrown
+        @param args the arguments to the SOAP operation
+        @param soap_header data structure for the SOAP header, if required by the message
+        @param op a reference to return the @ref WSDL::WSOperation "WSOperation" object found
+        @param http_header a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
+        @param xml_opts an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
+        @param soapaction an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
 
-            @since %SoapClient 0.2.4
-        */
-        hash<auto> getDefaultHeaders() {
-            return headers;
+        @return a hash with the following keys:
+        - \c hdr: a hash of message headers
+        - \c body: the serialized message body
+        - \c path: the path part of URL
+        - \c method: the HTTP request method
+
+        @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+        @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
+
+        @note content encoding is not applied here but rather internally by the call() methods
+    */
+    hash<auto> getMsg(string operation, auto args, *hash<auto> soap_header, reference<auto> op, *hash<auto> http_header, *int xml_opts, *string soapaction) {
+        op = wsdl.getBindingOperation(binding, operation);
+        hash msg = op.serializeRequest(args, soap_header, getEncoding(), NOTHING, xml_opts, soapaction, binding, http_header);
+        return msg;
+    }
+
+    #! makes a server call with the given operation, arguments, options, and optional info hash reference and returns the result
+    /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
+        @param args the arguments to the SOAP operation
+        @param opts an optional hash of options for the call as follows:
+        - \c soap_header: a hash giving SOAP header information, if required by the message
+        - \c http_header: a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
+        - \c xml_opts: an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
+        - \c soapaction: an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
+        - \c binding: the SOAP binding name, if not provided the first binding assigned to the operation will be used
+        @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
+        - \c "headers": a hash of HTTP request headers
+        - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
+        - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
+        - \c "charset": the character encoding string (ex: \c "UTF-8")
+        - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
+        - \c "accept-charset": the valus of any \c Accept-Charset header in the response
+        - \c "response-headers": a hash of HTTP response headers
+        - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
+        - \c "request-body": the raw XML request body
+        - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
+
+        @return a hash with the following keys:
+        - \c hdr: a hash of message headers
+        - \c body: the serialized message body
+
+        @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+        @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
+        @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
+
+        @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
+
+        @since %SoapClient 0.2.4.1
+    */
+    auto callOperation(string operation, auto args, *hash<auto> opts, *reference info) {
+        return makeCallIntern(\info, operation, args, opts);
+    }
+
+    #! makes a server call with the given operation and arguments and returns the deserialized result
+    /** @param operation the operation name for the SOAP call
+        @param args the arguments to the SOAP operation
+        @param soap_header optional soap headers (if required by the operation)
+        @param http_header a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
+        @param binding the SOAP binding name, if not provided, the first binding assigned to the operation will be used
+
+        @return the deserialized result of the SOAP call to the SOAP server
+
+        @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+        @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
+        @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
+
+        @see SoapClient::callOperation()
+
+        @note
+        - this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
+        - it's recommended to use callOperation() instead, which was a cleaner and more extensible API
+    */
+    auto call(string operation, auto args, *hash<auto> soap_header, *hash<auto> http_header, *string binding) {
+        return makeCallIntern(NOTHING, operation, args, {"soap_header": soap_header, "http_header": http_header, "binding": binding});
+    }
+
+    #! makes a server call with the given operation and arguments and returns the deserialized result
+    /** @param operation the operation name for the SOAP call
+        @param args the arguments to the SOAP operation
+        @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
+        - \c "headers": a hash of HTTP request headers
+        - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
+        - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
+        - \c "charset": the character encoding string (ex: \c "UTF-8")
+        - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
+        - \c "accept-charset": the valus of any \c Accept-Charset header in the response
+        - \c "response-headers": a hash of HTTP response headers
+        - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
+        - \c "request-body": the raw XML request body
+        - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
+        @param binding the SOAP binding name, if not provided, the first binding assigned to the operation will be used
+
+        @return the deserialized result of the SOAP call to the SOAP server
+
+        @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+        @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
+        @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
+
+        @see SoapClient::callOperation()
+
+        @note
+        - this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
+        - it's recommended to use callOperation() instead, which was a cleaner and more extensible API
+    */
+    auto call(string operation, auto args, *reference info, *string binding) {
+        return makeCallIntern(\info, operation, args, {"binding": binding});
+    }
+
+    #! makes a server call with the given operation and arguments and returns the deserialized result with an output argument giving technical information about the call
+    /** @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
+        - \c "headers": a hash of HTTP request headers
+        - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
+        - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
+        - \c "charset": the character encoding string (ex: \c "UTF-8")
+        - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
+        - \c "accept-charset": the valus of any \c Accept-Charset header in the response
+        - \c "response-headers": a hash of HTTP response headers
+        - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
+        - \c "request-body": the raw XML request body
+        - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
+        @param operation the operation name for the SOAP call
+        @param args the arguments to the SOAP operation
+        @param soap_header optional soap headers (if required by the operation)
+        @param http_header a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
+
+        @return the deserialized result of the SOAP call to the SOAP server
+
+        @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+        @throw WSDL-BINDING-ERROR the binding is not assigned to a SOAP operation in the WSDL
+        @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
+
+        @see SoapClient::callOperation()
+
+        @note
+        - this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
+        - it's recommended to use callOperation() instead, which was a cleaner and more extensible API
+    */
+    auto call(reference info, string operation, auto args, *hash<auto> soap_header, *hash<auto> http_header) {
+        return makeCallIntern(\info, operation, args, {"soap_header": soap_header, "http_header": http_header});
+    }
+
+    #! makes the call to the SOAP server and ensures that SOAP fault responses returned with a 500-series status code are processed as a SOAP fault so that error information is returned in the resulting exception
+    private:internal auto makeCallIntern(*reference info, string operation, auto args, *hash<auto> opts) {
+        *hash<auto> soap_headers = opts.soap_header;
+        *hash<auto> http_headers = opts.http_header;
+        *int xml_opts = opts.xml_opts;
+        *string soapaction = opts.soapaction;
+        #printf("DEBUG: makeCallIntern: info: %y, operation: %y, args: %y, opts: %y\n", operation, header, args, opts);
+
+        WSOperation op;
+        hash<auto> msg = getMsg(operation, args, soap_headers, \op, http_headers, xml_opts, soapaction);
+        #printf("DEBUG: msg: %y\n", msg);
+        hash<auto> hdr = headers + msg.hdr;
+
+        date now = now_us();
+        on_exit {
+            log("completed call to %y: %y", operation, now_us() - now);
+            dbglog("info: %N", info);
         }
 
-        #! returns the current data content encoding (compression) object or @ref nothing if no encoding option is set; see @ref EncodingSupport for valid options
-        /** @par Example:
-            @code{.py}
-*string ce = soap.getSendEncoding();
-            @endcode
-
-            @return the current data content encoding (compression) object or @ref nothing if no encoding option is set; see @ref EncodingSupport for valid options
-
-            @see
-            - @ref setContentEncoding()
-            - @ref setSendEncoding()
-
-            @since %SoapClient 0.2.4
-        */
-        *string getSendEncoding() {
-            return seh.ce;
+        # we have to write the request key after the HTTPClient::post() call but before the log message above
+        # (on_exit statements are executed in reverse order when the block is exited)
+        on_exit info += ("request-body": msg.body, "request-soap-headers": soap_headers);
+        if (msg.path) {
+            if (msg.path !~ /^[\/\?]/ ) {
+                msg.path = "/" + msg.path;
+            }
+        }
+        if (url_path) {
+            msg.path = rtrim(url_path, "/") + msg.path;
+        }
+        msglog({
+            'reason': 'request',
+            'method': msg.method,
+            'path': msg.path,
+            'header': hdr,
+            'content-type': msg."content-type" ?? msg.hdr."Content-Type" ?? msg.header."Content-Type",
+            'accept': msg.accept ?? msg.hdr.Accept ?? msg.header.Accept,
+            'body': msg.body
+        });
+        # apply content encoding here
+        data body = msg.body ?? "";
+        if (seh.ce && body.size() > CompressionThreshold) {
+            hdr."Content-Encoding" = seh.ce;
+            body = seh.func(body);
         }
 
-        #! sends a log message to the log closure or call reference, if any
-        log(string msg) {
-            if (logc)
-                call_function(logc, "SoapClient: " + trim(vsprintf(msg, argv)));
+        int http_status_code;
+        hash<auto> rh;
+        try {
+            #printf("SoapClient::makeCallIntern: msg: %y\n", msg);
+            # only try to read a message body in the response if the operation has an output message
+            rh = send(body, msg.method, msg.path, hdr, exists op.output, \info);
+            info."response-body" = rh.body;
+            http_status_code = rh.status_code;
+        } catch (hash<ExceptionInfo> ex) {
+            # issue #3336 an HTTP status code is not available with all errors (ex: SOCKET-CONNECT-ERROR)
+            http_status_code = ex.arg.status_code ?? -1;
+            # allow fault responses returned with a 500-series status code to be processed as a SOAP fault so that error information is returned in the exception
+            #printf("response exception: %s\n", get_exception_string(ex));
+            if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR" && ((http_status_code == 400 ||
+                (http_status_code >= 500 && http_status_code < 600))
+                && ex.arg.body =~ /<\?xml.*Fault/s)) {
+                info."response-body" = ex.arg.body;
+                rh = ex.arg;
+            } else {
+                if (ex.err == "HTTP-CLIENT-RECEIVE-ERROR") {
+                    msglog({
+                        "reason": "error",
+                        "code": http_status_code,
+                        "header": ex.arg.header,
+                        "body": ex.arg.body,
+                    });
+                }
+                rethrow;
+            }
         }
+        hash<auto> rmsg = WSDLLib::parseMultiPartSOAPMessage(rh);
+        *hash<auto> pdata = WSDLLib::parseSOAPMessage(rmsg);
+        #printf("DEBUG ans: %s\n", rh);
 
-        #! sends a log message to the debug log closure or call reference, if any
-        dbglog(string msg) {
-            if (dbglogc)
-                call_function(dbglogc, "SoapClient: " + trim(vsprintf(msg, argv)));
-        }
-        /** Method is to be overriden to implement custom logging HTTP message sent and received from this object.
-            @par msg information about message to be logged. There are keys 'reason' with value 'request', 'response' or 'error',
-                 'header' (HTTP headers, as received from the remote) and 'body' containing XML data in readable form, i.e. uncompressed, and, in case of
-                 a multipart message, only the related part is passed. Method is executed before message is sent or after
-                 has been received. Do not allow exception raising in method not to interrupt client function.
+        hash<auto> msg_hash = {
+            "code": http_status_code,
+            "header": rmsg.header,
+            "content-type": rmsg."content-type",
+            "body": rmsg.body,
+        };
+        on_success msglog({"reason": "response"} + msg_hash);
+        on_error msglog({"reason": "error"} + msg_hash);
 
-            @par Example:
-            @code{.py}
-private nothing msglog(hash<auto> msg) {
-    log(sprintf("%s:\n%s\n", msg.reason, msg.body));
-}
-            @endcode
+        return op.deserializeResponse(pdata, binding);
+    }
 
-            @since %SoapClient 0.2.5
-        */
-        private nothing msglog(hash<auto> msg) {
-            # implement functionality in derived class
-            #printf(sprintf("%N\n", msg));
+    #! uses SoapClient::call() to transparently serialize the argument and make a call to the given operation and return the deserialized results
+    /** @param op the operation name, which is the method name passed to methodGate()
+        @param ... zero or more arguments for the operation
+
+        @return the deserialized result of the SOAP call to the SOAP server
+
+        @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+        @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
+
+        @see SoapClient::callOperation()
+
+        @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
+    */
+    auto methodGate(string op) {
+        return call(op, argv.typeCode() == NT_LIST && argv.size() == 1 ? argv[0] : argv);
+    }
+
+    #! returns a hash that can be used to ensure serialization with the XSD type given as the \a type argument
+    hash<auto> getType(string type, auto v) {
+        return wsdl.getType(type, v);
+    }
+
+    #! returns the WSDL::WebService object associated with this object
+    WSDL::WebService getWebService() {
+        return wsdl;
+    }
+
+    #! returns a hash of information about the current WSDL
+    /** @return a hash with the following keys:
+        - \c "service": the name of the SOAP service used
+        - \c "pore": the name of the SOAP port used
+        - \c "binding": the name of the binding used
+        - \c "url": the target URL
+    */
+    hash<auto> getInfo() {
+        return (
+            "service": svc,
+            "port": port,
+            "binding": binding,
+            "url": url,
+        );
+    }
+
+    #! change the data content encoding (compression) option for the object; see @ref EncodingSupport for valid options
+    /** @par Example:
+        @code{.py}
+sc.setSendEncoding("gzip");
+        @endcode
+
+        The default is to send requests unencoded/uncompressed.
+
+        @param enc the data content encoding (compression) option for the object; see @ref EncodingSupport for valid options; if the value \c "auto" is passed then \c "gzip" encoding is used
+
+        @throw SOAPCLIENT-ERROR invalid or unsupported data content encoding / compression option
+
+        @see
+        - @ref setContentEncoding()
+        - @ref getSendEncoding()
+    */
+    setSendEncoding(string enc = "auto") {
+        if (enc == "auto")
+            seh = EncodingSupport.firstValue();
+        else {
+            if (!EncodingSupport{enc})
+                throw "SOAPCLIENT-ERROR", sprintf("send content encoding option %y is unknown; valid options: %y", enc, EncodingSupport.keys());
+            seh = EncodingSupport{enc};
         }
     }
 
-    #! class for SOAP connections; returns an object of class @ref SoapClient for connecting to SOAP servers
-    /** supports the following static initialization options:
-        - \c "connect_timeout": connection timeout to use in milliseconds
-        - \c "content_encoding": this sets the send encoding (if the \c "send_encoding" option is not set) and the requested response encoding; for possible values, see @ref SoapClient::EncodingSupport  "EncodingSupport"
-        - \c "http_version": HTTP version to use (\c "1.0" or \c "1.1", defaults to \c "1.1")
-        - \c "max_redirects": maximum redirects to support
-        - \c "service": the name of the "service" to use (if more than 1 service is defined in the WSDL then this key is mandatory)
-        - \c "port": in case multiple port entries are found in the WSDL, give the one to be used here
-        - \c "proxy": proxy URL to use
-        - \c "send_encoding": a @ref SoapClient::EncodingSupport "send data encoding option" or the value \c "auto" which means to use automatic encoding; if not present defaults to no content-encoding on sent message bodies
-        - \c "target_url": overrides the URL in the WSDL (mapped to \c "url" in the @ref SoapClient::constructor(hash) "SoapClient::constructor()" argument)
-        - \c "timeout": transfer timeout to use in milliseconds
-        - \c "wsdl": overrides the WSDL URL provided by the connection URL; \c "wsdl" values with a \c "file://" scheme are subject to environment variable substitution
+    #! sets the request and desired response encoding for the object; see @ref EncodingSupport for valid options
+    /** @par Example:
+        @code{.py}
+soap.setContentEncoding("gzip");
+        @endcode
 
-        @see @ref SoapClient::constructor(hash) for more information on the above options
+        @param enc the data content encoding (compression) option for requests and the desired response content encoding for the object; see @ref EncodingSupport for valid options; if the value \c "auto" is passed then \c "gzip" encoding is used for outgoing requests and requested for responses
 
-        @note additionally supports the following runtime options in getImpl() for connection logging:
+        @throw SOAPCLIENT-ERROR invalid or unsupported data content encoding / compression option
+
+        @see
+        - @ref getSendEncoding()
+        - @ref setSendEncoding()
+
+        @since %SoapClient 0.2.4
+    */
+    setContentEncoding(string enc = "auto") {
+        if (enc == "auto")
+            seh = EncodingSupport.firstValue();
+        else
+            setSendEncoding(enc);
+
+        headers."Accept-Encoding" = seh.ce ?? "identity";
+    }
+
+    #! adds default headers to each request; these headers will be sent in all requests but can be overridden in requests as well
+    /** @par Example:
+        @code{.py}
+# disable gzip and bzip encoding in responses
+soap.addDefaultHeaders(("Accept-Encoding": "compress"));
+        @endcode
+
+        @param h a hash of headers to add to the default headers to send on each request
+
+        @note default headers can also be set in the constructor
+
+        @see @ref SoapClient::SoapClient::getDefaultHeaders() "SoapClient::getDefaultHeaders()"
+
+        @since %SoapClient 0.2.4
+    */
+    addDefaultHeaders(hash<auto> h) {
+        headers += h;
+    }
+
+    #! returns the hash of default headers to sent in all requests
+    /** @par Example:
+        @code{.py}
+hash<auto> h = soap.getDefaultHeaders();
+        @endcode
+
+        @return the hash of default headers to sent in all requests
+
+        @note default headers can be set in the constructor and in addDefaultHeaders()
+
+        @see @ref getDefaultHeaders()
+
+        @since %SoapClient 0.2.4
+    */
+    hash<auto> getDefaultHeaders() {
+        return headers;
+    }
+
+    #! returns the current data content encoding (compression) object or @ref nothing if no encoding option is set; see @ref EncodingSupport for valid options
+    /** @par Example:
+        @code{.py}
+*string ce = soap.getSendEncoding();
+        @endcode
+
+        @return the current data content encoding (compression) object or @ref nothing if no encoding option is set; see @ref EncodingSupport for valid options
+
+        @see
+        - @ref setContentEncoding()
+        - @ref setSendEncoding()
+
+        @since %SoapClient 0.2.4
+    */
+    *string getSendEncoding() {
+        return seh.ce;
+    }
+
+    #! sends a log message to the log closure or call reference, if any
+    log(string msg) {
+        if (logc)
+            call_function(logc, "SoapClient: " + trim(vsprintf(msg, argv)));
+    }
+
+    #! sends a log message to the debug log closure or call reference, if any
+    dbglog(string msg) {
+        if (dbglogc)
+            call_function(dbglogc, "SoapClient: " + trim(vsprintf(msg, argv)));
+    }
+    /** Method is to be overriden to implement custom logging HTTP message sent and received from this object.
+        @par msg information about message to be logged. There are keys 'reason' with value 'request', 'response' or 'error',
+                'header' (HTTP headers, as received from the remote) and 'body' containing XML data in readable form, i.e. uncompressed, and, in case of
+                a multipart message, only the related part is passed. Method is executed before message is sent or after
+                has been received. Do not allow exception raising in method not to interrupt client function.
+
+        @par Example:
+        @code{.py}
+private nothing msglog(hash<auto> msg) {
+log(sprintf("%s:\n%s\n", msg.reason, msg.body));
+}
+        @endcode
+
+        @since %SoapClient 0.2.5
+    */
+    private nothing msglog(hash<auto> msg) {
+        # implement functionality in derived class
+        #printf(sprintf("%N\n", msg));
+    }
+}
+
+#! class for SOAP connections; returns an object of class @ref SoapClient for connecting to SOAP servers
+/** supports all @ref ConnectionProvider::HttpConnection "HttpConnection" options plus the following static
+    initialization options:
+    - \c "service": the name of the "service" to use (if more than 1 service is defined in the WSDL then this key is
+      mandatory)
+    - \c "port": in case multiple port entries are found in the WSDL, give the one to be used here
+    - \c "target_url": overrides the URL in the WSDL (mapped to \c "url" in the
+      @ref SoapClient::constructor(hash) "SoapClient::constructor()" argument)
+    - \c "wsdl": overrides the WSDL URL provided by the connection URL; \c "wsdl" values with a \c "file://" scheme
+      are subject to environment variable substitution
+
+    @see @ref SoapClient::constructor(hash) for more information on the above options
+
+    @note additionally supports the following runtime options in getImpl() for connection logging:
+    - \c "log": a closure accepting a single string for logging
+    - \c "dbglog": a closure taking a single string for detailed technical connection logging
+*/
+public class SoapConnection inherits HttpBasedConnection {
+    public {
+        hash<auto> real_opts;
+
+        #! Connection entry info
+        const ConnectionScheme = <ConnectionSchemeInfo>{
+            "cls": Class::forName("SoapConnection"),
+            "options": HttpConnection::ConnectionScheme.options + {
+                "service": <ConnectionOptionInfo>{
+                    "type": "string",
+                    "desc": "the name of the SOAP service to use (if more than 1 service is defined in the WSDL then "
+                        "this key is mandatory",
+                },
+                "port": <ConnectionOptionInfo>{
+                    "type": "string",
+                    "desc": "in case multiple port entries are found in the WSDL, give the one to be used here",
+                },
+                "target_url": <ConnectionOptionInfo>{
+                    "type": "string",
+                    "desc": "overrides the URL in the WSDL",
+                },
+                "wsdl": <ConnectionOptionInfo>{
+                    "type": "string",
+                    "desc": "overrides the WSDL URL provided by the connection URL",
+                },
+            },
+        };
+    }
+
+    #! creates the SoapConnection object
+    /** @param name the name of the connection
+        @param description connection description
+        @param url connection URL (potentially with password info)
+        @param attributes various attributes. See below
+        @param options connection options
+
+        See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
+    */
+    constructor(string name, string description, string url, hash<auto> attributes = {}, hash<auto> options = {})
+        : HttpBasedConnection(name, description, url, attributes, options) {
+        # do environment variable substitution in wsdl option if applicable
+        if (!opts.wsdl) {
+            # check if we have a local path to the WSDL
+            hash<auto> h = parse_url(real_url);
+            if (h.protocol == "http" && h.size() == 2 && h.path)
+                real_url =~ s/^http/file/;
+        }
+
+        real_opts = ("wsdl": real_url) + opts;
+        # rename "target_url" to "url"
+        real_opts.url = remove opts.target_url;
+    }
+
+    #! returns \c "soap"
+    string getType() {
+        return "soap";
+    }
+
+    #! returns runtime options
+    /** @return a hash with the following keys reflecting support for the corresponding runtime options in getImpl() for connection logging:
         - \c "log": a closure accepting a single string for logging
         - \c "dbglog": a closure taking a single string for detailed technical connection logging
     */
-    public class SoapConnection inherits HttpBasedConnection {
-        public {
-            hash<auto> real_opts;
-        }
-
-        public {
-            const Options = HttpConnection::Options + {
-                "content_encoding": True,
-                "service": True,
-                "port": True,
-                "send_encoding": True,
-                "target_url": True,
-                "wsdl": True,
-            };
-        }
-
-        #! DEPRECATED: creates the SoapConnection object
-        /** @param name the name of the connection
-            @param desc connection description
-            @param url connection URL
-            @param monitor monitoring flag
-            @param n_opts connection options
-            @param urlh broken down URL hash (as returned by @ref Qore::parse_url())
-
-            @deprecated since Qore 0.9
-        */
-        deprecated
-        constructor(string name, string desc, string url, bool monitor, *hash<auto> n_opts, hash<auto> urlh)
-            : HttpBasedConnection(name, desc, url, {"monitor": monitor}, n_opts ?? {}) {
-            constructorInit();
-        }
-
-        #! creates the SoapConnection object
-        /** @param name the name of the connection
-            @param description connection description
-            @param url connection URL (potentially with password info)
-            @param attributes various attributes. See below
-            @param options connection options
-
-            See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
-         */
-        constructor(string name, string description, string url, hash<auto> attributes = {}, hash<auto> options = {})
-            : HttpBasedConnection(name, description, url, attributes, options) {
-            constructorInit();
-        }
-
-        private:internal constructorInit() {
-            # do environment variable substitution in wsdl option if applicable
-            if (!opts.wsdl) {
-                # check if we have a local path to the WSDL
-                hash<auto> h = parse_url(real_url);
-                if (h.protocol == "http" && h.size() == 2 && h.path)
-                    real_url =~ s/^http/file/;
-            }
-
-            real_opts = ("wsdl": real_url) + opts;
-            # rename "target_url" to "url"
-            real_opts.url = remove opts.target_url;
-        }
-
-        #! returns \c "soap"
-        string getType() {
-            return "soap";
-        }
-
-        #! returns runtime options
-        /** @return a hash with the following keys reflecting support for the corresponding runtime options in getImpl() for connection logging:
-            - \c "log": a closure accepting a single string for logging
-            - \c "dbglog": a closure taking a single string for detailed technical connection logging
-        */
-        *hash<auto> getRuntimeOptions() {
-            return {
-                "log": True,
-                "dbglog": True,
-            };
-        }
-
-        #! returns a @ref SoapClient object
-        /** @param connect if @ref Qore::True "True", then @ref Qore::HTTPClient::connect() "SoapClient::connect()" is called
-            @param rtopts supports the following runtime options in getImpl() for connection logging:
-            - \c "log": a closure accepting a single string for logging
-            - \c "dbglog": a closure taking a single string for detailed technical connection logging
-
-            @return a @ref SoapClient object
-        */
-        private SoapClient getImpl(bool connect = True, *hash<auto> rtopts) {
-            SoapClient sc(real_opts + rtopts.("log", "dbglog"));
-            if (connect)
-                sc.connect();
-            return sc;
-        }
-
-        #! gets options
-        hash<auto> getOptions() {
-            return Options;
-        }
-
-        #! returns default options
-        *hash<auto> getDefaultOptions() {
-            return HttpConnection::DefaultOptions;
-        }
-
-        #! returns a data provider object for this connection
-        /** @return a data provider object for this connection
-
-            @see hasDataProvider()
-        */
-        DataProvider::AbstractDataProvider getDataProvider() {
-            SoapClient soap = get();
-            # to avoid circular dependencies, this object loads the SwaggerDataProvider and creates the data provider
-            # object dynamically
-            load_module("SoapDataProvider");
-            return create_object("SoapDataProvider", soap.getWebService(), soap);
-        }
-
-        #! returns @ref True as this connection returns a data provider with the @ref getDataProvider() method
-        /** @return @ref True as this connection returns a data provider with the @ref getDataProvider() method
-
-            @see @ref getDataProvider()
-        */
-        bool hasDataProvider() {
-            return True;
-        }
-
-        #! DEPRECATED: static constructor
-        /** @deprecated since Qore 0.9 in favor of new constructor and Qore::Reflection
-         */
-        deprecated
-        static SoapConnection make(string name, string desc, string url, bool monitor, *hash<auto> opts, hash<auto> urlh) {
-            hash<auto> attributes = {
-                "monitor": monitor,
-            };
-
-            return new SoapConnection(name, desc, url, attributes, opts ?? {});
-        }
+    *hash<auto> getRuntimeOptions() {
+        return {
+            "log": True,
+            "dbglog": True,
+        };
     }
+
+    #! returns a data provider object for this connection
+    /** @return a data provider object for this connection
+
+        @see hasDataProvider()
+    */
+    DataProvider::AbstractDataProvider getDataProvider() {
+        SoapClient soap = get();
+        # to avoid circular dependencies, this object loads the SwaggerDataProvider and creates the data provider
+        # object dynamically
+        load_module("SoapDataProvider");
+        return create_object("SoapDataProvider", soap.getWebService(), soap);
+    }
+
+    #! returns @ref True as this connection returns a data provider with the @ref getDataProvider() method
+    /** @return @ref True as this connection returns a data provider with the @ref getDataProvider() method
+
+        @see @ref getDataProvider()
+    */
+    bool hasDataProvider() {
+        return True;
+    }
+
+    #! returns a @ref SoapClient object
+    /** @param connect if @ref Qore::True "True", then @ref Qore::HTTPClient::connect() "SoapClient::connect()" is called
+        @param rtopts supports the following runtime options in getImpl() for connection logging:
+        - \c "log": a closure accepting a single string for logging
+        - \c "dbglog": a closure taking a single string for detailed technical connection logging
+
+        @return a @ref SoapClient object
+    */
+    private SoapClient getImpl(bool connect = True, *hash<auto> rtopts) {
+        SoapClient sc(real_opts + rtopts.("log", "dbglog"));
+        if (connect)
+            sc.connect();
+        return sc;
+    }
+
+    #! Returns the ConnectionSchemeInfo hash for this object
+    private hash<ConnectionSchemeInfo> getConnectionSchemeInfoImpl() {
+        return ConnectionScheme;
+    }
+}
 }
