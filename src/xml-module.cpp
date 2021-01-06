@@ -1,7 +1,7 @@
 /*
   Qore xml module
 
-  Copyright (C) 2010 - 2017 Qore Technologies, s.r.o.
+  Copyright (C) 2010 - 2021 Qore Technologies, s.r.o.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -56,7 +56,7 @@ DLLEXPORT char qore_module_license_str[] = "MIT";
 
 thread_local AbstractXmlIoInputCallback* xml_io_callback = nullptr;
 
-QoreNamespace XNS("Xml");
+QoreNamespace XNS("Qore::Xml");
 
 static void qoreXmlGenericErrorFunc(QoreString *err, const char *msg, ...) {
    va_list args;

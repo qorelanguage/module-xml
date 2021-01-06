@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file WSDL.qm WSDL: Web Services Description Language: http://www.w3.org/TR/wsdl, SOAP 1.1: https://www.w3.org/TR/2000/NOTE-SOAP-20000508/, SOAP 1.2: https://www.w3.org/TR/soap12-part1/
 
-/*  WSDL.qm Copyright (C) 2012 - 2020 Qore Technologies, s.r.o.
+/*  WSDL.qm Copyright (C) 2012 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -2304,7 +2304,7 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         - \c hdr: hash of HTTP headers
         - \c path: the path part of URL. Used when urlEncoded is defined
         - \c method: the HTTP request method
-        */
+    */
     hash<auto> serializeFault(*string fault, string faultmsg, auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string bname) {
         if (exists fault && !faults{fault}) {
             throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize unknown fault %y for operation %y; known faults: %y", fault, name, keys faults);
@@ -2314,28 +2314,37 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
 
     #! serializes a request to an XML string or HTTP payload for the operation.
     /** @param h the request to serialize
-        @param header optional soap header info to serialize if required (ex: authorization info). In the first step headers are matched to binding/input/header WSDL definition, remaining headers are passed as-is
-        @param enc the optional encoding to use; if this argument is not present, then the default encoding will be used
+        @param header optional soap header info to serialize if required (ex: authorization info). In the first step
+        headers are matched to binding/input/header WSDL definition, remaining headers are passed as-is
+        @param enc the optional encoding to use; if this argument is not present, then the default encoding will be
+        used
         @param nsh an optional namespace hash for the output message
         @param xml_opts optional XML generation options
         @param req_soapaction if present will override any SOAPAction value for the request, ignored for HTTP binding
         @param bname SOAP binding name or empty to get the first assigned binding
 
         @return a hash with keys:
-        - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary). Target content type is evaluated from WSDL or in case of ambiguity
-        using "^attributes^"."^content-type^". Provided content type must match allowed types in WSDL. Also "application/x-www-form-urlencoded" or any general type are supported.
+        - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary). Target
+          content type is evaluated from WSDL or in case of ambiguity using "^attributes^"."^content-type^".  The
+          provided content type must match allowed types in WSDL; also "application/x-www-form-urlencoded" or any
+          general type are supported.
         - \c hdr: hash of HTTP headers
         - \c path: the path part of URL. Used when urlEncoded is defined
         - \c method: the HTTP request method
+
+        @throw SOAP-SERIALIZATION-ERROR no input message description
     */
     hash<auto> serializeRequest(auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string bname, *hash<auto> http_headers) {
-        return getBinding(bname).serializeMessage(self, input, True, nsc.hasSoap12(), h, header, enc, nsh, xml_opts, req_soapaction, NOTHING, http_headers);
+        return getBinding(bname).serializeMessage(self, input, True, nsc.hasSoap12(), h, header, enc, nsh, xml_opts,
+            req_soapaction, NOTHING, http_headers);
     }
 
     #! serializes a SOAP response to an XML string for the operation
     /** @param h the response to serialize
-        @param header SOAP header hash. In the first step headers are matched to binding/input/header WSDL definition, remaining headers are passed as-is
-        @param enc the optional encoding to use; if this argument is not present, then the default encoding will be used
+        @param header SOAP header hash. In the first step headers are matched to binding/input/header WSDL definition,
+        remaining headers are passed as-is
+        @param enc the optional encoding to use; if this argument is not present, then the default encoding will be
+        used
         @param nsh namespace hash
         @param soap12 set to True if the response should use SOAP 1.2 encoding
         @param xml_opts optional XML generation options
@@ -2343,22 +2352,26 @@ public class WSDL::WSOperation inherits WSDL::XsdNamedData {
         @param http_headers HTTP headers to serialize in the response
 
         @return a hash with keys:
-        - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary). Target content type is evaluated from WSDL or in case of ambiguity
-        using "^attributes^"."^content-type^". Provided content type must match allowed types in WSDL.
+        - \c body: XML string in the SOAP request format or body part of HTTP message (string or binary). Target
+          content type is evaluated from WSDL or in case of ambiguity using "^attributes^"."^content-type^".  The
+          provided content type must match allowed types in WSDL; also "application/x-www-form-urlencoded" or any
+          general type are supported.
         - \c hdr: hash of HTTP headers
+
+        @throw SOAP-SERIALIZATION-ERROR no output message description
     */
     hash<auto> serializeResponse(auto h, *hash<auto> header, *string enc, *hash<auto> nsh, *bool soap12, *int xml_opts, *string bname, *hash<auto> http_headers) {
         if (exists soap12) {
             if (soap12) {
                 if (!nsc.hasSoap12())
-                    throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize response for operation %y with SOAP 1.2 encoding; this operation does not support SOAP 1.2", name);
-            }
-            else {
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize response for operation %y with SOAP "
+                        "1.2 encoding; this operation does not support SOAP 1.2", name);
+            } else {
                 if (!nsc.hasSoap11())
-                    throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize response for operation %y with SOAP 1.1 encoding; this operation does not support SOAP 1.1", name);
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize response for operation %y with SOAP "
+                        "1.1 encoding; this operation does not support SOAP 1.1", name);
             }
-        }
-        else
+        } else
             soap12 = nsc.hasSoap12();
 
         return getBinding(bname).serializeMessage(self, output, False, soap12, h, header, enc, nsh, xml_opts, NOTHING, NOTHING, http_headers);
@@ -2961,14 +2974,17 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
 
         if (request) {
             # make sure that rv stays hash<auto> instead of hash<string, string>
-            rv = hash({
+            rv += {
                 "method": "POST",
-            });
+            };
         }
 
         string io = request ? "input" : "output";
 
-        BindingMessageDescription bmd = self{io};
+        *BindingMessageDescription bmd = self{io};
+        if (!bmd) {
+            throw SOAP_SERIALIZATION_ERROR, sprintf("no %s message description for message %y", io, name);
+        }
 
         if (!exists req_soapaction)
             req_soapaction = soapAction;
