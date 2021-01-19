@@ -22,12 +22,12 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-%requires qore >= 0.9
+%requires qore >= 0.9.5
 %requires(reexport) xml
 %requires(reexport) Mime
 %requires(reexport) SoapClient
 %requires(reexport) WSDL
-%requires(reexport) ConnectionProvider >= 1.1
+%requires(reexport) ConnectionProvider >= 1.4
 %requires Util
 
 %new-style
@@ -36,10 +36,14 @@
 %enable-all-warnings
 
 module SalesforceSoapClient {
-    version = "1.3";
+    version = "1.4";
     desc = "Salesforce SOAP Client Definition module";
     author = "Qore Technologies, s.r.o.";
     url = "http://qoretechnologies.com";
+    init = sub () {
+        ConnectionSchemeCache::registerScheme("sfsoap", SalesforceSoapConnection::ConnectionScheme);
+        ConnectionSchemeCache::registerScheme("sfsoaps", SalesforceSoapConnection::ConnectionScheme);
+    };
 }
 
 /** @mainpage SalesforceSoapClient Module
@@ -87,6 +91,10 @@ printf("%N\n", rh);
 
     @section salesforcesoapclientrelnotes SalesforceSoapClient Release Notes
 
+    @subsection salesfocesoapclient_1_4 SalesforceSoapClient v1.4
+    - implemented support for a data provider scheme cache and rich option information for connections
+      (<a href="https://github.com/qorelanguage/qore/issues/4025">issue 4025</a>)
+
     @subsection salesfocesoapclient_1_3 SalesforceSoapClient v1.3
     - removed the obsolete \c SalesforceSoapConnection::getConstructorInfo() method as connection serialization is a
       much more elegant and maintainable solution
@@ -106,477 +114,458 @@ printf("%N\n", rh);
 
 #! main %SalesforceSoapClient module namespace
 public namespace SalesforceSoapClient {
-    #! class provising SOAP API access to Salesforce.com
-    /** This class inherits @ref SoapClient::SoapClient "SoapClient" to perform SOAP communication with
-        Salesforce.com.
+#! class provising SOAP API access to Salesforce.com
+/** This class inherits @ref SoapClient::SoapClient "SoapClient" to perform SOAP communication with
+    Salesforce.com.
 
-        @note By default this class does not log out of Salesforce.com in the destructor in order to keep the API session alive.
-        To force a logout of the session in the destructor, use the \c force_logout option in the constructor().
-     */
-    public class SalesforceSoapClient inherits SoapClient::SoapClient {
-        private {
-            # mutex for atomic operations
-            Mutex lck();
-            # logged in flag
-            bool logged_in = False;
+    @note By default this class does not log out of Salesforce.com in the destructor in order to keep the API session alive.
+    To force a logout of the session in the destructor, use the \c force_logout option in the constructor().
+*/
+public class SalesforceSoapClient inherits SoapClient::SoapClient {
+    private {
+        # mutex for atomic operations
+        Mutex lck();
+        # logged in flag
+        bool logged_in = False;
 
-            # Salesforce.com username
-            string username;
-            # Salesforce.com user password
-            string password;
-            # Salesforce.com user token
-            string token;
+        # Salesforce.com username
+        string username;
+        # Salesforce.com user password
+        string password;
+        # Salesforce.com user token
+        string token;
 
-            # Salesforce.com server URL
-            string serverurl;
-            # Salesforce.com session ID
-            string sessionid;
+        # Salesforce.com server URL
+        string serverurl;
+        # Salesforce.com session ID
+        string sessionid;
 
-            # default SoapAction value
-            string soapaction = "default";
+        # default SoapAction value
+        string soapaction = "default";
 
-            # perform a logout when destroying the object
-            /** logouts should be performed manually to ensure that the user's session remains valid
-             */
-            bool force_logout = False;
-        }
-
-        public {
-            #! authorization key required for logging in to Salesforce.com
-            const AuthorizationHash = {
-                "username": True,
-                "password": True,
-                "token": True,
-            };
-
-            #! list of authorization keys
-            const AuthorizationOpts = AuthorizationHash.keys();
-
-            #! required options
-            const RequiredOpts = AuthorizationOpts + (
-                "wsdl",
-            );
-        }
-
-        #! creates the object with the given options
-        /** @param opts options for the SOAP connection; see @ref SoapClient::SoapClient::constructor() "SoapClient::constructor()" for option info for the embedded SoapClient, plus the following options:
-            - \c username: (required) Salesforce.com username
-            - \c password: (required) Salesforce.com password
-            - \c token: (required) Salesforce.com user API token
-            - \c force_logout (optional) forces a logout when the SalesforceSoapClient object is destroyed; this should normally be @ref Qore::False "False" to allow for the session to remain valid
-         */
-        constructor(hash<auto> opts) : SoapClient(opts) {
-            processOpts(opts);
-        }
-
-        #! destroys the object
-        /** @note if the \c force_logout option was given in the constructor(), then a logout from the Salesforce.com session is also performed
-         */
-        destructor() {
-            if (logged_in && force_logout)
-                logoutIntern();
-        }
-
-        #! processes options given in the constructor()
-        private processOpts(hash<auto> opts) {
-            foreach string opt in (AuthorizationOpts) {
-                if (!opts{opt})
-                    throw "SALESFORCE-SOAP-ERROR", sprintf("missing required option %y", opt);
-                # save options
-                self{opt} = opts{opt};
-            }
-
-            if (exists opts.force_logout && parse_boolean(opts.force_logout))
-                force_logout = True;
-        }
-
-        #! performs a manual login to Salesforce.com
-        login() {
-            lck.lock();
-            on_exit lck.unlock();
-
-            if (!logged_in)
-                loginIntern();
-        }
-
-        #! performs a manual logout to Salesforce.com
-        logout() {
-            lck.lock();
-            on_exit lck.unlock();
-
-            if (logged_in)
-                logoutIntern();
-        }
-
-        #! disconnects from Salesforce.com; if the \c force_logout option was given in the constructor(), then a logout is performed before disconnecting
-        disconnect() {
-            lck.lock();
-            on_exit lck.unlock();
-
-            if (logged_in && force_logout)
-                logoutIntern();
-
-            SoapClient::disconnect();
-        }
-
-        #! makes a server call with the given operation, arguments, options, and optional info hash reference and returns the result
-        /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
-            @param args the arguments to the SOAP operation
-            @param opts an optional hash of options for the call as follows:
-            - \c soap_header: a hash giving SOAP header information, if required by the message
-            - \c http_header: a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
-            - \c xml_opts: an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
-            - \c soapaction: an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
-            @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
-            - \c "headers": a hash of HTTP request headers
-            - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
-            - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
-            - \c "charset": the character encoding string (ex: \c "UTF-8")
-            - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
-            - \c "accept-charset": the valus of any \c Accept-Charset header in the response
-            - \c "response-headers": a hash of HTTP response headers
-            - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
-            - \c "request-body": the raw XML request body
-            - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
-
-            @return a hash with the following keys:
-            - \c hdr: a hash of message headers
-            - \c body: the serialized message body
-
-            @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
-            @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
-
-            @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
-         */
-        auto callOperation(string operation, auto args, *hash<auto> opts, *reference<auto> info) {
-            lck.lock();
-            on_exit lck.unlock();
-
-            if (!logged_in)
-                loginIntern();
-
-            return callIntern(operation, args, opts, \info);
-        }
-
-        #! makes the internal call and returns the deserialized response
-        /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
-            @param args the arguments to the SOAP operation
-            @param opts an optional hash of options for the call as follows:
-            - \c soap_header: a hash giving SOAP header information, if required by the message
-            - \c http_header: a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
-            - \c xml_opts: an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
-            - \c soapaction: an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
-            @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
-            - \c "headers": a hash of HTTP request headers
-            - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
-            - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
-            - \c "charset": the character encoding string (ex: \c "UTF-8")
-            - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
-            - \c "accept-charset": the valus of any \c Accept-Charset header in the response
-            - \c "response-headers": a hash of HTTP response headers
-            - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
-            - \c "request-body": the raw XML request body
-            - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
-
-            @return a hash with the following keys:
-            - \c hdr: a hash of message headers
-            - \c body: the serialized message body
-
-            @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
-            @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
-
-            @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
-         */
-        private auto callIntern(string operation, auto args, *hash<auto> opts, *reference<auto> info) {
-            # add session ID to SOAP call header
-            if (sessionid)
-                opts.soap_header.sessionId = sessionid;
-            opts.soapaction = opts.soapaction ?? soapaction;
-
-            return SoapClient::callOperation(operation, args, opts, \info);
-        }
-
-        #! makes a server call with the given operation and arguments and returns the deserialized result
-        /** @param operation the operation name for the SOAP call
-            @param args the operation parameter(s)
-            @param header optional soap headers (if required by the operation)
-
-            @return the deserialized result of the SOAP call to the SOAP server
+        # perform a logout when destroying the object
+        /** logouts should be performed manually to ensure that the user's session remains valid
         */
-        auto call(string operation, auto args, *hash<auto> header) {
-            return callOperation(operation, args, ("soap_header": header));
-        }
-
-        #! makes a server call with the given operation and arguments and returns the deserialized result
-        /** @param operation the operation name for the SOAP call
-            @param args the arguments to the SOAP operation
-            @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
-            - \c "headers": a hash of HTTP request headers
-            - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
-            - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
-            - \c "charset": the character encoding string (ex: \c "UTF-8")
-            - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
-            - \c "accept-charset": the valus of any \c Accept-Charset header in the response
-            - \c "response-headers": a hash of HTTP response headers
-            - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
-            - \c "request-body": the raw XML request body
-            - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
-
-            @return the deserialized result of the SOAP call to the SOAP server
-        */
-        auto call(string operation, auto args, reference<auto> info) {
-            return callOperation(operation, args, NOTHING, \info);
-        }
-
-        #! makes a server call with the given operation and arguments and returns the deserialized result with an output argument giving technical information about the call
-        /** @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
-            - \c "headers": a hash of HTTP request headers
-            - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
-            - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
-            - \c "charset": the character encoding string (ex: \c "UTF-8")
-            - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
-            - \c "accept-charset": the valus of any \c Accept-Charset header in the response
-            - \c "response-headers": a hash of HTTP response headers
-            - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
-            - \c "request-body": the raw XML request body
-            - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
-            @param operation the operation name for the SOAP call
-            @param args the arguments to the SOAP operation
-            @param header optional soap headers (if required by the operation)
-
-            @return the deserialized result of the SOAP call to the SOAP server
-        */
-        auto call(reference<auto> info, string operation, auto args, *hash<auto> header) {
-            return callOperation(operation, args, ("soap_header": header), \info);
-        }
-
-        nothing setWarningQueue(int warning_ms, int warning_bs, Queue queue, auto arg, timeout min_ms = 1s) {
-            lck.lock();
-            on_exit lck.unlock();
-
-            SoapClient::setWarningQueue(warning_ms, warning_bs, queue, arg, min_ms);
-        }
-
-        nothing clearWarningQueue() {
-            lck.lock();
-            on_exit lck.unlock();
-
-            SoapClient::clearWarningQueue();
-        }
-
-        #! uses call() to transparently serialize the argument and make a call to the given operation and return the deserialized results
-        /** @param op the operation name, which is the method name passed to methodGate()
-            @param arg a list or arguments or a single argument (or NOTHING) for the operation
-
-            @return the deserialized result of the SOAP call to the SOAP server
-        */
-        auto methodGate(string op, auto arg) {
-            return call(op, arg);
-        }
-
-        private logoutIntern() {
-            callIntern("logout");
-            SoapClient::log("logged out of %y", url);
-            logged_in = False;
-            delete serverurl;
-            delete sessionid;
-        }
-
-        # must be called with the lock held
-        private loginIntern() {
-            hash lh = self.("username", "password");
-            lh.password += token;
-
-            lh = callIntern("login", lh).result;
-            serverurl = lh.serverUrl;
-            sessionid = lh.sessionId;
-
-            log("logged in to %y: serverurl: %y sessionid: %y", url, serverurl, sessionid);
-            logged_in = True;
-
-            # disconnect and set new URL
-            SoapClient::disconnect();
-            url = serverurl;
-            setURL(serverurl);
-        }
+        bool force_logout = False;
     }
 
-    #! class for SOAP connections to the Salesforce.com SOAP API; returns an object of class @ref SalesforceSoapClient
-    /** supports the following static initialization options:
-        - \c "connect_timeout": connection timeout to use in milliseconds
-        - \c "content_encoding": this sets the send encoding (if the \c "send_encoding" option is not set) and the requested response encoding; for possible values, see @ref SoapClient::SoapClient::EncodingSupport "EncodingSupport"
-        - \c "force_logout": forces a logout when the SalesforceSoapClient object is destroyed; this should normally be @ref Qore::False "False" to allow for the session to remain valid
-        - \c "http_version": HTTP version to use (\c "1.0" or \c "1.1", defaults to \c "1.1")
-        - \c "max_redirects": maximum redirects to support
-        - \c "password": Salesforce.com password
-        - \c "port": in case multiple port entries are found in the WSDL, give the one to be used here
-        - \c "portType": in case multiple portType entries are found in the WSDL, give the one to be used here
-        - \c "proxy": proxy URL to use
-        - \c "send_encoding": a @ref SoapClient::SoapClient::EncodingSupport "send data encoding option" or the value \c "auto" which means to use automatic encoding; if not present defaults to no content-encoding on sent message bodies
-        - \c "target_url": overrides the URL in the WSDL (mapped to \c "url" in the @ref SoapClient::SoapClient::constructor(hash) "SoapClient::constructor()" argument)
-        - \c "token": Salesforce.com user API token
-        - \c "timeout": transfer timeout to use in milliseconds
-        - \c "username": Salesforce.com username
-        - \c "wsdl": overrides the WSDL URL provided by the connection URL; \c "wsdl" values with a \c "file://" scheme are subject to environment variable substitution
+    public {
+        #! authorization key required for logging in to Salesforce.com
+        const AuthorizationHash = {
+            "username": True,
+            "password": True,
+            "token": True,
+        };
 
-        @see @ref SalesforceSoapClient::constructor(hash) for more information on the above options
+        #! list of authorization keys
+        const AuthorizationOpts = AuthorizationHash.keys();
 
-        @note
-        - additionally supports the following runtime options in getImpl() for connection logging:
-          - \c "log": a closure accepting a single string for logging
-          - \c "dbglog": a closure taking a single string for detailed technical connection logging
-        - the following options are required:
-          - \c "username": (required) Salesforce.com username
-          - \c "password": (required) Salesforce.com password
-          - \c "token": (required) Salesforce.com user API token
+        #! required options
+        const RequiredOpts = AuthorizationOpts + (
+            "wsdl",
+        );
+    }
+
+    #! creates the object with the given options
+    /** @param opts options for the SOAP connection; see @ref SoapClient::SoapClient::constructor() "SoapClient::constructor()" for option info for the embedded SoapClient, plus the following options:
+        - \c username: (required) Salesforce.com username
+        - \c password: (required) Salesforce.com password
+        - \c token: (required) Salesforce.com user API token
+        - \c force_logout (optional) forces a logout when the SalesforceSoapClient object is destroyed; this should normally be @ref Qore::False "False" to allow for the session to remain valid
     */
-    public class SalesforceSoapConnection inherits SoapConnection {
-        public {
-            const Options = SoapConnection::Options + SalesforceSoapClient::AuthorizationHash;
+    constructor(hash<auto> opts) : SoapClient(opts) {
+        processOpts(opts);
+    }
+
+    #! destroys the object
+    /** @note if the \c force_logout option was given in the constructor(), then a logout from the Salesforce.com session is also performed
+    */
+    destructor() {
+        if (logged_in && force_logout)
+            logoutIntern();
+    }
+
+    #! processes options given in the constructor()
+    private processOpts(hash<auto> opts) {
+        foreach string opt in (AuthorizationOpts) {
+            if (!opts{opt})
+                throw "SALESFORCE-SOAP-ERROR", sprintf("missing required option %y", opt);
+            # save options
+            self{opt} = opts{opt};
         }
 
-        private {
-            #! cache of WebService objects keyed by file location
-            hash cache;
-        }
+        if (exists opts.force_logout && parse_boolean(opts.force_logout))
+            force_logout = True;
+    }
 
-        #! DEPRECATED: creates the SalesforceSoapConnection object
-        /** @param name the name of the connection
-            @param desc connection description
-            @param url connection URL
-            @param monitor monitoring flag
-            @param opts connection options
-            @param urlh broken down URL hash (as returned by @ref Qore::parse_url())
+    #! performs a manual login to Salesforce.com
+    login() {
+        lck.lock();
+        on_exit lck.unlock();
 
-            @throw SALESFORCE-SOAP-ERROR missing one or more of the required options: \c "username", \c "password", or \c "token"
+        if (!logged_in)
+            loginIntern();
+    }
 
-            @deprecated since Qore 0.9
-        */
-        deprecated
-        constructor(string name, string desc, string url, bool monitor, *hash opts, hash urlh)
-            : SoapConnection(name, desc, url, {"monitor": monitor}, opts ?? {}) {
-            constructorInit();
-        }
+    #! performs a manual logout to Salesforce.com
+    logout() {
+        lck.lock();
+        on_exit lck.unlock();
 
-        #! creates the SalesforceSoapConnection object
-        /** @param name the name of the connection
-            @param description connection description
-            @param url connection URL (potentially with password info)
-            @param attributes various attributes. See below
-            @param options connection options
+        if (logged_in)
+            logoutIntern();
+    }
 
-            See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
+    #! disconnects from Salesforce.com; if the \c force_logout option was given in the constructor(), then a logout is performed before disconnecting
+    disconnect() {
+        lck.lock();
+        on_exit lck.unlock();
 
-            @throw SALESFORCE-SOAP-ERROR missing one or more of the required options: \c "username", \c "password", or \c "token"
-         */
-        constructor(string name, string description, string url, hash<auto> attributes = {}, hash<auto> options = {})
-            : SoapConnection(name, description, url, attributes, options) {
-            constructorInit();
-        }
+        if (logged_in && force_logout)
+            logoutIntern();
 
-        private:internal constructorInit() {
-            foreach string opt in (SalesforceSoapClient::AuthorizationOpts) {
-                if (!opts{opt})
-                    throw "SALESFORCE-SOAP-ERROR", sprintf("missing required option %y", opt);
-            }
-        }
+        SoapClient::disconnect();
+    }
 
-        #! returns \c "sfsoap"
-        string getType() {
-            return "sfsoap";
-        }
+    #! makes a server call with the given operation, arguments, options, and optional info hash reference and returns the result
+    /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
+        @param args the arguments to the SOAP operation
+        @param opts an optional hash of options for the call as follows:
+        - \c soap_header: a hash giving SOAP header information, if required by the message
+        - \c http_header: a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
+        - \c xml_opts: an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
+        - \c soapaction: an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
+        @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
+        - \c "headers": a hash of HTTP request headers
+        - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
+        - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
+        - \c "charset": the character encoding string (ex: \c "UTF-8")
+        - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
+        - \c "accept-charset": the valus of any \c Accept-Charset header in the response
+        - \c "response-headers": a hash of HTTP response headers
+        - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
+        - \c "request-body": the raw XML request body
+        - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
 
-        #! returns a @ref SalesforceSoapClient object
-        /** @param connect if @ref Qore::True "True", then @ref SalesforceSoapClient::login() is called
-            @param rtopts an optional hash providing two runtime options for connection logging:
-            - \c "log": a closure accepting a single string for logging
-            - \c "dbglog": a closure taking a single string for detailed technical connection logging
+        @return a hash with the following keys:
+        - \c hdr: a hash of message headers
+        - \c body: the serialized message body
 
-            @return a @ref SalesforceSoapClient object
-        */
-        private SalesforceSoapClient getImpl(bool connect = True, *hash<auto> rtopts) {
-            hash callopts = real_opts + rtopts.("log", "dbglog");
-            if (callopts.wsdl.typeCode() == NT_STRING)
-                callopts.wsdl = getWsdl(callopts.wsdl);
+        @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+        @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
 
-            SalesforceSoapClient sc(callopts);
+        @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
+    */
+    auto callOperation(string operation, auto args, *hash<auto> opts, *reference<auto> info) {
+        lck.lock();
+        on_exit lck.unlock();
 
-            if (connect)
-                sc.login();
-            return sc;
-        }
+        if (!logged_in)
+            loginIntern();
 
-        #! returns a WSDL::WebService object for the given URL using a cache for local files
-        /** @param url the URL of the WSDL
+        return callIntern(operation, args, opts, \info);
+    }
 
-            @return a WSDL::WebService object corresponding to the WSDL URL
-         */
-        private WSDL::WebService getWsdl(string url) {
-            hash h = parse_url(url);
+    #! makes the internal call and returns the deserialized response
+    /** @param operation the SOAP operation to use to serialize the request; if the operation is not known to the underlying @ref WSDL::WebService "WebService" class, an exception will be thrown
+        @param args the arguments to the SOAP operation
+        @param opts an optional hash of options for the call as follows:
+        - \c soap_header: a hash giving SOAP header information, if required by the message
+        - \c http_header: a hash giving HTTP header information to include in the message (does not override automatically-generated SOAP message headers)
+        - \c xml_opts: an integer XML generation option code; see @ref xml_generation_constants for possible values; combine multiple codes with binary or (\c |)
+        - \c soapaction: an optional string that will override the SOAPAction for the request; en empty string here will prevent the SOAPAction from being sent
+        @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
+        - \c "headers": a hash of HTTP request headers
+        - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
+        - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
+        - \c "charset": the character encoding string (ex: \c "UTF-8")
+        - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
+        - \c "accept-charset": the valus of any \c Accept-Charset header in the response
+        - \c "response-headers": a hash of HTTP response headers
+        - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
+        - \c "request-body": the raw XML request body
+        - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
 
-            if (h.protocol && h.protocol != "file")
-                return getWebService(url);
+        @return a hash with the following keys:
+        - \c hdr: a hash of message headers
+        - \c body: the serialized message body
 
-            return getWsdlFromCache(normalize_dir(h.path));
-        }
+        @throw WSDL-OPERATION-ERROR the operation is not defined in the WSDL
+        @throw HTTP-CLIENT-RECEIVE-ERROR this exception is thrown when the SOAP server returns an HTTP error code; if a SOAP fault is returned, then it is deserialized and returned in the \a arg key of the exception hash
 
-        #! returns a WSDL::WebService object for the given path from the cache if possible, otherwise creates the object and populates the cache
-        private synchronized WSDL::WebService getWsdlFromCache(string path) {
-            *hash h = cache{path};
-            # get mtime of file
-            *hash hh = hstat(path);
-            if (!hh)
-                throw "SALESFORCE-WSDL-ERROR", sprintf("Salesforce.com WSDL %y file does not exist or is inaccessible", path);
-            date mtime = hh.mtime;
+        @note this method can throw any exception that @ref Qore::HTTPClient::send() "HTTPClient::send()" can throw as well as any XML parsing errors thrown by @ref Qore::XML::parse_xml() "parse_xml()"
+    */
+    private auto callIntern(string operation, auto args, *hash<auto> opts, *reference<auto> info) {
+        # add session ID to SOAP call header
+        if (sessionid)
+            opts.soap_header.sessionId = sessionid;
+        opts.soapaction = opts.soapaction ?? soapaction;
 
-            # return WebService object from the cache if the file has the same mtime as the cached version
-            if (h && h.mtime == mtime)
-                return h.web_service;
+        return SoapClient::callOperation(operation, args, opts, \info);
+    }
 
-            # get WebService object and store in cache
-            WebService ws = getWebService(path);
-            cache{path} = {
-                "mtime": mtime,
-                "web_service": ws,
-            };
+    #! makes a server call with the given operation and arguments and returns the deserialized result
+    /** @param operation the operation name for the SOAP call
+        @param args the operation parameter(s)
+        @param header optional soap headers (if required by the operation)
 
-            return ws;
-        }
+        @return the deserialized result of the SOAP call to the SOAP server
+    */
+    auto call(string operation, auto args, *hash<auto> header) {
+        return callOperation(operation, args, ("soap_header": header));
+    }
 
-        #! returns a WSDL::WebService object from the given URL
-        private WSDL::WebService getWebService(string url) {
-            *string def_path;
-            string wsdl = WSDLLib::getWSDL(url, NOTHING, NOTHING, \def_path);
-            return new WebService(wsdl, ("def_path": def_path));
-        }
+    #! makes a server call with the given operation and arguments and returns the deserialized result
+    /** @param operation the operation name for the SOAP call
+        @param args the arguments to the SOAP operation
+        @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
+        - \c "headers": a hash of HTTP request headers
+        - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
+        - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
+        - \c "charset": the character encoding string (ex: \c "UTF-8")
+        - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
+        - \c "accept-charset": the valus of any \c Accept-Charset header in the response
+        - \c "response-headers": a hash of HTTP response headers
+        - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
+        - \c "request-body": the raw XML request body
+        - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
 
-        #! gets options
-        hash<auto> getOptions() {
-            return Options;
-        }
+        @return the deserialized result of the SOAP call to the SOAP server
+    */
+    auto call(string operation, auto args, reference<auto> info) {
+        return callOperation(operation, args, NOTHING, \info);
+    }
 
-        #! returns runtime options
-        /** @return a hash with the following keys reflecting support for the corresponding runtime options in getImpl() for connection logging:
-            - \c "log": a closure accepting a single string for logging
-            - \c "dbglog": a closure taking a single string for detailed technical connection logging
-        */
-        *hash<auto> getRuntimeOptions() {
-            return {
-                "log": True,
-                "dbglog": True,
-            };
-        }
+    #! makes a server call with the given operation and arguments and returns the deserialized result with an output argument giving technical information about the call
+    /** @param info an optional reference to return a hash of technical information about the SOAP call (raw message info and headers); the following keys are present in this hash:
+        - \c "headers": a hash of HTTP request headers
+        - \c "request-uri": the request URI string (ex: \c "POST /services/Soap/c/29.0 HTTP/1.1")
+        - \c "response-uri": the response URI string (ex: \c "HTTP/1.1 200 OK")
+        - \c "charset": the character encoding string (ex: \c "UTF-8")
+        - \c "body-content-type": the \c Content-Type of the response without any \c charset declaration
+        - \c "accept-charset": the valus of any \c Accept-Charset header in the response
+        - \c "response-headers": a hash of HTTP response headers
+        - \c "response-body": the raw XML response body (in case content encoding is used, this is the decoded value)
+        - \c "request-body": the raw XML request body
+        - \c "request-soap-headers": an optional hash of SOAP headers used in the request (if applicable)
+        @param operation the operation name for the SOAP call
+        @param args the arguments to the SOAP operation
+        @param header optional soap headers (if required by the operation)
 
-        #! DEPRECATED: static constructor
-        /** @deprecated since Qore 0.9 in favor of new constructor and Qore::Reflection
-         */
-        deprecated
-        static SalesforceSoapConnection make(string name, string desc, string url, bool monitor, *hash opts, hash urlh) {
-            hash attributes = {
-                "monitor": monitor,
-            };
+        @return the deserialized result of the SOAP call to the SOAP server
+    */
+    auto call(reference<auto> info, string operation, auto args, *hash<auto> header) {
+        return callOperation(operation, args, ("soap_header": header), \info);
+    }
 
-            return new SalesforceSoapConnection(name, desc, url, attributes, opts ?? {});
+    nothing setWarningQueue(int warning_ms, int warning_bs, Queue queue, auto arg, timeout min_ms = 1s) {
+        lck.lock();
+        on_exit lck.unlock();
+
+        SoapClient::setWarningQueue(warning_ms, warning_bs, queue, arg, min_ms);
+    }
+
+    nothing clearWarningQueue() {
+        lck.lock();
+        on_exit lck.unlock();
+
+        SoapClient::clearWarningQueue();
+    }
+
+    #! uses call() to transparently serialize the argument and make a call to the given operation and return the deserialized results
+    /** @param op the operation name, which is the method name passed to methodGate()
+        @param arg a list or arguments or a single argument (or NOTHING) for the operation
+
+        @return the deserialized result of the SOAP call to the SOAP server
+    */
+    auto methodGate(string op, auto arg) {
+        return call(op, arg);
+    }
+
+    private logoutIntern() {
+        callIntern("logout");
+        SoapClient::log("logged out of %y", url);
+        logged_in = False;
+        delete serverurl;
+        delete sessionid;
+    }
+
+    # must be called with the lock held
+    private loginIntern() {
+        hash lh = self.("username", "password");
+        lh.password += token;
+
+        lh = callIntern("login", lh).result;
+        serverurl = lh.serverUrl;
+        sessionid = lh.sessionId;
+
+        log("logged in to %y: serverurl: %y sessionid: %y", url, serverurl, sessionid);
+        logged_in = True;
+
+        # disconnect and set new URL
+        SoapClient::disconnect();
+        url = serverurl;
+        setURL(serverurl);
+    }
+}
+
+#! class for SOAP connections to the Salesforce.com SOAP API; returns an object of class @ref SalesforceSoapClient
+/** supports all @ref SoapClient::SoapConnection "SoapConnection" options plus the following static initialization
+    options:
+    - \c "force_logout": forces a logout when the SalesforceSoapClient object is destroyed; this should normally be
+      @ref Qore::False "False" to allow for the session to remain valid
+    - \c "password": Salesforce.com password
+    - \c "token": Salesforce.com user API token
+    - \c "username": Salesforce.com username
+
+    @see @ref SalesforceSoapClient::constructor(hash) for more information on the above options
+
+    @note
+    - additionally supports the following runtime options in getImpl() for connection logging:
+        - \c "log": a closure accepting a single string for logging
+        - \c "dbglog": a closure taking a single string for detailed technical connection logging
+    - the following options are required:
+        - \c "username": (required) Salesforce.com username
+        - \c "password": (required) Salesforce.com password
+        - \c "token": (required) Salesforce.com user API token
+*/
+public class SalesforceSoapConnection inherits SoapConnection {
+    public {
+        #! Connection entry info
+        const ConnectionScheme = <ConnectionSchemeInfo>{
+            "cls": Class::forName("SalesforceSoapConnection"),
+            "options": SoapConnection::ConnectionScheme.options + {
+                "force_logout": <ConnectionOptionInfo>{
+                    "type": "bool",
+                    "desc": "forces a logout when the SalesforceSoapClient object is destroyed",
+                    "default_value": False,
+                },
+                "token": <ConnectionOptionInfo>{
+                    "type": "string",
+                    "desc": "Salesforce.com user API token",
+                },
+                "username": <ConnectionOptionInfo>{
+                    "type": "string",
+                    "desc": "Salesforce.com user name",
+                },
+                "password": <ConnectionOptionInfo>{
+                    "type": "string",
+                    "desc": "Salesforce.com password",
+                    "sensitive": True,
+                },
+            },
+            "required_options": foldl $1 + "," + $2, SalesforceSoapClient::AuthorizationOpts,
+        };
+    }
+
+    private {
+        #! cache of WebService objects keyed by file location
+        hash cache;
+    }
+
+    #! creates the SalesforceSoapConnection object
+    /** @param name the name of the connection
+        @param description connection description
+        @param url connection URL (potentially with password info)
+        @param attributes various attributes. See below
+        @param options connection options
+
+        See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
+
+        @throw SALESFORCE-SOAP-ERROR missing one or more of the required options: \c "username", \c "password", or \c "token"
+    */
+    constructor(string name, string description, string url, hash<auto> attributes = {}, hash<auto> options = {})
+        : SoapConnection(name, description, url, attributes, options) {
+        foreach string opt in (SalesforceSoapClient::AuthorizationOpts) {
+            if (!opts{opt})
+                throw "SALESFORCE-SOAP-ERROR", sprintf("missing required option %y", opt);
         }
     }
+
+    #! returns \c "sfsoap"
+    string getType() {
+        return "sfsoap";
+    }
+
+    #! returns runtime options
+    /** @return a hash with the following keys reflecting support for the corresponding runtime options in getImpl() for connection logging:
+        - \c "log": a closure accepting a single string for logging
+        - \c "dbglog": a closure taking a single string for detailed technical connection logging
+    */
+    *hash<auto> getRuntimeOptions() {
+        return {
+            "log": True,
+            "dbglog": True,
+        };
+    }
+
+    #! returns a @ref SalesforceSoapClient object
+    /** @param connect if @ref Qore::True "True", then @ref SalesforceSoapClient::login() is called
+        @param rtopts an optional hash providing two runtime options for connection logging:
+        - \c "log": a closure accepting a single string for logging
+        - \c "dbglog": a closure taking a single string for detailed technical connection logging
+
+        @return a @ref SalesforceSoapClient object
+    */
+    private SalesforceSoapClient getImpl(bool connect = True, *hash<auto> rtopts) {
+        hash callopts = real_opts + rtopts.("log", "dbglog");
+        if (callopts.wsdl.typeCode() == NT_STRING)
+            callopts.wsdl = getWsdl(callopts.wsdl);
+
+        SalesforceSoapClient sc(callopts);
+
+        if (connect)
+            sc.login();
+        return sc;
+    }
+
+    #! returns a WSDL::WebService object for the given URL using a cache for local files
+    /** @param url the URL of the WSDL
+
+        @return a WSDL::WebService object corresponding to the WSDL URL
+        */
+    private WSDL::WebService getWsdl(string url) {
+        hash h = parse_url(url);
+
+        if (h.protocol && h.protocol != "file")
+            return getWebService(url);
+
+        return getWsdlFromCache(normalize_dir(h.path));
+    }
+
+    #! returns a WSDL::WebService object for the given path from the cache if possible, otherwise creates the object and populates the cache
+    private synchronized WSDL::WebService getWsdlFromCache(string path) {
+        *hash h = cache{path};
+        # get mtime of file
+        *hash hh = hstat(path);
+        if (!hh)
+            throw "SALESFORCE-WSDL-ERROR", sprintf("Salesforce.com WSDL %y file does not exist or is inaccessible", path);
+        date mtime = hh.mtime;
+
+        # return WebService object from the cache if the file has the same mtime as the cached version
+        if (h && h.mtime == mtime)
+            return h.web_service;
+
+        # get WebService object and store in cache
+        WebService ws = getWebService(path);
+        cache{path} = {
+            "mtime": mtime,
+            "web_service": ws,
+        };
+
+        return ws;
+    }
+
+    #! returns a WSDL::WebService object from the given URL
+    private WSDL::WebService getWebService(string url) {
+        *string def_path;
+        string wsdl = WSDLLib::getWSDL(url, NOTHING, NOTHING, \def_path);
+        return new WebService(wsdl, ("def_path": def_path));
+    }
+
+    #! Returns the ConnectionSchemeInfo hash for this object
+    private hash<ConnectionSchemeInfo> getConnectionSchemeInfoImpl() {
+        return ConnectionScheme;
+    }
+}
 }
