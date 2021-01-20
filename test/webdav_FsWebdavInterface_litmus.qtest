@@ -15,7 +15,7 @@
 # minimal HTTP server for this test suite
 class Server inherits HttpServer {
     private {
-        WebDavHandler::WebDavHandlerHandler handler;
+        WebDavHandler::WebDavHandler handler;
 
         int verbose;
 
@@ -24,7 +24,7 @@ class Server inherits HttpServer {
 
     constructor(WebDavHandler::AbstractWebDavHandlerInterface iface, int verbose = 0) : HttpServer(\log(), \log(), True) {
         self.verbose = verbose;
-        handler = new WebDavHandler::WebDavHandlerHandler(iface);
+        handler = new WebDavHandler::WebDavHandler(iface);
         setHandler("webdavhandler", "/", NOTHING, handler);
         setDefaultHandler("webdavhandler", handler);
 
