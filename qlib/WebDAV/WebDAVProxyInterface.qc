@@ -1,40 +1,56 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-%new-style
-%enable-all-warnings
-%require-types
-%strict-args
+/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
 
 public namespace WebDAV {
 
 #! Proxy  WebDAV inteface class.
-public class WebdavProxyInterface inherits AbstractWebdavInterface {
+public class WebDAVProxyInterface inherits AbstractWebDAVInterface {
     private {
-        hash<string, AbstractWebdavInterface> m_ifaces;
+        hash<string, AbstractWebDAVInterface> m_ifaces;
     }
 
-    constructor(hash<string, AbstractWebdavInterface> interfaces, string relative_path_base = "/")
-        : AbstractWebdavInterface(relative_path_base) {
+    constructor(hash<string, AbstractWebDAVInterface> interfaces, string relative_path_base = "/")
+        : AbstractWebDAVInterface(relative_path_base) {
         m_ifaces = interfaces;
     }
 
     private *hash<auto> handleChildRaw(string method_name, hash<auto> cx, hash<auto> hdr, *data body) {
-printf("---- %s\n", method_name);
-printf("---- raw path %s\n", cx.raw_path);
+#printf("---- %s\n", method_name);
+#printf("---- raw path %s\n", cx.raw_path);
         string path = getRelativePath(cx.raw_path);
-printf("----     path %s\n", path);
+#printf("----     path %s\n", path);
 
         cx.raw_path = "/" + path;
 
         list<string> parts = path.split("/");
-printf("---- %n\n", parts);
+#printf("---- %n\n", parts);
 
         if (parts.size() && m_ifaces.hasKey(parts[0])) {
-printf("---- %s\n", "Y");
-            AbstractWebdavInterface iface = m_ifaces{parts[0]};
+#printf("---- %s\n", "Y");
+            AbstractWebDAVInterface iface = m_ifaces{parts[0]};
             return call_object_method(iface, method_name, cx, hdr, body);
         }
-printf("---- %s\n", "N");
+#printf("---- %s\n", "N");
     }
 
     private hash<HttpResponseInfo> handleChild(string method_name, hash<auto> cx, hash<auto> hdr, *data body) {
@@ -178,5 +194,5 @@ printf("---- %s\n", "N");
     hash<HttpResponseInfo> handleProppatch(hash<auto> cx, hash<auto> hdr, *data body) {
         return handleChild("handleProppatch", cx, hdr, body);
     }
-} # class WebdavProxyInterface
+} # class WebDAVProxyInterface
 } # namespace WebDAV

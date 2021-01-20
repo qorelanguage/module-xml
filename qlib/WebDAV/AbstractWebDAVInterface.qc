@@ -1,9 +1,25 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-%new-style
-%enable-all-warnings
-%require-types
-%strict-args
+/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
 
 #! Main public WebDAV namespace
 public namespace WebDAV {
@@ -20,7 +36,7 @@ hashdecl PropPatchActionInfo {
 }
 
 #! Abstract WebDAV interface class
-public class AbstractWebdavInterface {
+public class AbstractWebDAVInterface {
     public {
         #! A hash of all supported WebDAV methods mapped to method names
         const RequestMethods = {
@@ -54,7 +70,7 @@ public class AbstractWebdavInterface {
 
     private {
         #! The property handler object
-        AbstractWebdavPropertyHandler m_property_handler;
+        AbstractWebDAVPropertyHandler m_property_handler;
 
         #! The virtual base path for resources served by the WebDAV handler
         string virtual_base_path;
@@ -65,7 +81,7 @@ public class AbstractWebdavInterface {
         @param virtual_relative_path_base the virtual base path for WebDAV requests; this path will be stripped from
         requests internally when serving WebDAV resources
     */
-    constructor(AbstractWebdavPropertyHandler property_handler, string virtual_relative_path_base = "/") {
+    constructor(AbstractWebDAVPropertyHandler property_handler, string virtual_relative_path_base = "/") {
         m_property_handler = property_handler;
         virtual_base_path = normalize_dir(virtual_relative_path_base);
     }

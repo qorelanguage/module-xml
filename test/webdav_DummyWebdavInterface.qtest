@@ -17,12 +17,12 @@ sub http_log(string str) {
 # minimal HTTP server for this test suite
 class Server inherits HttpServer {
     private {
-        WebDAV::WebdavHandler handler;
+        WebDAV::WebDAVHandler handler;
         int port;
     }
 
-    constructor(WebDAV::AbstractWebdavInterface iface) : HttpServer(\http_log(), \http_log()) {
-        handler = new WebDAV::WebdavHandler(iface);
+    constructor(WebDAV::AbstractWebDAVInterface iface) : HttpServer(\http_log(), \http_log()) {
+        handler = new WebDAV::WebDAVHandler(iface);
         setHandler("webdav", "/", NOTHING, handler);
         setDefaultHandler("webdav", handler);
 
@@ -44,7 +44,7 @@ class Server inherits HttpServer {
 class Client inherits HTTPClient {
     constructor(string url) : HTTPClient({
         "url": url,
-        "additional_methods": WebDAV::AbstractWebdavInterface::RequestMethods,
+        "additional_methods": WebDAV::AbstractWebDAVInterface::RequestMethods,
     }) {
     }
 }
@@ -53,21 +53,21 @@ class Main inherits QUnit::Test {
     constructor() : QUnit::Test("webdav", "1.0") {
         addTestCase("HTTP methods test", \testHttpMethods());
         addTestCase("HTTP non existing method test", \testNonExistingHttpMethod());
-        addTestCase("DummyWebdavInterface test", \testDummyWebdavInterface());
+        addTestCase("DummyWebDAVInterface test", \testDummyWebDAVInterface());
 
         set_return_value(main());
     }
 
     # test presence of extended HTTP methods in the server
     private testHttpMethods() {
-        WebDAV::InMemoryWebdavPropertyHandler props();
-        WebDAV::DummyWebdavInterface iface(props);
+        WebDAV::InMemoryWebDAVPropertyHandler props();
+        WebDAV::DummyWebDAVInterface iface(props);
         Server srv(iface);
         on_exit {
             srv.stop();
         }
 
-        HashIterator it(WebDAV::AbstractWebdavInterface::RequestMethods);
+        HashIterator it(WebDAV::AbstractWebDAVInterface::RequestMethods);
         auto methods = srv.httpMethods();
         while (it.next()) {
             assertEq(True, methods.hasKey(it.getKey()), it.getKey());
@@ -75,8 +75,8 @@ class Main inherits QUnit::Test {
     }
 
     private testNonExistingHttpMethod() {
-        WebDAV::InMemoryWebdavPropertyHandler props();
-        WebDAV::DummyWebdavInterface iface(props);
+        WebDAV::InMemoryWebDAVPropertyHandler props();
+        WebDAV::DummyWebDAVInterface iface(props);
 
         Server srv(iface);
         on_exit {
@@ -106,9 +106,9 @@ class Main inherits QUnit::Test {
     }
 
     # dummy = always failing. Test the method dispatch
-    private testDummyWebdavInterface() {
-        WebDAV::InMemoryWebdavPropertyHandler props();
-        WebDAV::DummyWebdavInterface iface(props);
+    private testDummyWebDAVInterface() {
+        WebDAV::InMemoryWebDAVPropertyHandler props();
+        WebDAV::DummyWebDAVInterface iface(props);
 
         Server srv(iface);
         on_exit {
@@ -117,7 +117,7 @@ class Main inherits QUnit::Test {
 
         Client http("http://localhost:" + srv.getPort());
 
-        HashIterator it(WebDAV::AbstractWebdavInterface::RequestMethods);
+        HashIterator it(WebDAV::AbstractWebDAVInterface::RequestMethods);
         while (it.next()) {
             try {
                 if (m_options.verbose) {

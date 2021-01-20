@@ -1,20 +1,40 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-%new-style
-%enable-all-warnings
-%require-types
-%strict-args
+/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
 
 %requires HttpServerUtil
 %requires xml
 %requires RestClient
 %requires Util
 %requires FsUtil
+%try-module uuid
+%define NO_UUID
+%endtry
 
 #! Main public WebDAV namespace
 public namespace WebDAV {
 #! Filesystem WebDAV inteface class
-public class FsWebdavInterface inherits AbstractWebdavInterface {
+public class FsWebDAVInterface inherits AbstractWebDAVInterface {
     private {
         #! The root directory for serving files
         string basePath;
@@ -27,7 +47,7 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         @param virtual_relative_path_base the virtual base path for WebDAV requests; this path will be stripped from
         requests internally when serving WebDAV resources
     */
-    constructor(AbstractWebdavPropertyHandler property_handler, string path, string virtual_relative_path_base = "/") : AbstractWebdavInterface(property_handler, virtual_relative_path_base) {
+    constructor(AbstractWebDAVPropertyHandler property_handler, string path, string virtual_relative_path_base = "/") : AbstractWebDAVInterface(property_handler, virtual_relative_path_base) {
         basePath = normalize_dir(path);
     }
 
@@ -35,7 +55,7 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
     /** @throw WEBDAV-FORBIDDEN if the path is not valid
     */
     private string getPath(string raw_path) {
-        string tmp = AbstractWebdavInterface::getRelativePath(raw_path);
+        string tmp = AbstractWebDAVInterface::getRelativePath(raw_path);
 
         if (tmp.equalPartial("/"))
             tmp = basePath + tmp;
@@ -92,7 +112,7 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
     private:internal list<hash<auto>> preparePropFindResponse(string raw_path, string depth = "infinity", hash<StatInfo> h, bool all_props, *hash<string, hash<string, bool>> additional_props) {
         string local_path = getNormalizedPath(raw_path);
         if (debug) {
-            printf("FsWebdavInterface::preparePropFindResponse() AAA %n -- %n\n", raw_path, basename(raw_path));
+            printf("FsWebDAVInterface::preparePropFindResponse() AAA %n -- %n\n", raw_path, basename(raw_path));
         }
         bool is_dir = (h.type == "DIRECTORY");
 
@@ -547,7 +567,41 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         @return the response to the WebDAV request
     */
     private hash<HttpResponseInfo> handleLockImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+        if (!body) {
+            # RFC #4918: https://tools.ietf.org/html/rfc4918#page-62
+            if (hdr."if") {
+                return response(501);
+            }
+            return response(400, "missing message body in LOCK request");
+        }
+
+        # parse the mandatory XML body
+        hash<auto> request_xml;
+        try {
+            request_xml = parse_xml(body, Qore::Xml::XPF_STRIP_NS_PREFIXES);
+        } catch (hash<ExceptionInfo> ex) {
+            printf("BR 2\n");
+            return response(400, sprintf("%s: %s", ex.err, ex.desc));
+        }
+
+        if (exists hdr.depth && hdr.depth != "0" && hdr.depth != "infinity") {
+            string msg = sprintf("invalid Depth header value: %y for LOCK request; only Depth: \"0\" or "
+                "\"infinity\" accepted", hdr.depth);
+            printf("%s\n", msg);
+            return response(400, msg);
+        }
+
+        #printf("hdr: %y body: %y\n", hdr, request_xml);
+
         return response(501);
+    }
+
+    private string getLockToken() {
+%ifndef NO_UUID
+        return sprintf("urn:uuid:%s", UUID::get());
+%else
+        return sprintf("qoreopaquelocktoken:%s", get_random_string(64));
+%endif
     }
 
     #! Handles WebDAV UNLOCK requests for WebDAV resources
@@ -701,7 +755,7 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
     */
     private hash<HttpResponseInfo> handlePropfindImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         if (debug) {
-            printf("FsWebdavInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
+            printf("FsWebDAVInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
         }
         string path = getNormalizedPath(cx.raw_path);
         *hash<StatInfo> h = hstat(path);
@@ -732,9 +786,9 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
             } else if (request_xml.propfind.hasKey("allprop")) {
                 all_props = True;
             }
-            #if (debug) {
-                printf("FsWebdavInterface::handlePropfindImpl() Z %N\n", additional_props);
-            #}
+            if (debug) {
+                printf("FsWebDAVInterface::handlePropfindImpl() Z %N\n", additional_props);
+            }
         }
 
         # TODO/FIXME: proper PROPFIND xml body handling!
@@ -745,7 +799,7 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
         resp."DAV:multistatus"."DAV:response" = preparePropFindResponse(cx.raw_path, hdr.depth, h, all_props, additional_props);
         resp."DAV:multistatus"."^attributes^" = {"xmlns:DAV": "DAV:"};
         if (debug) {
-            printf("FsWebdavInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
+            printf("FsWebDAVInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
             printf("PROPFIND RV: %y\nxml: %s\n", resp, make_xml(resp, XGF_ADD_FORMATTING));
         }
         return <HttpResponseInfo>{
@@ -785,7 +839,7 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
                 status_map = verify_status_map;
             } else {
                 foreach hash<PropPatchActionInfo> action in (actions) {
-                    printf("action: %y\n", action);
+                    #printf("action: %y\n", action);
                     if (action.action == PPA_Set) {
                         m_property_handler.set(path, action.ns, action.prop, action.val);
                         status_map{200}{action.ns}{action.prop} = True;
@@ -889,6 +943,6 @@ public class FsWebdavInterface inherits AbstractWebdavInterface {
             moveProperties(src_path, dest_path);
         }
     }
-} # class FsWebdavInterface
+} # class FsWebDAVInterface
 } # namespace WebDAV
 
