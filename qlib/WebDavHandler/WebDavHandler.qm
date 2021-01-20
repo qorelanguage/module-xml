@@ -1,6 +1,6 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-/*  WebDAV.qm Copyright 2019 - 2021 Qore Technologies, s.r.o.
+/*  WebDavHandler.qm Copyright 2019 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -21,9 +21,9 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-module WebDAV {
+module WebDavHandler {
     version = "1.0";
-    desc = "User module for WebDAV support";
+    desc = "User module for WebDAV server-side protocol support";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
     license = "MIT";
@@ -37,47 +37,47 @@ module WebDAV {
 %require-types
 %strict-args
 
-/** @mainpage WebDAV Module
+/** @mainpage WebDavHandler Module
 
     @tableofcontents
 
-    @section webdavintro WebDAV Module Introduction
+    @section webdavhandlerintro WebDavHandler Module Introduction
 
-    This module provides a WebDAV server API.
+    This module provides a WebDavHandler server API.
 
     Classes provided by this module:
-    - @ref WebDAV::AbstractWebDAVInterface "AbstractWebDAVInterface"
-    - @ref WebDAV::AbstractWebDAVPropertyHandler "AbstractWebDAVPropertyHandler"
-    - @ref WebDAV::DummyWebDAVInterface "DummyWebDAVInterface"
-    - @ref WebDAV::FsWebDAVInterface "FsWebDAVInterface"
-    - @ref WebDAV::InMemoryWebDAVPropertyHandler "InMemoryWebDAVPropertyHandler"
-    - @ref WebDAV::WebDAVHandler "WebDAVHandler"
-    - @ref WebDAV::WebDAVProxyInterface "WebDAVProxyInterface"
+    - @ref WebDavHandler::AbstractWebDavHandlerInterface "AbstractWebDavHandlerInterface"
+    - @ref WebDavHandler::AbstractWebDavPropertyHandler "AbstractWebDavPropertyHandler"
+    - @ref WebDavHandler::DummyWebDavHandlerInterface "DummyWebDavHandlerInterface"
+    - @ref WebDavHandler::FsWebDavHandlerInterface "FsWebDavHandlerInterface"
+    - @ref WebDavHandler::InMemoryWebDavPropertyHandler "InMemoryWebDavPropertyHandler"
+    - @ref WebDavHandler::WebDavHandlerHandler "WebDavHandlerHandler"
+    - @ref WebDavHandler::WebDavHandlerProxyInterface "WebDavHandlerProxyInterface"
 
-    @note The @ref WebDAV::FsWebDAVInterface "FsWebDAVInterface" class does not support any WebDAV locking
+    @note The @ref WebDavHandler::FsWebDavHandlerInterface "FsWebDavHandlerInterface" class does not support any WebDav locking
     functionality.
 
-    @section webdav_example WebDAV Example
+    @section webdavhandler_example WebDavHandler Example
 
     @code{.py}
 %requires HttpServer
 %requires FsUtil
-%requires WebDAV
+%requires WebDavHandler
 
 %exec-class Main
 
 class Server inherits HttpServer {
     private {
-        WebDAV::WebDAVHandler handler;
+        WebDavHandler::WebDavHandlerHandler handler;
         int verbose;
         int port;
     }
 
-    constructor(WebDAV::AbstractWebDAVInterface iface, int verbose = 0) : HttpServer(\log(), \log(), True) {
+    constructor(WebDavHandler::AbstractWebDavHandlerInterface iface, int verbose = 0) : HttpServer(\log(), \log(), True) {
         self.verbose = verbose;
-        handler = new WebDAV::WebDAVHandler(iface);
-        setHandler("webdav", "/", NOTHING, handler);
-        setDefaultHandler("webdav", handler);
+        handler = new WebDavHandler::WebDavHandlerHandler(iface);
+        setHandler("webdavhandler", "/", NOTHING, handler);
+        setDefaultHandler("webdavhandler", handler);
 
         map addHttpMethod($1), handler.getHttpMethods();
 
@@ -100,8 +100,8 @@ class Main {
     constructor() {
         TmpDir tmp("tempdir-");
 
-        WebDAV::InMemoryWebDAVPropertyHandler props();
-        WebDAV::FsWebDAVInterface iface(props, tmp.path);
+        WebDavHandler::InMemoryWebDavPropertyHandler props();
+        WebDavHandler::FsWebDavHandlerInterface iface(props, tmp.path);
 
         Server srv(iface, m_options.verbose);
 
@@ -115,15 +115,15 @@ class Main {
 }
     @endcode
 
-    @section webdavrelnotes Release Notes
+    @section webdavhandlerrelnotes Release Notes
 
-    @subsection webdav_v1_0 MapperUtil v1.0
+    @subsection webdavhandler_v1_0 MapperUtil v1.0
     - initial release
 */
 
-#! Main public WebDAV namespace
-public namespace WebDAV {
-#! WebDAV namespace value
+#! Main public WebDavHandler namespace
+public namespace WebDavHandler {
+#! WebDavHandler namespace value
 public const DavNs = "DAV:";
 }
 

@@ -1,6 +1,6 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+/*  WebDavHandler module Copyright 2019 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -21,8 +21,8 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-#! Main public WebDAV namespace
-public namespace WebDAV {
+#! Main public WebDavHandler namespace
+public namespace WebDavHandler {
 #! PROPPATCH action info
 hashdecl PropPatchActionInfo {
     #! Action
@@ -35,10 +35,10 @@ hashdecl PropPatchActionInfo {
     auto val;
 }
 
-#! Abstract WebDAV interface class
-public class AbstractWebDAVInterface {
+#! Abstract WebDavHandler interface class
+public class AbstractWebDavHandlerInterface {
     public {
-        #! A hash of all supported WebDAV methods mapped to method names
+        #! A hash of all supported WebDavHandler methods mapped to method names
         const RequestMethods = {
             "OPTIONS": "handleOptions",
             "GET": "handleGet",
@@ -55,10 +55,10 @@ public class AbstractWebDAVInterface {
             "PROPPATCH": "handleProppatch",
         };
 
-        #! List of WebDAV methods in a string suitable for use in HTTP responses
+        #! List of WebDavHandler methods in a string suitable for use in HTTP responses
         const AllowHeaderValue = RequestMethods.keys().join(",");
 
-        #! List of WebDAV methods
+        #! List of WebDavHandler methods
         const MethodList = keys RequestMethods;
 
         #! PROPPATCH action: remove
@@ -70,23 +70,23 @@ public class AbstractWebDAVInterface {
 
     private {
         #! The property handler object
-        AbstractWebDAVPropertyHandler m_property_handler;
+        AbstractWebDavPropertyHandler m_property_handler;
 
-        #! The virtual base path for resources served by the WebDAV handler
+        #! The virtual base path for resources served by the WebDavHandler handler
         string virtual_base_path;
     }
 
     #! Creates the object with the given arguments
     /** @param property_handler to handle properties
-        @param virtual_relative_path_base the virtual base path for WebDAV requests; this path will be stripped from
-        requests internally when serving WebDAV resources
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be stripped from
+        requests internally when serving WebDavHandler resources
     */
-    constructor(AbstractWebDAVPropertyHandler property_handler, string virtual_relative_path_base = "/") {
+    constructor(AbstractWebDavPropertyHandler property_handler, string virtual_relative_path_base = "/") {
         m_property_handler = property_handler;
         virtual_base_path = normalize_dir(virtual_relative_path_base);
     }
 
-    #! Returnd a list of WebDAV methods
+    #! Returnd a list of WebDavHandler methods
     list<string> getHttpMethods() {
         return MethodList;
     }
@@ -266,7 +266,7 @@ public class AbstractWebDAVInterface {
         return sprintf("HTTP/1.1 %s %s", http_code, msg);
     }
 
-    #! Handles a WebDAV OPTIONS request
+    #! Handles a WebDavHandler OPTIONS request
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -299,7 +299,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return a 200 response with headers indicating WebDAV support
+        @return a 200 response with headers indicating WebDavHandler support
 
         @note this base class method calls handleOptionsImpl() to process the request
     */
@@ -307,7 +307,7 @@ public class AbstractWebDAVInterface {
         return handleOptionsImpl(cx, hdr, body);
     }
 
-    #! Handles HTTP GET requests for WebDAV resources
+    #! Handles HTTP GET requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -348,7 +348,7 @@ public class AbstractWebDAVInterface {
         return handleGetImpl(cx, hdr, body);
     }
 
-    #! Handles HTTP HEAD requests for WebDAV resources
+    #! Handles HTTP HEAD requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -389,7 +389,7 @@ public class AbstractWebDAVInterface {
         return handleHeadImpl(cx, hdr, body);
     }
 
-    #! Handles HTTP POST requests for WebDAV resources
+    #! Handles HTTP POST requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -430,7 +430,7 @@ public class AbstractWebDAVInterface {
         return handlePostImpl(cx, hdr, body);
     }
 
-    #! Handles HTTP PUT requests for WebDAV resources
+    #! Handles HTTP PUT requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -471,7 +471,7 @@ public class AbstractWebDAVInterface {
         return handlePutImpl(cx, hdr, body);
     }
 
-    #! Handles HTTP DELETE requests for WebDAV resources
+    #! Handles HTTP DELETE requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -512,7 +512,7 @@ public class AbstractWebDAVInterface {
         return handleDeleteImpl(cx, hdr, body);
     }
 
-    #! Handles WebDAV COPY requests for WebDAV resources
+    #! Handles WebDavHandler COPY requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -545,7 +545,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
 
         @note this base class method calls handleCopyImpl() to process the request
     */
@@ -553,7 +553,7 @@ public class AbstractWebDAVInterface {
         return handleCopyImpl(cx, hdr, body);
     }
 
-    #! Handles WebDAV MOVE requests for WebDAV resources
+    #! Handles WebDavHandler MOVE requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -586,7 +586,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
 
         @note this base class method calls handleMoveImpl() to process the request
     */
@@ -594,7 +594,7 @@ public class AbstractWebDAVInterface {
         return handleMoveImpl(cx, hdr, body);
     }
 
-    #! Handles WebDAV LOCK requests for WebDAV resources
+    #! Handles WebDavHandler LOCK requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -627,7 +627,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
 
         @note this base class method calls handleLockImpl() to process the request
     */
@@ -635,7 +635,7 @@ public class AbstractWebDAVInterface {
         return handleLockImpl(cx, hdr, body);
     }
 
-    #! Handles WebDAV UNLOCK requests for WebDAV resources
+    #! Handles WebDavHandler UNLOCK requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -668,7 +668,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
 
         @note this base class method calls handleUnlockImpl() to process the request
     */
@@ -676,7 +676,7 @@ public class AbstractWebDAVInterface {
         return handleUnlockImpl(cx, hdr, body);
     }
 
-    #! Handles WebDAV MKCOL requests for WebDAV resources
+    #! Handles WebDavHandler MKCOL requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -709,7 +709,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
 
         @note this base class method calls handleMkcolImpl() to process the request
     */
@@ -717,7 +717,7 @@ public class AbstractWebDAVInterface {
         return handleMkcolImpl(cx, hdr, body);
     }
 
-    #! Handles WebDAV PROPFIND requests for WebDAV resources; reetrieves properties from WebDAV resources
+    #! Handles WebDavHandler PROPFIND requests for WebDavHandler resources; reetrieves properties from WebDavHandler resources
     /**
         @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
@@ -751,7 +751,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
 
         @note this base class method calls handlePropfindImpl() to process the request
     */
@@ -759,7 +759,7 @@ public class AbstractWebDAVInterface {
         return handlePropfindImpl(cx, hdr, body);
     }
 
-    #! Handles WebDAV PROPPATCH requests for WebDAV resources; sets or removes properties on WebDAV resources
+    #! Handles WebDavHandler PROPPATCH requests for WebDavHandler resources; sets or removes properties on WebDavHandler resources
     /**
         @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
@@ -793,7 +793,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
 
         @note this base class method calls handlePropPatchImpl() to process the request
     */
@@ -871,7 +871,7 @@ public class AbstractWebDAVInterface {
         try {
             status_map = handleProppatchImpl(\href, cx, hdr, request_xml, actions);
         } catch (hash<ExceptionInfo> ex) {
-            if (ex.err == "WEBDAV-ERROR") {
+            if (ex.err == "WEBDAVHANDLER-ERROR") {
                 return response(ex.arg ?? 500, ex.desc);
             }
             rethrow;
@@ -919,7 +919,7 @@ public class AbstractWebDAVInterface {
         };
     }
 
-    #! Handles an HTTP/WebDAV OPTIONS request
+    #! Handles an HTTP/WebDavHandler OPTIONS request
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -952,7 +952,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return a 200 response with headers indicating WebDAV support
+        @return a 200 response with headers indicating WebDavHandler support
     */
     private hash<HttpResponseInfo> handleOptionsImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         return <HttpResponseInfo>{
@@ -965,7 +965,7 @@ public class AbstractWebDAVInterface {
         };
     }
 
-    #! Handles HTTP GET requests for WebDAV resources
+    #! Handles HTTP GET requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1002,7 +1002,7 @@ public class AbstractWebDAVInterface {
     */
     private abstract hash<HttpResponseInfo> handleGetImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles HTTP HEAD requests for WebDAV resources
+    #! Handles HTTP HEAD requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1039,7 +1039,7 @@ public class AbstractWebDAVInterface {
     */
     private abstract hash<HttpResponseInfo> handleHeadImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles HTTP POST requests for WebDAV resources
+    #! Handles HTTP POST requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1076,7 +1076,7 @@ public class AbstractWebDAVInterface {
     */
     private abstract hash<HttpResponseInfo> handlePostImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles HTTP PUT requests for WebDAV resources
+    #! Handles HTTP PUT requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1113,7 +1113,7 @@ public class AbstractWebDAVInterface {
     */
     private abstract hash<HttpResponseInfo> handlePutImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles HTTP DELETE requests for WebDAV resources
+    #! Handles HTTP DELETE requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1150,7 +1150,7 @@ public class AbstractWebDAVInterface {
     */
     private abstract hash<HttpResponseInfo> handleDeleteImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles WebDAV COPY requests for WebDAV resources
+    #! Handles WebDavHandler COPY requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1183,11 +1183,11 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private abstract hash<HttpResponseInfo> handleCopyImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles WebDAV MOVE requests for WebDAV resources
+    #! Handles WebDavHandler MOVE requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1220,11 +1220,11 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private abstract hash<HttpResponseInfo> handleMoveImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles WebDAV LOCK requests for WebDAV resources
+    #! Handles WebDavHandler LOCK requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1257,11 +1257,11 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private abstract hash<HttpResponseInfo> handleLockImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles WebDAV UNLOCK requests for WebDAV resources
+    #! Handles WebDavHandler UNLOCK requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1294,11 +1294,11 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private abstract hash<HttpResponseInfo> handleUnlockImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles WebDAV MKCOL requests for WebDAV resources
+    #! Handles WebDavHandler MKCOL requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -1331,11 +1331,11 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private abstract hash<HttpResponseInfo> handleMkcolImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
-    #! Handles WebDAV PROPFIND requests for WebDAV resources; reetrieves properties from WebDAV resources
+    #! Handles WebDavHandler PROPFIND requests for WebDavHandler resources; reetrieves properties from WebDavHandler resources
     /**
         @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
@@ -1369,7 +1369,7 @@ public class AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private abstract hash<HttpResponseInfo> handlePropfindImpl(hash<auto> cx, hash<auto> hdr, *data body);
 
@@ -1382,7 +1382,7 @@ public class AbstractWebDAVInterface {
 
         @return a status map of HTTP code -> namespace -> property -> True
 
-        @throw WEBDAV-ERROR an error occured
+        @throw WEBDAVHANDLER-ERROR an error occured
     */
     private abstract *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx, hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions);
 }

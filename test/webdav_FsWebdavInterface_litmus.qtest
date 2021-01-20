@@ -5,7 +5,7 @@
 
 %requires FsUtil
 %requires HttpServer
-%requires ../qlib/WebDAV
+%requires ../qlib/WebDavHandler
 %requires QUnit
 
 %requires process
@@ -15,18 +15,18 @@
 # minimal HTTP server for this test suite
 class Server inherits HttpServer {
     private {
-        WebDAV::WebDAVHandler handler;
+        WebDavHandler::WebDavHandlerHandler handler;
 
         int verbose;
 
         static int port;
     }
 
-    constructor(WebDAV::AbstractWebDAVInterface iface, int verbose = 0) : HttpServer(\log(), \log(), True) {
+    constructor(WebDavHandler::AbstractWebDavHandlerInterface iface, int verbose = 0) : HttpServer(\log(), \log(), True) {
         self.verbose = verbose;
-        handler = new WebDAV::WebDAVHandler(iface);
-        setHandler("webdav", "/", NOTHING, handler);
-        setDefaultHandler("webdav", handler);
+        handler = new WebDavHandler::WebDavHandlerHandler(iface);
+        setHandler("webdavhandler", "/", NOTHING, handler);
+        setDefaultHandler("webdavhandler", handler);
 
         map addHttpMethod($1), handler.getHttpMethods();
 
@@ -102,7 +102,7 @@ class Litmus {
 }
 
 class Main inherits QUnit::Test {
-    constructor() : QUnit::Test("webdav", "1.0") {
+    constructor() : QUnit::Test("webdavhandler", "1.0") {
         addTestCase("litmus test", \testLitmus());
 
         set_return_value(main());
@@ -114,8 +114,8 @@ class Main inherits QUnit::Test {
             printf("Using tmp path: %s\n", tmp.path);
         }
 
-        WebDAV::InMemoryWebDAVPropertyHandler props();
-        WebDAV::FsWebDAVInterface iface(props, tmp.path);
+        WebDavHandler::InMemoryWebDavPropertyHandler props();
+        WebDavHandler::FsWebDavHandlerInterface iface(props, tmp.path);
         Server srv(iface, m_options.verbose);
         on_exit {
             srv.stop();

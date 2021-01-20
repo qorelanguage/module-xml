@@ -1,6 +1,6 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+/*  WebDavHandler module Copyright 2019 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -21,11 +21,11 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-#! Main public WebDAV namespace
-public namespace WebDAV {
-#! This class returns 501 Unimplemented responses to all WebDAV requests except \c OPTIONS
-public class DummyWebDAVInterface inherits AbstractWebDAVInterface {
-    constructor(AbstractWebDAVPropertyHandler property_handler, string relative_path_base = "/") : AbstractWebDAVInterface(property_handler, relative_path_base) {
+#! Main public WebDavHandler namespace
+public namespace WebDavHandler {
+#! This class returns 501 Unimplemented responses to all WebDavHandler requests except \c OPTIONS
+public class DummyWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
+    constructor(AbstractWebDavPropertyHandler property_handler, string relative_path_base = "/") : AbstractWebDavHandlerInterface(property_handler, relative_path_base) {
     }
 
     /**
@@ -108,7 +108,7 @@ public class DummyWebDAVInterface inherits AbstractWebDAVInterface {
     /**
         LOCK
 
-        Put a lock on a resource. WebDAV supports both shared and exclusive locks.
+        Put a lock on a resource. WebDavHandler supports both shared and exclusive locks.
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
@@ -160,12 +160,12 @@ public class DummyWebDAVInterface inherits AbstractWebDAVInterface {
 
         @return a status map of HTTP code -> namespace -> property -> True
 
-        @throw WEBDAV-ERROR an error occured
+        @throw WEBDAVHANDLER-ERROR an error occured
 
-        @note This method always throws a \c WEBDAV-ERROR exception to return a <tt>501 Unimplemented</tt> response
+        @note This method always throws a \c WEBDAVHANDLER-ERROR exception to return a <tt>501 Unimplemented</tt> response
     */
     private *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx, hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions) {
-        throw "WEBDAV-ERROR", "unimplemented", 501;
+        throw "WEBDAVHANDLER-ERROR", "unimplemented", 501;
     }
 }
 }

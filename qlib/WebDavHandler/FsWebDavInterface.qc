@@ -1,6 +1,6 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+/*  WebDavHandler module Copyright 2019 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -31,10 +31,10 @@
 %define NO_UUID
 %endtry
 
-#! Main public WebDAV namespace
-public namespace WebDAV {
-#! Filesystem WebDAV inteface class
-public class FsWebDAVInterface inherits AbstractWebDAVInterface {
+#! Main public WebDavHandler namespace
+public namespace WebDavHandler {
+#! Filesystem WebDavHandler inteface class
+public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     private {
         #! The root directory for serving files
         string basePath;
@@ -44,18 +44,18 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
     #! Creates the object with the given options
     /** @param property_handler to handle properties
         @param path the root directory for serving files
-        @param virtual_relative_path_base the virtual base path for WebDAV requests; this path will be stripped from
-        requests internally when serving WebDAV resources
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be stripped from
+        requests internally when serving WebDavHandler resources
     */
-    constructor(AbstractWebDAVPropertyHandler property_handler, string path, string virtual_relative_path_base = "/") : AbstractWebDAVInterface(property_handler, virtual_relative_path_base) {
+    constructor(AbstractWebDavPropertyHandler property_handler, string path, string virtual_relative_path_base = "/") : AbstractWebDavHandlerInterface(property_handler, virtual_relative_path_base) {
         basePath = normalize_dir(path);
     }
 
-    #! Converts a request path to a normalized real path on the filesystem in the root WebDAV directory
-    /** @throw WEBDAV-FORBIDDEN if the path is not valid
+    #! Converts a request path to a normalized real path on the filesystem in the root WebDavHandler directory
+    /** @throw WEBDAVHANDLER-FORBIDDEN if the path is not valid
     */
     private string getPath(string raw_path) {
-        string tmp = AbstractWebDAVInterface::getRelativePath(raw_path);
+        string tmp = AbstractWebDavHandlerInterface::getRelativePath(raw_path);
 
         if (tmp.equalPartial("/"))
             tmp = basePath + tmp;
@@ -66,7 +66,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
     }
 
     #! Ensures that the path is valid and returns a normalized path
-    /** @throw WEBDAV-FORBIDDEN if the path is not valid
+    /** @throw WEBDAVHANDLER-FORBIDDEN if the path is not valid
     */
     private string checkPathScope(string tmp) {
         # it's strictly prohibitted to make file operations
@@ -74,7 +74,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         tmp = normalize_dir(tmp);
 
         if (!tmp.regex("^" + basePath)) {
-            throw "WEBDAV-FORBIDDEN", tmp;
+            throw "WEBDAVHANDLER-FORBIDDEN", tmp;
         }
 
         return tmp;
@@ -112,7 +112,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
     private:internal list<hash<auto>> preparePropFindResponse(string raw_path, string depth = "infinity", hash<StatInfo> h, bool all_props, *hash<string, hash<string, bool>> additional_props) {
         string local_path = getNormalizedPath(raw_path);
         if (debug) {
-            printf("FsWebDAVInterface::preparePropFindResponse() AAA %n -- %n\n", raw_path, basename(raw_path));
+            printf("FsWebDavHandlerInterface::preparePropFindResponse() AAA %n -- %n\n", raw_path, basename(raw_path));
         }
         bool is_dir = (h.type == "DIRECTORY");
 
@@ -208,7 +208,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         return (foldl $1 + "\n" + $2, d.list()) ?? "";
     }
 
-    #! Handles HTTP GET requests for WebDAV resources
+    #! Handles HTTP GET requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -248,7 +248,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         return internalGet(cx, hdr, body, True);
     }
 
-    #! Handles HTTP HEAD requests for WebDAV resources
+    #! Handles HTTP HEAD requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -288,7 +288,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         return internalGet(cx, hdr, body, False);
     }
 
-    #! Handles HTTP POST requests for WebDAV resources
+    #! Handles HTTP POST requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -358,7 +358,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         return response(201, hdr_resp);
     }
 
-    #! Handles HTTP PUT requests for WebDAV resources
+    #! Handles HTTP PUT requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -397,7 +397,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         return handlePost(cx, hdr, body);
     }
 
-    #! Handles HTTP DELETE requests for WebDAV resources
+    #! Handles HTTP DELETE requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -445,7 +445,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         return response(204);
     }
 
-    #! Handles WebDAV COPY requests for WebDAV resources
+    #! Handles WebDavHandler COPY requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -478,13 +478,13 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private hash<HttpResponseInfo> handleCopyImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         return doCopyMoveIntern(cx, hdr, body, True);
     }
 
-    #! Handles WebDAV MOVE requests for WebDAV resources
+    #! Handles WebDavHandler MOVE requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -517,7 +517,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private hash<HttpResponseInfo> handleMoveImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         # additional deletion of source
@@ -531,7 +531,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         return ret;
     }
 
-    #! Handles WebDAV LOCK requests for WebDAV resources
+    #! Handles WebDavHandler LOCK requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -564,7 +564,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private hash<HttpResponseInfo> handleLockImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         if (!body) {
@@ -604,7 +604,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
 %endif
     }
 
-    #! Handles WebDAV UNLOCK requests for WebDAV resources
+    #! Handles WebDavHandler UNLOCK requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -637,13 +637,13 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private hash<HttpResponseInfo> handleUnlockImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         return response(501);
     }
 
-    #! Handles WebDAV MKCOL requests for WebDAV resources
+    #! Handles WebDavHandler MKCOL requests for WebDavHandler resources
     /**  @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
           - \c accept-charset: this key will be set to an appropriate value from any \c "Accept-Charset" header; if
@@ -676,7 +676,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private hash<HttpResponseInfo> handleMkcolImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         # litmus: MKCOL with weird body must fail (RFC2518:8.3.1)
@@ -689,7 +689,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         try {
             dir_path = getPath(cx.raw_path);
         } catch (hash<ExceptionInfo> ex) {
-            if (ex.err == "WEBDAV-FORBIDDEN") {
+            if (ex.err == "WEBDAVHANDLER-FORBIDDEN") {
                 return response(403, "Forbidden");
             };
             rethrow;
@@ -717,7 +717,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         return response(201);
     }
 
-    #! Handles WebDAV PROPFIND requests for WebDAV resources; reetrieves properties from WebDAV resources
+    #! Handles WebDavHandler PROPFIND requests for WebDavHandler resources; reetrieves properties from WebDavHandler resources
     /**
         @param cx call context hash; this hash will have the following keys:
         - \c header-info: a hash of information about the request header with the following keys:
@@ -751,11 +751,11 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
         @param body message body, if any
 
-        @return the response to the WebDAV request
+        @return the response to the WebDavHandler request
     */
     private hash<HttpResponseInfo> handlePropfindImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         if (debug) {
-            printf("FsWebDAVInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
+            printf("FsWebDavHandlerInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
         }
         string path = getNormalizedPath(cx.raw_path);
         *hash<StatInfo> h = hstat(path);
@@ -787,7 +787,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
                 all_props = True;
             }
             if (debug) {
-                printf("FsWebDAVInterface::handlePropfindImpl() Z %N\n", additional_props);
+                printf("FsWebDavHandlerInterface::handlePropfindImpl() Z %N\n", additional_props);
             }
         }
 
@@ -799,7 +799,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         resp."DAV:multistatus"."DAV:response" = preparePropFindResponse(cx.raw_path, hdr.depth, h, all_props, additional_props);
         resp."DAV:multistatus"."^attributes^" = {"xmlns:DAV": "DAV:"};
         if (debug) {
-            printf("FsWebDAVInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
+            printf("FsWebDavHandlerInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
             printf("PROPFIND RV: %y\nxml: %s\n", resp, make_xml(resp, XGF_ADD_FORMATTING));
         }
         return <HttpResponseInfo>{
@@ -818,7 +818,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
 
         @return a status map of HTTP code -> namespace -> property -> True
 
-        @throw WEBDAV-ERROR an error occured
+        @throw WEBDAVHANDLER-ERROR an error occured
     */
     private *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx, hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions) {
         string path = getNormalizedPath(cx.raw_path);
@@ -826,7 +826,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
 
         *hash<StatInfo> h = hstat(path);
         if (!h) {
-            throw "WEBDAV-ERROR", sprintf("%s: %s", path, strerror()), 404;
+            throw "WEBDAVHANDLER-ERROR", sprintf("%s: %s", path, strerror()), 404;
         }
 
         # property status map: code -> ns -> property -> True
@@ -878,7 +878,7 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
         } catch (hash<ExceptionInfo> ex) {
             if (ex.err =~ /^[0-9]{3}$/) {
                 return response(ex.err.toInt(), ex.desc);
-            } else if (ex.err == "WEBDAV-FORBIDDEN") {
+            } else if (ex.err == "WEBDAVHANDLER-FORBIDDEN") {
                 return response(403, "Cannot copy out of current jail");
             }
             rethrow;
@@ -943,6 +943,6 @@ public class FsWebDAVInterface inherits AbstractWebDAVInterface {
             moveProperties(src_path, dest_path);
         }
     }
-} # class FsWebDAVInterface
-} # namespace WebDAV
+} # class FsWebDavHandlerInterface
+} # namespace WebDavHandler
 
