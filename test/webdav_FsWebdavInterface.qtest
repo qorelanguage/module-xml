@@ -18,12 +18,12 @@ sub http_log(string str) {
 # minimal HTTP server for this test suite
 class Server inherits HttpServer {
     private {
-        WebDavHandler::WebDavHandlerHandler handler;
+        WebDavHandler::WebDavHandler handler;
         int port;
     }
 
     constructor(WebDavHandler::AbstractWebDavHandlerInterface iface) : HttpServer(\http_log(), \http_log()) {
-        handler = new WebDavHandler::WebDavHandlerHandler(iface);
+        handler = new WebDavHandler::WebDavHandler(iface);
         setHandler("webdavhandler", "/", NOTHING, handler);
         setDefaultHandler("webdavhandler", handler);
 

@@ -24,7 +24,7 @@
 #! Main public WebDavHandler namespace
 public namespace WebDavHandler {
 #! WebDavHandler HTTP handler class
-public class WebDavHandlerHandler inherits public HttpServer::AbstractHttpRequestHandler {
+public class WebDavHandler inherits public HttpServer::AbstractHttpRequestHandler {
     private {
         #! The actual WebDavHandler implementation
         AbstractWebDavHandlerInterface m_interface;
@@ -62,6 +62,6 @@ public class WebDavHandlerHandler inherits public HttpServer::AbstractHttpReques
     auto methodGate(string method_name) {
         return call_object_method_args(m_interface, method_name, argv);
     }
-} # class WebDavHandlerHandler
+} # class WebDavHandler
 } # namespace WebDavHandler
 
