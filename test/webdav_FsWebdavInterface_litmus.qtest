@@ -1,0 +1,128 @@
+#!/usr/bin/env qore
+
+%new-style
+%enable-all-warnings
+
+%requires FsUtil
+%requires HttpServer
+%requires ../qlib/WebDAV
+%requires QUnit
+
+%requires process
+
+%exec-class Main
+
+# minimal HTTP server for this test suite
+class Server inherits HttpServer {
+    private {
+        WebDAV::WebDAVHandler handler;
+
+        int verbose;
+
+        static int port;
+    }
+
+    constructor(WebDAV::AbstractWebDAVInterface iface, int verbose = 0) : HttpServer(\log(), \log(), True) {
+        self.verbose = verbose;
+        handler = new WebDAV::WebDAVHandler(iface);
+        setHandler("webdav", "/", NOTHING, handler);
+        setDefaultHandler("webdav", handler);
+
+        map addHttpMethod($1), handler.getHttpMethods();
+
+        port = addListener(<HttpListenerOptionInfo>{"service": 0}).port;
+    }
+
+    # logger for http server
+    log(string str) {
+        if (verbose > 2) {
+            printf("%N: %s\n", now_us(), vsprintf(str, argv));
+        }
+    }
+
+    static int getPort() {
+        return port;
+    }
+} # class Server
+
+class Litmus {
+    private {
+        bool m_have_litmus = False;
+        string m_stdout;
+        int m_rc = 0;
+    }
+
+    constructor(string url, int verbose = 0) {
+        int rc;
+        backquote("litmus -h", \rc);
+        # rc 1 = exit after help
+        if (rc == 1) {
+            m_have_litmus = True;
+        }
+
+        if (!m_have_litmus) {
+            printf("INFO: No 'litmus' binary found. Litmus test skipped\n");
+            return;
+        }
+
+        printf("using URL %y\n", url);
+
+        #m_stdout = backquote("litmus \"" + url + "\"", \m_rc);
+
+        Process proc("litmus", url);
+        code checkOutput = sub () {
+            *string str = proc.readStdout(16384, 0);
+            if (exists str) {
+                printf("%s", str);
+            }
+            str = proc.readStderr(16384, 0);
+            if (exists str) {
+                printf("%s", str);
+            }
+        };
+        if (verbose) {
+            while (proc.running()) {
+                checkOutput();
+                usleep(250ms);
+            }
+            checkOutput();
+        } else {
+            proc.wait();
+        }
+        m_rc = proc.exitCode();
+    }
+
+    *string out() {
+        return m_stdout;
+    }
+
+    int result() {
+        return m_rc;
+    }
+}
+
+class Main inherits QUnit::Test {
+    constructor() : QUnit::Test("webdav", "1.0") {
+        addTestCase("litmus test", \testLitmus());
+
+        set_return_value(main());
+    }
+
+    private testLitmus() {
+        TmpDir tmp("litmus-");
+        if (m_options.verbose) {
+            printf("Using tmp path: %s\n", tmp.path);
+        }
+
+        WebDAV::InMemoryWebDAVPropertyHandler props();
+        WebDAV::FsWebDAVInterface iface(props, tmp.path);
+        Server srv(iface, m_options.verbose);
+        on_exit {
+            srv.stop();
+        }
+
+        Litmus litmus("http://localhost:" + Server::getPort(), m_options.verbose);
+
+        assertEq(0, litmus.result(), "litmus result value");
+    }
+} # class Main

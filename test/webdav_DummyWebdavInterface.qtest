@@ -1,0 +1,136 @@
+#!/usr/bin/env qore
+
+%new-style
+%enable-all-warnings
+
+%requires HttpServer
+%requires ../qlib/WebDAV
+%requires QUnit
+
+%exec-class Main
+
+# logger for http server
+sub http_log(string str) {
+#    printf("%N: %s\n", now_us(), vsprintf(str, argv));
+}
+
+# minimal HTTP server for this test suite
+class Server inherits HttpServer {
+    private {
+        WebDAV::WebDAVHandler handler;
+        int port;
+    }
+
+    constructor(WebDAV::AbstractWebDAVInterface iface) : HttpServer(\http_log(), \http_log()) {
+        handler = new WebDAV::WebDAVHandler(iface);
+        setHandler("webdav", "/", NOTHING, handler);
+        setDefaultHandler("webdav", handler);
+
+        map addHttpMethod($1), handler.getHttpMethods();
+
+        port = addListener(<HttpListenerOptionInfo>{"service": 0}).port;
+    }
+
+    # just to access HttpServer's private member
+    hash httpMethods() {
+        return http_methods;
+    }
+
+    int getPort() {
+        return port;
+    }
+} # class Server
+
+class Client inherits HTTPClient {
+    constructor(string url) : HTTPClient({
+        "url": url,
+        "additional_methods": WebDAV::AbstractWebDAVInterface::RequestMethods,
+    }) {
+    }
+}
+
+class Main inherits QUnit::Test {
+    constructor() : QUnit::Test("webdav", "1.0") {
+        addTestCase("HTTP methods test", \testHttpMethods());
+        addTestCase("HTTP non existing method test", \testNonExistingHttpMethod());
+        addTestCase("DummyWebDAVInterface test", \testDummyWebDAVInterface());
+
+        set_return_value(main());
+    }
+
+    # test presence of extended HTTP methods in the server
+    private testHttpMethods() {
+        WebDAV::InMemoryWebDAVPropertyHandler props();
+        WebDAV::DummyWebDAVInterface iface(props);
+        Server srv(iface);
+        on_exit {
+            srv.stop();
+        }
+
+        HashIterator it(WebDAV::AbstractWebDAVInterface::RequestMethods);
+        auto methods = srv.httpMethods();
+        while (it.next()) {
+            assertEq(True, methods.hasKey(it.getKey()), it.getKey());
+        }
+    }
+
+    private testNonExistingHttpMethod() {
+        WebDAV::InMemoryWebDAVPropertyHandler props();
+        WebDAV::DummyWebDAVInterface iface(props);
+
+        Server srv(iface);
+        on_exit {
+            srv.stop();
+        }
+
+        Client http("http://localhost:" + srv.getPort());
+
+        hash<auto> methods = {
+            "XXXFOO": "non existing method",
+        };
+
+        HashIterator it(methods);
+        while (it.next()) {
+            try {
+                if (m_options.verbose) {
+                    printf("sending %s - %s\n", it.getKey(), it.getValue());
+                }
+                auto ret = http.send(NOTHING, it.getKey(), "/");
+                # some methods are passing through (OPTIONS)
+                assertEq(200, ret.status_code);
+            } catch (hash<ExceptionInfo> ex) {
+                assertEq("HTTP-CLIENT-METHOD-ERROR", ex.err, it.getKey());
+                assertEq(True, ex.desc =~ /HTTP method.*not recognized/, it.getKey());
+            }
+        }
+    }
+
+    # dummy = always failing. Test the method dispatch
+    private testDummyWebDAVInterface() {
+        WebDAV::InMemoryWebDAVPropertyHandler props();
+        WebDAV::DummyWebDAVInterface iface(props);
+
+        Server srv(iface);
+        on_exit {
+            srv.stop();
+        }
+
+        Client http("http://localhost:" + srv.getPort());
+
+        HashIterator it(WebDAV::AbstractWebDAVInterface::RequestMethods);
+        while (it.next()) {
+            try {
+                if (m_options.verbose) {
+                    printf("sending %s - %s\n", it.getKey(), it.getValue());
+                }
+                auto ret = http.send(NOTHING, it.getKey(), "/");
+                # some methods are passing through (OPTIONS)
+                assertEq(200, ret.status_code);
+            } catch (hash<ExceptionInfo> ex) {
+                assertEq("HTTP-CLIENT-RECEIVE-ERROR", ex.err, it.getKey() + ": " + ex.err);
+                assertEq(True, ex.desc =~ /501.*Not Implemented/, it.getKey() + ": " + ex.desc);
+            }
+        }
+    }
+} # class Main
+

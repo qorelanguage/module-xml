@@ -1,0 +1,129 @@
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*  WebDAV.qm Copyright 2019 - 2021 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+module WebDAV {
+    version = "1.0";
+    desc = "User module for WebDAV support";
+    author = "David Nichols <david@qore.org>";
+    url = "http://qore.org";
+    license = "MIT";
+}
+
+# minimum required Qore version
+%requires qore >= 0.10.0
+
+%new-style
+%enable-all-warnings
+%require-types
+%strict-args
+
+/** @mainpage WebDAV Module
+
+    @tableofcontents
+
+    @section webdavintro WebDAV Module Introduction
+
+    This module provides a WebDAV server API.
+
+    Classes provided by this module:
+    - @ref WebDAV::AbstractWebDAVInterface "AbstractWebDAVInterface"
+    - @ref WebDAV::AbstractWebDAVPropertyHandler "AbstractWebDAVPropertyHandler"
+    - @ref WebDAV::DummyWebDAVInterface "DummyWebDAVInterface"
+    - @ref WebDAV::FsWebDAVInterface "FsWebDAVInterface"
+    - @ref WebDAV::InMemoryWebDAVPropertyHandler "InMemoryWebDAVPropertyHandler"
+    - @ref WebDAV::WebDAVHandler "WebDAVHandler"
+    - @ref WebDAV::WebDAVProxyInterface "WebDAVProxyInterface"
+
+    @note The @ref WebDAV::FsWebDAVInterface "FsWebDAVInterface" class does not support any WebDAV locking
+    functionality.
+
+    @section webdav_example WebDAV Example
+
+    @code{.py}
+%requires HttpServer
+%requires FsUtil
+%requires WebDAV
+
+%exec-class Main
+
+class Server inherits HttpServer {
+    private {
+        WebDAV::WebDAVHandler handler;
+        int verbose;
+        int port;
+    }
+
+    constructor(WebDAV::AbstractWebDAVInterface iface, int verbose = 0) : HttpServer(\log(), \log(), True) {
+        self.verbose = verbose;
+        handler = new WebDAV::WebDAVHandler(iface);
+        setHandler("webdav", "/", NOTHING, handler);
+        setDefaultHandler("webdav", handler);
+
+        map addHttpMethod($1), handler.getHttpMethods();
+
+        port = addListener(<HttpListenerOptionInfo>{"service": 0}).port;
+    }
+
+    # logger for http server
+    log(string str) {
+        if (verbose > 2) {
+            printf("%N: %s\n", now_us(), vsprintf(str, argv));
+        }
+    }
+
+    int getPort() {
+        return port;
+    }
+}
+
+class Main {
+    constructor() {
+        TmpDir tmp("tempdir-");
+
+        WebDAV::InMemoryWebDAVPropertyHandler props();
+        WebDAV::FsWebDAVInterface iface(props, tmp.path);
+
+        Server srv(iface, m_options.verbose);
+
+        printf("Using tmp path: %s; listening on port %d\n", tmp.path, srv.getPort());
+
+        # wait forever - break with ctrl-C
+        while (True) {
+            sleep(99999999);
+        }
+    }
+}
+    @endcode
+
+    @section webdavrelnotes Release Notes
+
+    @subsection webdav_v1_0 MapperUtil v1.0
+    - initial release
+*/
+
+#! Main public WebDAV namespace
+public namespace WebDAV {
+#! WebDAV namespace value
+public const DavNs = "DAV:";
+}
+

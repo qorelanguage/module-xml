@@ -87,10 +87,12 @@ set(QMOD
     qlib/XmlRpcHandler.qm
     qlib/XmlRpcConnection.qm
     qlib/SoapDataProvider
+    qlib/WebDAV
 )
 
 set(SCRIPTS
-	bin/soaputil
+    bin/soaputil
+    bin/webdav-server
 )
 
 qore_wrap_qpp_value(QPP_SOURCES ${QPP_SRC})

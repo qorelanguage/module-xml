@@ -51,7 +51,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 Requires: /usr/bin/env
 Requires: qore-module(abi)%{?_isa} = %{module_api}
 BuildRequires: gcc-c++
-BuildRequires: qore-devel >= 0.9
+BuildRequires: qore-devel >= 0.9.4
 BuildRequires: libxml2-devel
 BuildRequires: openssl-devel
 BuildRequires: qore
@@ -101,6 +101,7 @@ rm -rf $RPM_BUILD_ROOT
 %{module_dir}
 %{user_module_dir}
 %{_bindir}/soaputil
+%{_bindir}/webdav-server
 %doc COPYING.LGPL COPYING.MIT README RELEASE-NOTES AUTHORS
 
 %changelog

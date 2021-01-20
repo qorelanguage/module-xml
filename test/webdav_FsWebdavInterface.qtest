@@ -1,0 +1,68 @@
+#!/usr/bin/env qore
+
+%new-style
+%enable-all-warnings
+
+%requires HttpServer
+%requires ../qlib/WebDAV
+%requires QUnit
+%requires FsUtil
+
+%exec-class Main
+
+# logger for http server
+sub http_log(string str) {
+#    printf("%N: %s\n", now_us(), vsprintf(str, argv));
+}
+
+# minimal HTTP server for this test suite
+class Server inherits HttpServer {
+    private {
+        WebDAV::WebDAVHandler handler;
+        int port;
+    }
+
+    constructor(WebDAV::AbstractWebDAVInterface iface) : HttpServer(\http_log(), \http_log()) {
+        handler = new WebDAV::WebDAVHandler(iface);
+        setHandler("webdav", "/", NOTHING, handler);
+        setDefaultHandler("webdav", handler);
+
+        map addHttpMethod($1), handler.getHttpMethods();
+
+        port = addListener(<HttpListenerOptionInfo>{"service": 0}).port;
+    }
+
+    int getPort() {
+        return port;
+    }
+
+} # class Server
+
+class Client inherits HTTPClient {
+    constructor(string url) : HTTPClient({
+        "url": url,
+        "additional_methods": WebDAV::AbstractWebDAVInterface::RequestMethods,
+    }) {
+    }
+}
+
+
+class Main inherits QUnit::Test {
+    constructor() : QUnit::Test("webdav", "1.0") {
+        addTestCase("FS webdav test", \test());
+
+        set_return_value(main());
+    }
+
+    # test presence of extended HTTP methods in the server
+    private test() {
+        TmpDir tmp();
+        WebDAV::InMemoryWebDAVPropertyHandler props();
+        WebDAV::FsWebDAVInterface iface(props, tmp.path);
+        Server srv(iface);
+        on_exit {
+            srv.stop();
+        }
+    }
+} # class Main
+

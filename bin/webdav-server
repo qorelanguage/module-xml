@@ -1,0 +1,137 @@
+#!/usr/bin/env qore
+
+# example WebDAV server script
+
+%new-style
+%require-types
+%strict-args
+%enable-all-warnings
+
+%requires HttpServer
+%requires WebDAV
+%requires FsUtil
+
+%exec-class WebDavServer
+
+#! Main application class
+class WebDavServer {
+    public {}
+
+    private {
+        #! For maintaining a temporary directory
+        TmpDir tmp;
+
+        #! The actual WebDAV HTTP server
+        WebDavHttpServer srv;
+
+        #! Command-line options
+        const Opts = {
+            "help": "h,help",
+            "keep": "k,keep",
+            "port": "p,port=i",
+            "quiet": "q,quiet",
+            "root": "r,root=s",
+        };
+    }
+
+    #! Create the application object
+    constructor() {
+        # handle comamnd-line options
+        hash<auto> opts = GetOpt::parseExit(Opts, \ARGV);
+
+        if (opts.help) {
+            usage();
+            thread_exit;
+        }
+
+        string root;
+        if (!opts.root) {
+            if (opts.keep) {
+                root = make_tmp_dir("webdav-");
+            } else {
+                tmp = new TmpDir("webdav-");
+                root = tmp.path;
+            }
+        } else {
+            root = opts.root;
+            if (!is_dir(root)) {
+                stderr.printf("ERROR: WebDAV root directory %y does not exist\n", root);
+                exit(1);
+            }
+        }
+
+        if (!opts.quiet || (!opts.root && opts.keep)) {
+            printf("WebDAV server using %s root path: %y\n", tmp ? "temporary" : "persistent", root);
+        }
+
+        # create the WebDAV HTTP server
+        WebDAV::InMemoryWebdavPropertyHandler props();
+        WebDAV::FsWebdavInterface iface(props, root);
+        srv = new WebDavHttpServer(iface, opts.port ?? 0, !opts.quiet);
+
+        # stop the server if a signal arrives
+        code sig_handler = sub (int signal) {
+            printf("signal received; stopping server\n");
+            srv.stop();
+            delete srv;
+        };
+
+        # setup signal handlers
+        set_signal_handler(SIGINT, sig_handler);
+        set_signal_handler(SIGHUP, sig_handler);
+        set_signal_handler(SIGUSR1, sig_handler);
+        set_signal_handler(SIGUSR2, sig_handler);
+
+        # wait for server to stop
+        srv.waitStop();
+    }
+
+    usage() {
+        printf("%s: [opts]\n"
+            " -h,--help          this help text\n"
+            " -k,--keep          keep any temporary filesystem (ignored with -r)\n"
+            " -p,--port=ARG      the listenening port number (if not present a random port is used)\n"
+            " -q,--quiet         do not log to the console\n"
+            " -r,--root=ARG      the root directory for serving files; if not given a temp dir is used\n",
+            get_script_name()
+        );
+    }
+}
+
+#! HTTP server with a WebDAV handler
+class WebDavHttpServer inherits HttpServer {
+    private {
+        WebDAV::WebdavHandler handler;
+        bool verbose;
+        int port;
+    }
+
+    #! Creates the object and starts listening for WebDAV requests
+    constructor(WebDAV::AbstractWebdavInterface iface, int port, bool verbose) : HttpServer(\log(), \log(), True) {
+        self.verbose = verbose;
+        # create the WebDAV handler
+        handler = new WebDAV::WebdavHandler(iface);
+        setHandler("webdav", "/", NOTHING, handler);
+        setDefaultHandler("webdav", handler);
+
+        # add WebDAV HTTP methods
+        map addHttpMethod($1), handler.getHttpMethods();
+
+        # start the listener
+        self.port = addListener(<HttpListenerOptionInfo>{"service": port}).port;
+        printf("started WebDAV server on port %d\n", self.port);
+    }
+
+    #! Logs messages if the verbose option was set
+    log(string str) {
+        if (verbose) {
+            printf("%N: %s\n", now_us(), vsprintf(str, argv));
+        }
+    }
+
+    #! Returns the listening port
+    int getPort() {
+        return port;
+    }
+}
+
