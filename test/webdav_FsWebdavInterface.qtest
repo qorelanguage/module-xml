@@ -4,7 +4,7 @@
 %enable-all-warnings
 
 %requires HttpServer
-%requires ../qlib/WebDAV
+%requires ../qlib/WebDavHandler
 %requires QUnit
 %requires FsUtil
 
@@ -18,14 +18,14 @@ sub http_log(string str) {
 # minimal HTTP server for this test suite
 class Server inherits HttpServer {
     private {
-        WebDAV::WebDAVHandler handler;
+        WebDavHandler::WebDavHandlerHandler handler;
         int port;
     }
 
-    constructor(WebDAV::AbstractWebDAVInterface iface) : HttpServer(\http_log(), \http_log()) {
-        handler = new WebDAV::WebDAVHandler(iface);
-        setHandler("webdav", "/", NOTHING, handler);
-        setDefaultHandler("webdav", handler);
+    constructor(WebDavHandler::AbstractWebDavHandlerInterface iface) : HttpServer(\http_log(), \http_log()) {
+        handler = new WebDavHandler::WebDavHandlerHandler(iface);
+        setHandler("webdavhandler", "/", NOTHING, handler);
+        setDefaultHandler("webdavhandler", handler);
 
         map addHttpMethod($1), handler.getHttpMethods();
 
@@ -41,15 +41,15 @@ class Server inherits HttpServer {
 class Client inherits HTTPClient {
     constructor(string url) : HTTPClient({
         "url": url,
-        "additional_methods": WebDAV::AbstractWebDAVInterface::RequestMethods,
+        "additional_methods": WebDavHandler::AbstractWebDavHandlerInterface::RequestMethods,
     }) {
     }
 }
 
 
 class Main inherits QUnit::Test {
-    constructor() : QUnit::Test("webdav", "1.0") {
-        addTestCase("FS webdav test", \test());
+    constructor() : QUnit::Test("webdavhandler", "1.0") {
+        addTestCase("FS webdavhandler test", \test());
 
         set_return_value(main());
     }
@@ -57,8 +57,8 @@ class Main inherits QUnit::Test {
     # test presence of extended HTTP methods in the server
     private test() {
         TmpDir tmp();
-        WebDAV::InMemoryWebDAVPropertyHandler props();
-        WebDAV::FsWebDAVInterface iface(props, tmp.path);
+        WebDavHandler::InMemoryWebDavPropertyHandler props();
+        WebDavHandler::FsWebDavHandlerInterface iface(props, tmp.path);
         Server srv(iface);
         on_exit {
             srv.stop();

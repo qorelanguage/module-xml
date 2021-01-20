@@ -1,6 +1,6 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+/*  WebDavHandler module Copyright 2019 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -21,10 +21,10 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-#! Main public WebDAV namespace
-public namespace WebDAV {
-#! The abstract WebDAV property handler class interface
-public class AbstractWebDAVPropertyHandler {
+#! Main public WebDavHandler namespace
+public namespace WebDavHandler {
+#! The abstract WebDavHandler property handler class interface
+public class AbstractWebDavPropertyHandler {
     #! Retrieves the value(s) of the given properties in the given namespace
     abstract auto get(string resource, string ns = DavNs, list<string> prop_names);
 

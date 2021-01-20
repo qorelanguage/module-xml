@@ -1,6 +1,6 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+/*  WebDavHandler module Copyright 2019 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -21,16 +21,16 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-public namespace WebDAV {
+public namespace WebDavHandler {
 
-#! Proxy  WebDAV inteface class.
-public class WebDAVProxyInterface inherits AbstractWebDAVInterface {
+#! Proxy  WebDavHandler inteface class.
+public class WebDavHandlerProxyInterface inherits AbstractWebDavHandlerInterface {
     private {
-        hash<string, AbstractWebDAVInterface> m_ifaces;
+        hash<string, AbstractWebDavHandlerInterface> m_ifaces;
     }
 
-    constructor(hash<string, AbstractWebDAVInterface> interfaces, string relative_path_base = "/")
-        : AbstractWebDAVInterface(relative_path_base) {
+    constructor(hash<string, AbstractWebDavHandlerInterface> interfaces, string relative_path_base = "/")
+        : AbstractWebDavHandlerInterface(relative_path_base) {
         m_ifaces = interfaces;
     }
 
@@ -47,7 +47,7 @@ public class WebDAVProxyInterface inherits AbstractWebDAVInterface {
 
         if (parts.size() && m_ifaces.hasKey(parts[0])) {
 #printf("---- %s\n", "Y");
-            AbstractWebDAVInterface iface = m_ifaces{parts[0]};
+            AbstractWebDavHandlerInterface iface = m_ifaces{parts[0]};
             return call_object_method(iface, method_name, cx, hdr, body);
         }
 #printf("---- %s\n", "N");
@@ -124,7 +124,7 @@ public class WebDAVProxyInterface inherits AbstractWebDAVInterface {
     /**
         LOCK
 
-        Put a lock on a resource. WebDAV supports both shared and exclusive locks.
+        Put a lock on a resource. WebDavHandler supports both shared and exclusive locks.
     */
     hash<HttpResponseInfo> handleLock(hash<auto> cx, hash<auto> hdr, *data body) {
         return response(501, "Not Implemented");
@@ -194,5 +194,5 @@ public class WebDAVProxyInterface inherits AbstractWebDAVInterface {
     hash<HttpResponseInfo> handleProppatch(hash<auto> cx, hash<auto> hdr, *data body) {
         return handleChild("handleProppatch", cx, hdr, body);
     }
-} # class WebDAVProxyInterface
-} # namespace WebDAV
+} # class WebDavHandlerProxyInterface
+} # namespace WebDavHandler

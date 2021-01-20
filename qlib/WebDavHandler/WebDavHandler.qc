@@ -1,6 +1,6 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+/*  WebDavHandler module Copyright 2019 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -21,31 +21,31 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-#! Main public WebDAV namespace
-public namespace WebDAV {
-#! WebDAV HTTP handler class
-public class WebDAVHandler inherits public HttpServer::AbstractHttpRequestHandler {
+#! Main public WebDavHandler namespace
+public namespace WebDavHandler {
+#! WebDavHandler HTTP handler class
+public class WebDavHandlerHandler inherits public HttpServer::AbstractHttpRequestHandler {
     private {
-        #! The actual WebDAV implementation
-        AbstractWebDAVInterface m_interface;
+        #! The actual WebDavHandler implementation
+        AbstractWebDavHandlerInterface m_interface;
     }
 
     #! Creates the object from the arguments passed
-    /** @param interface the WebDAV implementation
+    /** @param interface the WebDavHandler implementation
         @param auth the connection authenticator object
     */
-    constructor(AbstractWebDAVInterface interface, *AbstractAuthenticator auth) : HttpServer::AbstractHttpRequestHandler(auth) {
+    constructor(AbstractWebDavHandlerInterface interface, *AbstractAuthenticator auth) : HttpServer::AbstractHttpRequestHandler(auth) {
         m_interface = interface;
     }
 
-    #! Handles HTTP/WebDAV requests and returns the response
+    #! Handles HTTP/WebDavHandler requests and returns the response
     hash<HttpResponseInfo> handleRequest(HttpListenerInterface listener, Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
-        if (AbstractWebDAVInterface::RequestMethods{hdr.method}) {
+        if (AbstractWebDavHandlerInterface::RequestMethods{hdr.method}) {
             #listener.log("CX: %N", cx);
             #listener.log("HDR: %N", hdr);
             #listener.log("BODY: %y", body);
             hash<HttpResponseInfo> r = call_object_method(m_interface,
-                                        AbstractWebDAVInterface::RequestMethods{hdr.method},
+                                        AbstractWebDavHandlerInterface::RequestMethods{hdr.method},
                                         cx, hdr, body);
             # MUST have a Content-Length header in the response, even for HTTP responses that cannot return a msg body
             if (!r.body && !r.hdr."Content-Length") {
@@ -58,10 +58,10 @@ public class WebDAVHandler inherits public HttpServer::AbstractHttpRequestHandle
         return m_interface.response(405, "Method Not Allowed");
     }
 
-    #! Redirects method calls to the WebDAV implementation object
+    #! Redirects method calls to the WebDavHandler implementation object
     auto methodGate(string method_name) {
         return call_object_method_args(m_interface, method_name, argv);
     }
-} # class WebDAVHandler
-} # namespace WebDAV
+} # class WebDavHandlerHandler
+} # namespace WebDavHandler
 

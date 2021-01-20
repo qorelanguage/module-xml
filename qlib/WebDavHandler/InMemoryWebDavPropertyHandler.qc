@@ -1,6 +1,6 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
-/*  WebDAV module Copyright 2019 - 2021 Qore Technologies, s.r.o.
+/*  WebDavHandler module Copyright 2019 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -21,10 +21,10 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-#! Main public WebDAV namespace
-public namespace WebDAV {
+#! Main public WebDavHandler namespace
+public namespace WebDavHandler {
 #! An in-memory property handler that stores and retrieves all properties in memory
-public class InMemoryWebDAVPropertyHandler inherits AbstractWebDAVPropertyHandler {
+public class InMemoryWebDavPropertyHandler inherits AbstractWebDavPropertyHandler {
     private {
         #! Read-write lock for atomicity
         RWLock m_lock();
@@ -43,7 +43,7 @@ public class InMemoryWebDAVPropertyHandler inherits AbstractWebDAVPropertyHandle
     *hash<auto> get(string resource, string ns = DavNs, list<string> prop_names) {
         AutoReadLock al(m_lock);
         if (debug) {
-            printf("InMemoryWebDAVPropertyHandler::get(%y, %y) %s: %y\n", prop_names, ns, resource, m_cache{resource}{prop_names});
+            printf("InMemoryWebDavPropertyHandler::get(%y, %y) %s: %y\n", prop_names, ns, resource, m_cache{resource}{prop_names});
         }
         return m_cache{resource}{ns}{prop_names};
     }
@@ -52,7 +52,7 @@ public class InMemoryWebDAVPropertyHandler inherits AbstractWebDAVPropertyHandle
     auto get(string resource, string ns = DavNs, string prop_name) {
         AutoReadLock al(m_lock);
         if (debug) {
-            printf("InMemoryWebDAVPropertyHandler::get(%y, %y) %s: %y\n", prop_name, ns, resource, m_cache{resource}{prop_name});
+            printf("InMemoryWebDavPropertyHandler::get(%y, %y) %s: %y\n", prop_name, ns, resource, m_cache{resource}{prop_name});
         }
         return m_cache{resource}{ns}{prop_name};
     }
@@ -63,7 +63,7 @@ public class InMemoryWebDAVPropertyHandler inherits AbstractWebDAVPropertyHandle
     *hash<string, hash<auto>> getAll(string resource) {
         AutoReadLock al(m_lock);
         if (debug) {
-            printf("InMemoryWebDAVPropertyHandler::getAll(%y): %y\n", resource, m_cache{resource});
+            printf("InMemoryWebDavPropertyHandler::getAll(%y): %y\n", resource, m_cache{resource});
         }
         return m_cache{resource};
     }
@@ -74,7 +74,7 @@ public class InMemoryWebDAVPropertyHandler inherits AbstractWebDAVPropertyHandle
     *hash<auto> getAllInNamespace(string resource, string ns) {
         AutoReadLock al(m_lock);
         if (debug) {
-            printf("InMemoryWebDAVPropertyHandler::getAll(%y, %y): %y\n", resource, ns, m_cache{resource});
+            printf("InMemoryWebDavPropertyHandler::getAll(%y, %y): %y\n", resource, ns, m_cache{resource});
         }
         return m_cache{resource}{ns};
     }
@@ -84,7 +84,7 @@ public class InMemoryWebDAVPropertyHandler inherits AbstractWebDAVPropertyHandle
         AutoWriteLock al(m_lock);
         m_cache{resource}{ns}{prop_name} = value;
         if (debug) {
-            printf("InMemoryWebDAVPropertyHandler::set() CACHE %y\n", m_cache);
+            printf("InMemoryWebDavPropertyHandler::set() CACHE %y\n", m_cache);
         }
     }
 
@@ -118,6 +118,6 @@ public class InMemoryWebDAVPropertyHandler inherits AbstractWebDAVPropertyHandle
         m_cache{target_url} = m_cache{src_url};
         delete m_cache{src_url};
     }
-} # class InMemoryWebDAVPropertyHandler
-} # namespace WebDAV
+} # class InMemoryWebDavPropertyHandler
+} # namespace WebDavHandler
 
