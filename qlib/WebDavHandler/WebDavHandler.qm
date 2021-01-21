@@ -60,6 +60,11 @@ module WebDavHandler {
     @section webdavhandler_example WebDavHandler Example
 
     @code{.py}
+%new-style
+%require-types
+%strict-args
+%enable-all-warnings
+
 %requires HttpServer
 %requires FsUtil
 %requires WebDavHandler

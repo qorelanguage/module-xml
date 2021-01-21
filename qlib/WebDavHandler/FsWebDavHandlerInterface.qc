@@ -21,7 +21,6 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-
 %requires HttpServerUtil
 %requires xml
 %requires RestClient
@@ -57,10 +56,11 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     private string getPath(string raw_path) {
         string tmp = AbstractWebDavHandlerInterface::getRelativePath(raw_path);
 
-        if (tmp.equalPartial("/"))
+        if (tmp.equalPartial("/")) {
             tmp = basePath + tmp;
-        else
+        } else {
             tmp = basePath + DirSep + tmp;
+        }
 
         return checkPathScope(tmp);
     }
@@ -88,14 +88,15 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     #! Returns resources for use in a PROPFIND request based on a StatInfo hash
     private hash<auto> hstat2Resource(string path, string displayname, hash<StatInfo> h) {
         return {
-            "DAV:displayname": displayname,
+            "DAV:displayname": displayname, #displayname.val() ? displayname : NOTHING,
             "DAV:size": h.size,
             "DAV:creationdate": h.ctime,
             "DAV:getlastmodified": h.mtime,
             "DAV:getcontentlength": h.type == "DIRECTORY" ? getContentType(path).size() : h.size,
             "DAV:getetag": getETag(path),
-            "DAV:resourcetype": h.type == "DIRECTORY" ? "DAV:collection" : "",
+            "DAV:resourcetype": h.type == "DIRECTORY" ? {"DAV:collection": NOTHING} : "",
             "DAV:getcontenttype": h.type == "DIRECTORY" ? MimeTypeText : getContentType(path),
+            "DAV:lockdiscovery": "None",
         };
     }
 
@@ -112,7 +113,7 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     private:internal list<hash<auto>> preparePropFindResponse(string raw_path, string depth = "infinity", hash<StatInfo> h, bool all_props, *hash<string, hash<string, bool>> additional_props) {
         string local_path = getNormalizedPath(raw_path);
         if (debug) {
-            printf("FsWebDavHandlerInterface::preparePropFindResponse() AAA %n -- %n\n", raw_path, basename(raw_path));
+            printf("FsWebDavHandlerInterface::preparePropFindResponse() AAA %y -- %y\n", raw_path, basename(raw_path));
         }
         bool is_dir = (h.type == "DIRECTORY");
 
@@ -578,16 +579,14 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
         # parse the mandatory XML body
         hash<auto> request_xml;
         try {
-            request_xml = parse_xml(body, Qore::Xml::XPF_STRIP_NS_PREFIXES);
+            request_xml = getXml(body);
         } catch (hash<ExceptionInfo> ex) {
-            printf("BR 2\n");
             return response(400, sprintf("%s: %s", ex.err, ex.desc));
         }
 
         if (exists hdr.depth && hdr.depth != "0" && hdr.depth != "infinity") {
             string msg = sprintf("invalid Depth header value: %y for LOCK request; only Depth: \"0\" or "
                 "\"infinity\" accepted", hdr.depth);
-            printf("%s\n", msg);
             return response(400, msg);
         }
 
@@ -754,9 +753,9 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
         @return the response to the WebDavHandler request
     */
     private hash<HttpResponseInfo> handlePropfindImpl(hash<auto> cx, hash<auto> hdr, *data body) {
-        if (debug) {
-            printf("FsWebDavHandlerInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
-        }
+        #if (debug) {
+            #printf("FsWebDavHandlerInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
+        #}
         string path = getNormalizedPath(cx.raw_path);
         *hash<StatInfo> h = hstat(path);
         if (!h) {
@@ -770,24 +769,35 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
             # parse the mandatory XML body
             hash<auto> request_xml;
             try {
-                request_xml = parse_xml(body, Qore::Xml::XPF_STRIP_NS_PREFIXES);
+                request_xml = getXml(body);
             } catch (hash<ExceptionInfo> ex) {
                 return response(400, sprintf("%s: %s", ex.err, ex.desc));
             }
 
-            if (!request_xml.hasKey("propfind")) {
+            #printf("propfind: %N\n", request_xml);
+
+            if (!request_xml.hasKey("DAV:propfind")) {
                 return response(400, "XML body does not contain 'propfind' root tag");
             }
 
-            if (request_xml.propfind.prop) {
-                foreach hash<auto> i in (request_xml.propfind.prop.pairIterator()) {
-                    map additional_props{$1."^attributes^".xmlns ?? DavNs}{i.key} = True, i.value;
+            if (request_xml."DAV:propfind"."DAV:prop") {
+                foreach hash<auto> i in (request_xml."DAV:propfind"."DAV:prop".pairIterator()) {
+                    string key = i.key;
+                    key =~ s/[^:]+://g;
+                    string ns = (i.key =~ x/^([a-z0-9_]+:)/i)[0] ?? DavNs;
+
+                    *string full_ns = nsinfo.nsmap{ns};
+                    if (!exists full_ns) {
+                        return response(400, sprintf("unknown namespace prefix %y", ns));
+                    }
+
+                    map additional_props{full_ns}{key} = True, (i.value ?? True);
                 }
-            } else if (request_xml.propfind.hasKey("allprop")) {
+            } else if (request_xml."DAV:propfind".hasKey("DAV:allprop")) {
                 all_props = True;
             }
             if (debug) {
-                printf("FsWebDavHandlerInterface::handlePropfindImpl() Z %N\n", additional_props);
+                printf("FsWebDavHandlerInterface::handlePropfindImpl() additional_props: %N\n", additional_props);
             }
         }
 
@@ -945,4 +955,3 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     }
 } # class FsWebDavHandlerInterface
 } # namespace WebDavHandler
-
