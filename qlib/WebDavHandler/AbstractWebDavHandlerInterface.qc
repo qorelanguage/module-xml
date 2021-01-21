@@ -153,10 +153,7 @@ public class AbstractWebDavHandlerInterface {
     }
 
     #! Returns a hash that can be serialized to an XML string for a PROPFIND request
-    private hash<auto> preparePropFindXmlResponse(string local_path, string href, bool is_collection, hash<auto> base_props, bool all_props = False, *hash<string, hash<auto>> additional_props) {
-        # this must be "hash"; cannot be "hash<auto>"
-        hash res."DAV:href" = href;
-
+    private hash<auto> preparePropFindXmlResponse(string local_path, string href, bool is_collection, hash<auto> base_props, bool all_props = False, *hash<string, hash<string, bool>> additional_props) {
         # maps from status code -> namespace -> prop
         hash code_map;
 
@@ -165,18 +162,16 @@ public class AbstractWebDavHandlerInterface {
         if (all_props) {
             rv_props{DavNs}."DAV:resourcetype" = is_collection ? {"DAV:collection": NOTHING} : NOTHING;
             rv_props{DavNs} += map {"DAV:" + $1.key: $1.value}, base_props.pairIterator();
-            hash<string, hash<auto>> prop_val = m_property_handler.getAll(local_path);
-            map rv_props{$1.key} += $1.value, prop_val.pairIterator();
+
+            # add all user props for the href
+            rv_props += m_property_handler.getAll(local_path);
         } else {
             if (*hash<auto> def_prop_map = remove additional_props{DavNs}) {
                 if (remove def_prop_map.resourcetype) {
                     rv_props{DavNs}."DAV:resourcetype" = is_collection ? {"DAV:collection": NOTHING} : NOTHING;
                 }
-                list<string> def_props = keys def_prop_map;
+                list<string> def_props = map DavNs + $1, keys def_prop_map;
                 rv_props{DavNs} += map {$1.key: $1.value}, base_props{def_props}.pairIterator();
-
-                # XXX DEBUG
-                printf("base_props: %y def_props: %y\n", base_props, def_props);
 
                 # add 404 response for not found properties
                 if (*list<string> missing = keys (def_prop_map - ((keys rv_props{DavNs}) ?? ""))) {
@@ -185,9 +180,10 @@ public class AbstractWebDavHandlerInterface {
             }
             foreach hash<auto> i in (additional_props.pairIterator()) {
                 rv_props{i.key} = m_property_handler.get(local_path, i.key, keys i.value);
+
                 # add 404 response for not found properties
                 if (*list<string> missing = keys (i.value - ((keys rv_props{i.key}) ?? ""))) {
-                    map code_map."404"{i.key}{$1} = i.value{$1}, missing;
+                    map code_map."404"{i.key}{$1} = NOTHING, missing;
                 }
             }
         }
@@ -215,43 +211,26 @@ public class AbstractWebDavHandlerInterface {
             }
         }
 
-        printf("CODE MAP: %N\n", code_map);
-        printf("nsmap: %y\n", nsinfo.nsmap);
+        return propStatXmlHash(href, code_map);
+    }
 
+    private hash<auto> propStatXmlHash(string href, *hash<auto> code_map) {
         int num = 1;
-        #hash<string, string> ps_attr;
+        hash<string, string> ps_attr;
+
+        # this must be "hash"; cannot be "hash<auto>"
+        hash res."DAV:href" = href;
+
         res."DAV:propstat" = ();
         foreach hash<auto> i in (code_map.pairIterator()) {
             string msg = getStatusMessage(i.key);
             hash<auto> propstat;
             foreach hash<auto> pi in (i.value.pairIterator()) {
-                if (pi.key != DavNs && pi.key) {
-                    string pfx = nsinfo.nsmap{pi.key};
-                    string nspfx = pi.key[0..(pi.key.length() - 2)];
-                    hash<string, string> ps_attr = {("xmlns:" + nspfx): pfx};
-                    /*
-                    # add ns prefix to prop name keys
-                    code get_value = auto sub (auto val) {
-                        if (val.typeCode() != NT_HASH) {
-                            return val;
-                        }
-                        return map {$1.key: get_value($1.value)}, val.pairIterator();
-                    };
-                    propstat."DAV:prop" += get_value(pi.value);
-                    */
-                    printf("pi: %N\n", pi);
-                    code get_value = hash<auto> sub (auto val) {
-                        if (!exists val || val.typeCode() == NT_HASH) {
-                            return val + {
-                                "^attributes^": (val."^attributes^" + ps_attr),
-                            };
-                        }
-                        return {
-                            "^attributes^": ps_attr,
-                            "^value^": val,
-                        };
-                    };
-                    propstat."DAV:prop" = map {$1.key: get_value($1.value)}, pi.value.pairIterator();
+                if (pi.key && pi.key != DavNs) {
+                    string nspfx = getNsPrefix(pi.key);
+                    ps_attr += {("xmlns:" + nspfx[0..(nspfx.length() - 2)]): pi.key};
+
+                    map combineValue(\propstat."DAV:prop"{nspfx + $1.key}, $1.value), pi.value.pairIterator();
                 } else {
                     propstat."DAV:prop" += pi.value;
                 }
@@ -260,14 +239,9 @@ public class AbstractWebDavHandlerInterface {
                 "DAV:status": msg,
             };
         }
-        /*
         if (ps_attr) {
             res."^attributes^" += ps_attr;
         }
-        */
-
-        #printf("pRXH: rv_props: %N\n", rv_props);
-        #printf("res: %N\n", res);
 
         return res;
     }
@@ -812,42 +786,49 @@ public class AbstractWebDavHandlerInterface {
 
         @return the response to the WebDavHandler request
 
-        @note this base class method calls handlePropPatchImpl() to process the request
+        @note this base class method calls handleProppatchImpl() to process the request
     */
     hash<HttpResponseInfo> handleProppatch(hash<auto> cx, hash<auto> hdr, *data body) {
         # parse the mandatory XML body
         hash<auto> request_xml;
         # action list
         list<hash<PropPatchActionInfo>> actions;
-        /*
-        # update hash: NS -> key -> value
-        hash<string, hash<auto>> update_hash;
-        # remove hash: NS -> key -> True
-        hash<string, hash<string, bool>> remove_hash;
-        */
 
         if (body) {
             try {
-                request_xml = parse_xml(body, Qore::Xml::XPF_STRIP_NS_PREFIXES | XPF_PRESERVE_ORDER);
+                request_xml = getXml(body);
             } catch (hash<ExceptionInfo> ex) {
                 return response(400, sprintf("%s: %s", ex.err, ex.desc));
             }
 
-            if (!request_xml.hasKey("propertyupdate")) {
+            if (!request_xml.hasKey("DAV:propertyupdate")) {
                 return response(400, "XML body does not contain the \"propertyupdate\" element");
             }
 
             # process actions
-            foreach hash<auto> i in (request_xml.propertyupdate.pairIterator()) {
+            foreach hash<auto> i in (request_xml."DAV:propertyupdate".pairIterator()) {
                 switch (i.key) {
-                    case /^set(\^[0-9]+)?$/: {
+                    case /^DAV:set(\^[0-9]+)?$/: {
                         foreach hash<auto> elem in (i.value) {
-                            foreach hash<auto> pi in (elem.prop.pairIterator()) {
-                                string ns = (remove pi.value."^attributes^").xmlns ?? DavNs;
+                            foreach hash<auto> pi in (elem."DAV:prop".pairIterator()) {
+                                string ns;
+                                if (*string pfx = (pi.key =~ x/^([a-z0-9_]+:)/i)[0]) {
+                                    *string nsv = nsinfo.nsmap{pfx};
+                                    if (!exists nsv) {
+                                        return response(400, "property %y references unknown namespace prefix %y\n", pi.key, pfx);
+                                    }
+
+                                    ns = nsv;
+                                    splice pi.key, 0, pfx.length();
+                                } else {
+                                    ns = (remove pi.value."^attributes^").xmlns ?? DavNs;
+                                }
+
                                 auto value = pi.value."^value^" ?? pi.value;
                                 if (value.typeCode() == NT_HASH && value.firstValue()."^attributes^") {
                                     value{value.firstKey()} = value.firstValue() - "^attributes^";
                                 }
+
                                 actions += <PropPatchActionInfo>{
                                     "action": PPA_Set,
                                     "ns": ns,
@@ -859,10 +840,22 @@ public class AbstractWebDavHandlerInterface {
                         break;
                     }
 
-                    case /^remove(\^[0-9]+)?$/: {
+                    case /^DAV:remove(\^[0-9]+)?$/: {
                         foreach hash<auto> elem in (i.value) {
-                            foreach hash<auto> pi in (elem.prop.pairIterator()) {
-                                string ns = (remove pi.value."^attributes^").xmlns ?? DavNs;
+                            foreach hash<auto> pi in (elem."DAV:prop".pairIterator()) {
+                                string ns;
+                                if (*string pfx = (pi.key =~ x/^([a-z0-9_]+:)/i)[0]) {
+                                    *string nsv = nsinfo.nsmap{pfx};
+                                    if (!exists nsv) {
+                                        return response(400, "property %y references unknown namespace prefix %y", pi.key, pfx);
+                                    }
+
+                                    ns = nsv;
+                                    splice pi.key, 0, pfx.length();
+                                } else {
+                                    ns = (remove pi.value."^attributes^").xmlns ?? DavNs;
+                                }
+
                                 actions += <PropPatchActionInfo>{
                                     "action": PPA_Remove,
                                     "ns": ns,
@@ -873,7 +866,7 @@ public class AbstractWebDavHandlerInterface {
                         break;
                     }
 
-                    case /^\^attributes/:
+                    case /^\^DAV:attributes/:
                         break;
 
                     default:
@@ -894,46 +887,24 @@ public class AbstractWebDavHandlerInterface {
             rethrow;
         }
 
-        # create the response message
-        hash response.propstat = ();
-        int num = 1;
-        hash<string, string> nsmap;
-        hash<auto> ps_attr;
-        foreach hash<auto> ci in (status_map.pairIterator()) {
-            foreach hash<auto> nsi in (ci.value.pairIterator()) {
-                hash<auto> propstat;
-                if (nsi.key == DavNs || !nsi.key) {
-                    propstat.prop = keys nsi.value;
-                } else {
-                    *string pfx = nsmap{nsi.key};
-                    if (!pfx) {
-                        pfx = nsmap{nsi.key} = "ns" + ((num++).toString());
-                        ps_attr += {
-                            ("xmlns:" + pfx): nsi.key,
-                        };
-                    }
-                    propstat.prop = map pfx + ":" + $1, keys nsi.value;
-                }
-                propstat.status = getStatusMessage(ci.key);
-                response.propstat += propstat;
-            }
-        }
-        if (ps_attr) {
-            response."^attributes^" += ps_attr;
-        }
+        hash<auto> resp;
+        resp."DAV:multistatus"."DAV:response" = propStatXmlHash(href, status_map);
+        resp."DAV:multistatus"."^attributes^" = {"xmlns:DAV": "DAV:"};
 
-        # prepare response
-        hash resp.multistatus.response = {
-            "href": href,
-        };
-        #prepareResourceHash(cx.raw_path, hdr.depth, h, False, additional_props);
-        resp.multistatus."^attributes^" = {"xmlns": "DAV:"};
-        resp.multistatus.response = response;
+        string xml = make_xml(resp);
+        #string xml = make_xml(resp, XGF_ADD_FORMATTING);
 
         return <HttpResponseInfo>{
             "code": 207,
-            "body": make_xml(resp),
+            "body": xml,
         };
+    }
+
+    #! Parse incoming XML and handle namespaces
+    private hash<auto> getXml(string body) {
+        nsinfo = hash<NsInfo>{};
+        hash<auto> rv = parse_xml(body, XPF_PRESERVE_ORDER);
+        return fixDavPrefixes("DAV:", rv);
     }
 
     #! Handles an HTTP/WebDavHandler OPTIONS request
@@ -1402,6 +1373,126 @@ public class AbstractWebDavHandlerInterface {
         @throw WEBDAVHANDLER-ERROR an error occured
     */
     private abstract *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx, hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions);
+
+    private:internal *hash<auto> fixDavPrefixes(string ns, hash<auto> h, *string pfx) {
+        # process namespaces
+        foreach hash<auto> i in (h."^attributes^".pairIterator()) {
+            *string ns = (i.key =~ x/^xmlns:(.+)$/)[0];
+            if (!exists ns) {
+                continue;
+            }
+            ns += ":";
+            nsinfo.nsmap{ns} = i.value;
+            nsinfo.nsrmap{i.value} = ns;
+        }
+
+        *string nns = h."^attributes^".xmlns;
+        if (nns) {
+            if (!pfx) {
+                pfx = getNsPrefix(nns);
+            }
+            nsinfo.nsmap{pfx} = nns;
+            nsinfo.nsrmap{nns} = pfx;
+        }
+
+        hash<auto> rv;
+        foreach hash<auto> i in (h.pairIterator()) {
+            if (i.key == "^attributes^") {
+                continue;
+            } else if (i.key =~ /\^value/) {
+                rv{i.key} = i.value;
+                continue;
+            }
+            *string nsa = (i.key =~ x/^([a-z0-9_]+:)/i)[0];
+
+            if (!nsa) {
+                *string n_nns = i.value."^attributes^".xmlns ?? nns;
+                if (exists n_nns && n_nns != DavNs) {
+                    nsa = getNsPrefix(n_nns);
+                    i.key = nsa + i.key;
+                }
+            }
+
+            foreach auto val in (i.value ?? {}) {
+                *string n_nsa = nsa;
+                string key = i.key;
+                if (!n_nsa) {
+                    *string n_nns = val."^attributes^".xmlns ?? nns;
+                    if (exists n_nns && n_nns != DavNs) {
+                        n_nsa = getNsPrefix(n_nns);
+                        key = n_nsa + key;
+                    }
+                }
+
+                auto rval = fixDavPrefixes(n_nsa ?? ns, val, n_nsa);
+                string use_key = getKey(key, n_nsa);
+
+                combineValue(\rv{use_key}, rval);
+            }
+        }
+        return rv;
+    }
+
+    #! Combines values recursively
+    static combineValue(reference<auto> h, auto v) {
+        if (v.typeCode() == NT_HASH && v.size() == 1 && v.hasKey("^value^")) {
+            v = v."^value^";
+        }
+
+        if (h.typeCode() == NT_HASH && v.typeCode() == NT_HASH) {
+            map AbstractWebDavHandlerInterface::combineValue(\h{$1.key}, $1.value), v.pairIterator();
+        } else {
+            h = v;
+        }
+    }
+
+    #! Returns a new namespace prefix
+    private:internal string getNsPrefix(string ns) {
+        *string nsa = nsinfo.nsrmap{ns};
+        if (!nsa) {
+            int j = 0;
+            do {
+                nsa = "ns" + ++j + ":";
+            } while (exists nsinfo.nsmap{nsa});
+
+            nsinfo.nsmap{nsa} = ns;
+            nsinfo.nsrmap{ns} = nsa;
+        }
+
+        return nsa;
+    }
+
+    private:internal string getKey(string key, *string nsa) {
+        if (nsa && (nsinfo.nsmap{nsa} == DavNs)) {
+            return DavNs + key[nsa.length()..];
+        }
+
+        return !nsa ? (DavNs + key) : key;
+    }
+
+    private:internal list<auto> fixDavPrefixes(string ns, list<auto> l, *string pfx) {
+        return map fixDavPrefixes(ns, $1, pfx), l;
+    }
+
+    private:internal auto fixDavPrefixes(string ns, auto v, *string pfx) {
+        return v;
+    }
 }
 }
 
+# unexperted namespace
+namespace Priv {
+# for namespace handling while parsing
+hashdecl NsInfo {
+    # map of namespace abbreviations to namespace URIs
+    hash<string, string> nsmap = {
+        DavNs: DavNs,
+    };
+    # reverse of nsmap
+    hash<string, string> nsrmap = {
+        DavNs: DavNs,
+    };
+}
+
+thread_local hash<NsInfo> nsinfo;
+}
