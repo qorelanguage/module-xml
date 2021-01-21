@@ -21,7 +21,6 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-
 %requires HttpServerUtil
 %requires xml
 %requires RestClient
@@ -57,10 +56,11 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     private string getPath(string raw_path) {
         string tmp = AbstractWebDavHandlerInterface::getRelativePath(raw_path);
 
-        if (tmp.equalPartial("/"))
+        if (tmp.equalPartial("/")) {
             tmp = basePath + tmp;
-        else
+        } else {
             tmp = basePath + DirSep + tmp;
+        }
 
         return checkPathScope(tmp);
     }
@@ -88,14 +88,15 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     #! Returns resources for use in a PROPFIND request based on a StatInfo hash
     private hash<auto> hstat2Resource(string path, string displayname, hash<StatInfo> h) {
         return {
-            "DAV:displayname": displayname,
+            "DAV:displayname": displayname, #displayname.val() ? displayname : NOTHING,
             "DAV:size": h.size,
             "DAV:creationdate": h.ctime,
             "DAV:getlastmodified": h.mtime,
             "DAV:getcontentlength": h.type == "DIRECTORY" ? getContentType(path).size() : h.size,
             "DAV:getetag": getETag(path),
-            "DAV:resourcetype": h.type == "DIRECTORY" ? "DAV:collection" : "",
+            "DAV:resourcetype": h.type == "DIRECTORY" ? {"DAV:collection": NOTHING} : "",
             "DAV:getcontenttype": h.type == "DIRECTORY" ? MimeTypeText : getContentType(path),
+            "DAV:lockdiscovery": "None",
         };
     }
 
@@ -109,10 +110,10 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     }
 
     #! Returns responses for each relevant resource
-    private:internal list<hash<auto>> preparePropFindResponse(string raw_path, string depth = "infinity", hash<StatInfo> h, bool all_props, *hash<string, hash<string, bool>> additional_props) {
+    private:internal list<hash<auto>> preparePropFindResponse(string raw_path, string depth = "infinity", hash<StatInfo> h, bool all_props, *hash<string, hash<auto>> additional_props) {
         string local_path = getNormalizedPath(raw_path);
         if (debug) {
-            printf("FsWebDavHandlerInterface::preparePropFindResponse() AAA %n -- %n\n", raw_path, basename(raw_path));
+            printf("FsWebDavHandlerInterface::preparePropFindResponse() AAA %y -- %y\n", raw_path, basename(raw_path));
         }
         bool is_dir = (h.type == "DIRECTORY");
 
@@ -754,9 +755,10 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
         @return the response to the WebDavHandler request
     */
     private hash<HttpResponseInfo> handlePropfindImpl(hash<auto> cx, hash<auto> hdr, *data body) {
-        if (debug) {
+try {
+        #if (debug) {
             printf("FsWebDavHandlerInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
-        }
+        #}
         string path = getNormalizedPath(cx.raw_path);
         *hash<StatInfo> h = hstat(path);
         if (!h) {
@@ -764,31 +766,40 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
         }
 
         # property map: ns -> property -> True
-        hash<string, hash<string, bool>> additional_props;
+        hash<string, hash<auto>> additional_props;
         bool all_props = False;
+        nsinfo = hash<NsInfo>{};
         if (body) {
             # parse the mandatory XML body
             hash<auto> request_xml;
             try {
-                request_xml = parse_xml(body, Qore::Xml::XPF_STRIP_NS_PREFIXES);
+                request_xml = getXml(body);
             } catch (hash<ExceptionInfo> ex) {
+                # XXX DEBUG
+                printf("DEBUG %s\n", get_exception_string(ex));
+
                 return response(400, sprintf("%s: %s", ex.err, ex.desc));
             }
 
-            if (!request_xml.hasKey("propfind")) {
+            # XXX DEBUG
+            printf("propfind: %N\n", request_xml);
+
+            if (!request_xml.hasKey("DAV:propfind")) {
                 return response(400, "XML body does not contain 'propfind' root tag");
             }
 
-            if (request_xml.propfind.prop) {
-                foreach hash<auto> i in (request_xml.propfind.prop.pairIterator()) {
-                    map additional_props{$1."^attributes^".xmlns ?? DavNs}{i.key} = True, i.value;
+            if (request_xml."DAV:propfind"."DAV:prop") {
+                foreach hash<auto> i in (request_xml."DAV:propfind"."DAV:prop".pairIterator()) {
+                    string key = i.key;
+                    *string ns = (i.key =~ x/^([a-z0-9_]+:)/i)[0];
+                    map additional_props{ns}{key} = ($1 ?? True), (i.value ?? True);
                 }
-            } else if (request_xml.propfind.hasKey("allprop")) {
+            } else if (request_xml."DAV:propfind".hasKey("DAV:allprop")) {
                 all_props = True;
             }
-            if (debug) {
-                printf("FsWebDavHandlerInterface::handlePropfindImpl() Z %N\n", additional_props);
-            }
+            #if (debug) {
+                printf("FsWebDavHandlerInterface::handlePropfindImpl() additional_props: %N\n", additional_props);
+            #}
         }
 
         # TODO/FIXME: proper PROPFIND xml body handling!
@@ -798,14 +809,20 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
         hash<auto> resp;
         resp."DAV:multistatus"."DAV:response" = preparePropFindResponse(cx.raw_path, hdr.depth, h, all_props, additional_props);
         resp."DAV:multistatus"."^attributes^" = {"xmlns:DAV": "DAV:"};
-        if (debug) {
+        #if (debug) {
             printf("FsWebDavHandlerInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
             printf("PROPFIND RV: %y\nxml: %s\n", resp, make_xml(resp, XGF_ADD_FORMATTING));
-        }
+        #}
         return <HttpResponseInfo>{
             "code": 207,
             "body": make_xml(resp),
         };
+} catch (hash<ExceptionInfo> ex) {
+    # XXX DEBUG
+    printf("DEBUG %s\n", get_exception_string(ex));
+    rethrow;
+}
+
     }
 
     #! Internal method for handling PROPPATCH requests
@@ -943,6 +960,70 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
             moveProperties(src_path, dest_path);
         }
     }
+
+    private:internal hash<auto> getXml(string body) {
+        hash<auto> rv = parse_xml(body);
+        return fixDavPrefixes("DAV:", rv);
+    }
+
+    private:internal *hash<auto> fixDavPrefixes(string ns, hash<auto> h) {
+        *string nns = h."^attributes^".xmlns;
+
+        hash<auto> rv;
+        foreach hash<auto> i in (h.pairIterator()) {
+            if (i.key == "^attributes^") {
+                continue;
+            }
+            *string nsa = (i.key =~ x/^([a-z0-9_]+:)/i)[0];
+
+            if (*string n_nns = i.value."^attributes^".xmlns) {
+                if (!nsa && n_nns != DavNs) {
+                    rv{"DAV:" + i.key} = i.value;
+                    continue;
+                }
+            }
+
+            # XXX DEBUG
+            #printf("i: %y nsa: %y nns: %y\n", i, nsa, nns);
+
+            if (i.value.typeCode() == NT_HASH && nsa
+                && (*string nsv = i.value."^attributes^".("xmlns:" + nsa[0..(nsa.length() - 2)]))) {
+                nsinfo.nsmap{nsa} = nsv;
+                nsinfo.nsrmap{nsv} = nsa;
+            }
+
+            rv{getKey(i.key, nsa)} = fixDavPrefixes(nsa ?? ns, i.value);
+        }
+        return rv;
+    }
+
+    private:internal string getKey(string key, *string nsa) {
+        if (nsa && nsa != DavNs && (*string nsv = nsinfo.nsmap{nsa})) {
+            return nsv + key[0..(nsa.size() - 2)];
+        }
+
+        return !nsa ? (DavNs + key) : key;
+    }
+
+    private:internal list<auto> fixDavPrefixes(string ns, list<auto> l) {
+        return map fixDavPrefixes(ns, $1), l;
+    }
+
+    private:internal auto fixDavPrefixes(string ns, auto v) {
+        return v;
+    }
 } # class FsWebDavHandlerInterface
 } # namespace WebDavHandler
 
+# unexperted namespace
+namespace Priv {
+# for namespace handling while parsing
+hashdecl NsInfo {
+    # map of namespace abbreviations to namespace URIs
+    hash<string, string> nsmap = {};
+    # reverse of nsmap
+    hash<string, string> nsrmap = {};
+}
+
+thread_local hash<NsInfo> nsinfo;
+}

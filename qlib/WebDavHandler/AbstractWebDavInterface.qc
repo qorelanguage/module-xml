@@ -153,7 +153,7 @@ public class AbstractWebDavHandlerInterface {
     }
 
     #! Returns a hash that can be serialized to an XML string for a PROPFIND request
-    private hash<auto> preparePropFindXmlResponse(string local_path, string href, bool is_collection, hash<auto> base_props, bool all_props = False, *hash<string, hash<string, bool>> additional_props) {
+    private hash<auto> preparePropFindXmlResponse(string local_path, string href, bool is_collection, hash<auto> base_props, bool all_props = False, *hash<string, hash<auto>> additional_props) {
         # this must be "hash"; cannot be "hash<auto>"
         hash res."DAV:href" = href;
 
@@ -173,17 +173,21 @@ public class AbstractWebDavHandlerInterface {
                     rv_props{DavNs}."DAV:resourcetype" = is_collection ? {"DAV:collection": NOTHING} : NOTHING;
                 }
                 list<string> def_props = keys def_prop_map;
-                rv_props{DavNs} += map {"DAV:" + $1.key: $1.value}, base_props{def_props}.pairIterator();
+                rv_props{DavNs} += map {$1.key: $1.value}, base_props{def_props}.pairIterator();
+
+                # XXX DEBUG
+                printf("base_props: %y def_props: %y\n", base_props, def_props);
+
                 # add 404 response for not found properties
                 if (*list<string> missing = keys (def_prop_map - ((keys rv_props{DavNs}) ?? ""))) {
-                    map code_map."404"{DavNs}{"DAV:" + $1} = NOTHING, missing;
+                    map code_map."404"{DavNs}{$1} = NOTHING, missing;
                 }
             }
             foreach hash<auto> i in (additional_props.pairIterator()) {
                 rv_props{i.key} = m_property_handler.get(local_path, i.key, keys i.value);
                 # add 404 response for not found properties
                 if (*list<string> missing = keys (i.value - ((keys rv_props{i.key}) ?? ""))) {
-                    map code_map."404"{i.key}{$1} = NOTHING, missing;
+                    map code_map."404"{i.key}{$1} = i.value{$1}, missing;
                 }
             }
         }
@@ -211,32 +215,43 @@ public class AbstractWebDavHandlerInterface {
             }
         }
 
-        #printf("CODE MAP: %N\n", code_map);
+        printf("CODE MAP: %N\n", code_map);
+        printf("nsmap: %y\n", nsinfo.nsmap);
 
         int num = 1;
-        hash<string, string> nsmap;
-        hash<string, string> ps_attr;
+        #hash<string, string> ps_attr;
         res."DAV:propstat" = ();
         foreach hash<auto> i in (code_map.pairIterator()) {
             string msg = getStatusMessage(i.key);
             hash<auto> propstat;
             foreach hash<auto> pi in (i.value.pairIterator()) {
                 if (pi.key != DavNs && pi.key) {
-                    *string pfx = nsmap{pi.key};
-                    if (!pfx) {
-                        pfx = nsmap{pi.key} = "ns" + ((num++).toString());
-                        ps_attr += {
-                            ("xmlns:" + pfx): pi.key,
-                        };
-                    }
+                    string pfx = nsinfo.nsmap{pi.key};
+                    string nspfx = pi.key[0..(pi.key.length() - 2)];
+                    hash<string, string> ps_attr = {("xmlns:" + nspfx): pfx};
+                    /*
                     # add ns prefix to prop name keys
                     code get_value = auto sub (auto val) {
                         if (val.typeCode() != NT_HASH) {
                             return val;
                         }
-                        return map {(pfx + ":" + $1.key): get_value($1.value)}, val.pairIterator();
+                        return map {$1.key: get_value($1.value)}, val.pairIterator();
                     };
                     propstat."DAV:prop" += get_value(pi.value);
+                    */
+                    printf("pi: %N\n", pi);
+                    code get_value = hash<auto> sub (auto val) {
+                        if (!exists val || val.typeCode() == NT_HASH) {
+                            return val + {
+                                "^attributes^": (val."^attributes^" + ps_attr),
+                            };
+                        }
+                        return {
+                            "^attributes^": ps_attr,
+                            "^value^": val,
+                        };
+                    };
+                    propstat."DAV:prop" = map {$1.key: get_value($1.value)}, pi.value.pairIterator();
                 } else {
                     propstat."DAV:prop" += pi.value;
                 }
@@ -245,9 +260,11 @@ public class AbstractWebDavHandlerInterface {
                 "DAV:status": msg,
             };
         }
+        /*
         if (ps_attr) {
             res."^attributes^" += ps_attr;
         }
+        */
 
         #printf("pRXH: rv_props: %N\n", rv_props);
         #printf("res: %N\n", res);
