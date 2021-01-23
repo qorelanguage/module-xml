@@ -33,20 +33,57 @@
 #! Main public WebDavHandler namespace
 public namespace WebDavHandler {
 #! Filesystem WebDavHandler inteface class
-public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
+public class FsWebDavHandler inherits AbstractWebDavHandler {
     private {
         #! The root directory for serving files
         string basePath;
         bool debug;
     }
 
-    #! Creates the object with the given options
-    /** @param property_handler to handle properties
-        @param path the root directory for serving files
-        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be stripped from
-        requests internally when serving WebDavHandler resources
+    #! Creates the object with an empty logger and an in-memory property handler
+    /** @param path the path on the local filesystem for WebDAV file handline
+        @param auth the authentication object to use to authenticate connections
     */
-    constructor(AbstractWebDavPropertyHandler property_handler, string path, string virtual_relative_path_base = "/") : AbstractWebDavHandlerInterface(property_handler, virtual_relative_path_base) {
+    constructor(string path, *HttpServer::AbstractAuthenticator auth) : AbstractWebDavHandler(auth) {
+        basePath = normalize_dir(path);
+    }
+
+    #! Creates the object with the given argument and an in-memory property handler
+    /** @param path the path on the local filesystem for WebDAV file handline
+        @param auth the authentication object to use to authenticate connections
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(string path, *HttpServer::AbstractAuthenticator auth, string virtual_relative_path_base)
+            : AbstractWebDavHandler(auth, virtual_relative_path_base) {
+        basePath = normalize_dir(path);
+    }
+
+    #! Creates the object with the given arguments
+    /** @param path the path on the local filesystem for WebDAV file handline
+        @param auth the authentication object to use to authenticate connections
+        @param property_handler to handle properties
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(string path, *HttpServer::AbstractAuthenticator auth, AbstractWebDavPropertyHandler property_handler,
+            string virtual_relative_path_base = "/")
+             : AbstractWebDavHandler(auth, property_handler, virtual_relative_path_base) {
+        basePath = normalize_dir(path);
+    }
+
+    #! Creates the object with the given arguments
+    /** @param path the path on the local filesystem for WebDAV file handline
+        @param auth the authentication object to use to authenticate connections
+        @param logger the logger
+        @param property_handler to handle properties
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(string path, *HttpServer::AbstractAuthenticator auth, Logger logger,
+            AbstractWebDavPropertyHandler property_handler = new InMemoryWebDavPropertyHandler(),
+            string virtual_relative_path_base = "/") : AbstractWebDavHandler(auth, logger, property_handler,
+                virtual_relative_path_base) {
         basePath = normalize_dir(path);
     }
 
@@ -54,7 +91,7 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     /** @throw WEBDAVHANDLER-FORBIDDEN if the path is not valid
     */
     private string getPath(string raw_path) {
-        string tmp = AbstractWebDavHandlerInterface::getRelativePath(raw_path);
+        string tmp = AbstractWebDavHandler::getRelativePath(raw_path);
 
         if (tmp.equalPartial("/")) {
             tmp = basePath + tmp;
@@ -113,7 +150,7 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     private:internal list<hash<auto>> preparePropFindResponse(string raw_path, string depth = "infinity", hash<StatInfo> h, bool all_props, *hash<string, hash<string, bool>> additional_props) {
         string local_path = getNormalizedPath(raw_path);
         if (debug) {
-            printf("FsWebDavHandlerInterface::preparePropFindResponse() AAA %y -- %y\n", raw_path, basename(raw_path));
+            printf("FsWebDavHandler::preparePropFindResponse() AAA %y -- %y\n", raw_path, basename(raw_path));
         }
         bool is_dir = (h.type == "DIRECTORY");
 
@@ -754,7 +791,7 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
     */
     private hash<HttpResponseInfo> handlePropfindImpl(hash<auto> cx, hash<auto> hdr, *data body) {
         #if (debug) {
-            #printf("FsWebDavHandlerInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
+            #printf("FsWebDavHandler::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
         #}
         string path = getNormalizedPath(cx.raw_path);
         *hash<StatInfo> h = hstat(path);
@@ -797,19 +834,16 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
                 all_props = True;
             }
             if (debug) {
-                printf("FsWebDavHandlerInterface::handlePropfindImpl() additional_props: %N\n", additional_props);
+                printf("FsWebDavHandler::handlePropfindImpl() additional_props: %N\n", additional_props);
             }
         }
-
-        # TODO/FIXME: proper PROPFIND xml body handling!
-        #   - propname
 
         # prepare response
         hash<auto> resp;
         resp."DAV:multistatus"."DAV:response" = preparePropFindResponse(cx.raw_path, hdr.depth, h, all_props, additional_props);
         resp."DAV:multistatus"."^attributes^" = {"xmlns:DAV": "DAV:"};
         if (debug) {
-            printf("FsWebDavHandlerInterface::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
+            printf("FsWebDavHandler::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
             printf("PROPFIND RV: %y\nxml: %s\n", resp, make_xml(resp, XGF_ADD_FORMATTING));
         }
         return <HttpResponseInfo>{
@@ -851,10 +885,10 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
                 foreach hash<PropPatchActionInfo> action in (actions) {
                     #printf("action: %y\n", action);
                     if (action.action == PPA_Set) {
-                        m_property_handler.set(path, action.ns, action.prop, action.val);
+                        property_handler.set(path, action.ns, action.prop, action.val);
                         status_map{200}{action.ns}{action.prop} = True;
                     } else {
-                        m_property_handler.del(path, action.ns, action.prop);
+                        property_handler.del(path, action.ns, action.prop);
                         status_map{200}{action.ns}{action.prop} = True;
                     }
                 }
@@ -953,5 +987,5 @@ public class FsWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
             moveProperties(src_path, dest_path);
         }
     }
-} # class FsWebDavHandlerInterface
+} # class FsWebDavHandler
 } # namespace WebDavHandler

@@ -58,7 +58,6 @@ qore_check_symbol(xmlTextReaderByteConsumed HAVE_XMLTEXTREADERBYTECONSUMED)
 qore_check_symbol(xmlTextReaderGetParserColumnNumber HAVE_XMLTEXTREADERGETPARSERCOLUMNNUMBER)
 qore_check_symbol(xmlTextReaderGetParserLineNumber HAVE_XMLTEXTREADERGETPARSERLINENUMBER)
 
-
 set(QPP_SRC
     src/QC_SaxIterator.qpp
     src/QC_FileSaxIterator.qpp
@@ -103,7 +102,7 @@ set(QORE_DOX_TMPL_SRC
   docs/mainpage.doxygen.tmpl
 )
 
-add_library(${module_name} SHARED ${QPP_SOURCES} ${CPP_SRC})
+add_library(${module_name} MODULE ${QPP_SOURCES} ${CPP_SRC})
 
 qore_binary_module(${module_name} "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}" ${LIBXML2_LIBRARIES})
 qore_user_modules("${QMOD}")

@@ -46,15 +46,14 @@ module WebDavHandler {
     This module provides a WebDavHandler server API.
 
     Classes provided by this module:
-    - @ref WebDavHandler::AbstractWebDavHandlerInterface "AbstractWebDavHandlerInterface"
+    - @ref WebDavHandler::AbstractWebDavHandler "AbstractWebDavHandler"
     - @ref WebDavHandler::AbstractWebDavPropertyHandler "AbstractWebDavPropertyHandler"
-    - @ref WebDavHandler::DummyWebDavHandlerInterface "DummyWebDavHandlerInterface"
-    - @ref WebDavHandler::FsWebDavHandlerInterface "FsWebDavHandlerInterface"
+    - @ref WebDavHandler::DummyWebDavHandler "DummyWebDavHandler"
+    - @ref WebDavHandler::FsWebDavHandler "FsWebDavHandler"
     - @ref WebDavHandler::InMemoryWebDavPropertyHandler "InMemoryWebDavPropertyHandler"
-    - @ref WebDavHandler::WebDavHandler "WebDavHandler"
-    - @ref WebDavHandler::WebDavHandlerProxyInterface "WebDavHandlerProxyInterface"
+    - @ref WebDavHandler::WebDavHandlerProxy "WebDavHandlerProxy"
 
-    @note The @ref WebDavHandler::FsWebDavHandlerInterface "FsWebDavHandlerInterface" class does not support any WebDav locking
+    @note The @ref WebDavHandler::FsWebDavHandler "FsWebDavHandler" class does not support any WebDAV locking
     functionality.
 
     @section webdavhandler_example WebDavHandler Example
@@ -73,14 +72,12 @@ module WebDavHandler {
 
 class Server inherits HttpServer {
     private {
-        WebDavHandler::WebDavHandler handler;
         int verbose;
         int port;
     }
 
-    constructor(WebDavHandler::AbstractWebDavHandlerInterface iface, int verbose = 0) : HttpServer(\log(), \log(), True) {
+    constructor(WebDavHandler::AbstractWebDavHandler handler, int verbose = 0) : HttpServer(\log(), \log(), True) {
         self.verbose = verbose;
-        handler = new WebDavHandler::WebDavHandler(iface);
         setHandler("webdavhandler", "/", NOTHING, handler);
         setDefaultHandler("webdavhandler", handler);
 
@@ -105,10 +102,9 @@ class Main {
     constructor() {
         TmpDir tmp("tempdir-");
 
-        WebDavHandler::InMemoryWebDavPropertyHandler props();
-        WebDavHandler::FsWebDavHandlerInterface iface(props, tmp.path);
+        WebDavHandler::FsWebDavHandler handler(tmp.path);
 
-        Server srv(iface, m_options.verbose);
+        Server srv(handler, m_options.verbose);
 
         printf("Using tmp path: %s; listening on port %d\n", tmp.path, srv.getPort());
 

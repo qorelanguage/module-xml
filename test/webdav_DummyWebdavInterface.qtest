@@ -9,20 +9,13 @@
 
 %exec-class Main
 
-# logger for http server
-sub http_log(string str) {
-#    printf("%N: %s\n", now_us(), vsprintf(str, argv));
-}
-
 # minimal HTTP server for this test suite
 class Server inherits HttpServer {
     private {
-        WebDavHandler::WebDavHandler handler;
         int port;
     }
 
-    constructor(WebDavHandler::AbstractWebDavHandlerInterface iface) : HttpServer(\http_log(), \http_log()) {
-        handler = new WebDavHandler::WebDavHandler(iface);
+    constructor(WebDavHandler::AbstractWebDavHandler handler) : HttpServer() {
         setHandler("webdavhandler", "/", NOTHING, handler);
         setDefaultHandler("webdavhandler", handler);
 
@@ -44,7 +37,7 @@ class Server inherits HttpServer {
 class Client inherits HTTPClient {
     constructor(string url) : HTTPClient({
         "url": url,
-        "additional_methods": WebDavHandler::AbstractWebDavHandlerInterface::RequestMethods,
+        "additional_methods": WebDavHandler::AbstractWebDavHandler::RequestMethods,
     }) {
     }
 }
@@ -53,21 +46,20 @@ class Main inherits QUnit::Test {
     constructor() : QUnit::Test("webdavhandler", "1.0") {
         addTestCase("HTTP methods test", \testHttpMethods());
         addTestCase("HTTP non existing method test", \testNonExistingHttpMethod());
-        addTestCase("DummyWebDavHandlerInterface test", \testDummyWebDavHandlerInterface());
+        addTestCase("DummyWebDavHandler test", \testDummyWebDavHandler());
 
         set_return_value(main());
     }
 
     # test presence of extended HTTP methods in the server
     private testHttpMethods() {
-        WebDavHandler::InMemoryWebDavPropertyHandler props();
-        WebDavHandler::DummyWebDavHandlerInterface iface(props);
-        Server srv(iface);
+        WebDavHandler::DummyWebDavHandler handler();
+        Server srv(handler);
         on_exit {
             srv.stop();
         }
 
-        HashIterator it(WebDavHandler::AbstractWebDavHandlerInterface::RequestMethods);
+        HashIterator it(WebDavHandler::AbstractWebDavHandler::RequestMethods);
         auto methods = srv.httpMethods();
         while (it.next()) {
             assertEq(True, methods.hasKey(it.getKey()), it.getKey());
@@ -75,10 +67,9 @@ class Main inherits QUnit::Test {
     }
 
     private testNonExistingHttpMethod() {
-        WebDavHandler::InMemoryWebDavPropertyHandler props();
-        WebDavHandler::DummyWebDavHandlerInterface iface(props);
+        WebDavHandler::DummyWebDavHandler handler();
 
-        Server srv(iface);
+        Server srv(handler);
         on_exit {
             srv.stop();
         }
@@ -92,7 +83,7 @@ class Main inherits QUnit::Test {
         HashIterator it(methods);
         while (it.next()) {
             try {
-                if (m_options.verbose) {
+                if (m_options.verbose > 2) {
                     printf("sending %s - %s\n", it.getKey(), it.getValue());
                 }
                 auto ret = http.send(NOTHING, it.getKey(), "/");
@@ -106,21 +97,20 @@ class Main inherits QUnit::Test {
     }
 
     # dummy = always failing. Test the method dispatch
-    private testDummyWebDavHandlerInterface() {
-        WebDavHandler::InMemoryWebDavPropertyHandler props();
-        WebDavHandler::DummyWebDavHandlerInterface iface(props);
+    private testDummyWebDavHandler() {
+        WebDavHandler::DummyWebDavHandler handler();
 
-        Server srv(iface);
+        Server srv(handler);
         on_exit {
             srv.stop();
         }
 
         Client http("http://localhost:" + srv.getPort());
 
-        HashIterator it(WebDavHandler::AbstractWebDavHandlerInterface::RequestMethods);
+        HashIterator it(WebDavHandler::AbstractWebDavHandler::RequestMethods);
         while (it.next()) {
             try {
-                if (m_options.verbose) {
+                if (m_options.verbose > 2) {
                     printf("sending %s - %s\n", it.getKey(), it.getValue());
                 }
                 auto ret = http.send(NOTHING, it.getKey(), "/");

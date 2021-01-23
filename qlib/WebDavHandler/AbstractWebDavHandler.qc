@@ -21,6 +21,8 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+%requires Logger
+
 #! Main public WebDavHandler namespace
 public namespace WebDavHandler {
 #! PROPPATCH action info
@@ -36,7 +38,7 @@ hashdecl PropPatchActionInfo {
 }
 
 #! Abstract WebDavHandler interface class
-public class AbstractWebDavHandlerInterface {
+public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpRequestHandler {
     public {
         #! A hash of all supported WebDavHandler methods mapped to method names
         const RequestMethods = {
@@ -70,25 +72,78 @@ public class AbstractWebDavHandlerInterface {
 
     private {
         #! The property handler object
-        AbstractWebDavPropertyHandler m_property_handler;
+        AbstractWebDavPropertyHandler property_handler;
 
         #! The virtual base path for resources served by the WebDavHandler handler
         string virtual_base_path;
+
+        #! The Logger for this object
+        Logger logger;
+    }
+
+    #! Creates the object with an empty logger and an in-memory property handler
+    /** @param auth the authentication object to use to authenticate connections
+    */
+    constructor(*AbstractAuthenticator auth) : AbstractHttpRequestHandler(auth) {
+        init(new Logger("WebDAV", LoggerLevel::getLevelInfo()), new InMemoryWebDavPropertyHandler(), "/");
+    }
+
+    #! Creates the object with the given argument and an in-memory property handler
+    /** @param auth the authentication object to use to authenticate connections
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(*AbstractAuthenticator auth, string virtual_relative_path_base) : AbstractHttpRequestHandler(auth) {
+        init(new Logger("WebDAV", LoggerLevel::getLevelInfo()), new InMemoryWebDavPropertyHandler(), virtual_relative_path_base);
     }
 
     #! Creates the object with the given arguments
-    /** @param property_handler to handle properties
-        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be stripped from
-        requests internally when serving WebDavHandler resources
+    /** @param auth the authentication object to use to authenticate connections
+        @param property_handler to handle properties
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
     */
-    constructor(AbstractWebDavPropertyHandler property_handler, string virtual_relative_path_base = "/") {
-        m_property_handler = property_handler;
-        virtual_base_path = normalize_dir(virtual_relative_path_base);
+    constructor(*AbstractAuthenticator auth, AbstractWebDavPropertyHandler property_handler,
+            string virtual_relative_path_base = "/") : AbstractHttpRequestHandler(auth) {
+        init(new Logger("WebDAV", LoggerLevel::getLevelInfo()), property_handler, virtual_relative_path_base);
+    }
+
+    #! Creates the object with the given arguments
+    /** @param auth the authentication object to use to authenticate connections
+        @param logger the logger
+        @param property_handler to handle properties
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(*AbstractAuthenticator auth, Logger logger, AbstractWebDavPropertyHandler property_handler
+                = new InMemoryWebDavPropertyHandler(),
+            string virtual_relative_path_base = "/") : AbstractHttpRequestHandler(auth) {
+        init(logger, property_handler, virtual_relative_path_base);
     }
 
     #! Returnd a list of WebDavHandler methods
     list<string> getHttpMethods() {
         return MethodList;
+    }
+
+    #! Replace the logger
+    setLogger(Logger logger) {
+        self.logger = logger;
+    }
+
+    #! Handles HTTP/WebDavHandler requests and returns the response
+    hash<HttpResponseInfo> handleRequest(HttpListenerInterface listener, Socket s, hash<auto> cx, hash<auto> hdr,
+            *data body) {
+        if (*string method = RequestMethods{hdr.method}) {
+            hash<HttpResponseInfo> r = call_object_method(self, method, cx, hdr, body);
+            # MUST have a Content-Length header in the response, even for HTTP responses that cannot return a msg body
+            if (!r.body && !r.hdr."Content-Length") {
+                r.hdr."Content-Length" = "0";
+            }
+            return r;
+        }
+
+        return response(405, "Method Not Allowed");
     }
 
     #! Returns a relative path from an absolute path
@@ -137,19 +192,27 @@ public class AbstractWebDavHandlerInterface {
         return response(501, "Not Implemented");
     }
 
+    #! Common constructor code
+    private init(Logger logger, AbstractWebDavPropertyHandler property_handler,
+            string virtual_relative_path_base = "/") {
+        self.logger = logger;
+        self.property_handler = property_handler;
+        virtual_base_path = normalize_dir(virtual_relative_path_base);
+    }
+
     #! Copies all properties from the given source URL to the target URL
     private copyProperties(string source_url, string target_url) {
-        m_property_handler.cp(source_url, target_url);
+        property_handler.cp(source_url, target_url);
     }
 
     #! Moves all properties from the given source URL to the target URL
     private moveProperties(string source_url, string target_url) {
-        m_property_handler.move(source_url, target_url);
+        property_handler.move(source_url, target_url);
     }
 
     #! Deletes all properties from the given URL
     private deleteProperties(string source_url) {
-        m_property_handler.delAll(source_url);
+        property_handler.delAll(source_url);
     }
 
     #! Returns a hash that can be serialized to an XML string for a PROPFIND request
@@ -164,7 +227,7 @@ public class AbstractWebDavHandlerInterface {
             rv_props{DavNs} += map {"DAV:" + $1.key: $1.value}, base_props.pairIterator();
 
             # add all user props for the href
-            rv_props += m_property_handler.getAll(local_path);
+            rv_props += property_handler.getAll(local_path);
         } else {
             if (*hash<auto> def_prop_map = remove additional_props{DavNs}) {
                 if (remove def_prop_map.resourcetype) {
@@ -179,7 +242,7 @@ public class AbstractWebDavHandlerInterface {
                 }
             }
             foreach hash<auto> i in (additional_props.pairIterator()) {
-                rv_props{i.key} = m_property_handler.get(local_path, i.key, keys i.value);
+                rv_props{i.key} = property_handler.get(local_path, i.key, keys i.value);
 
                 # add 404 response for not found properties
                 if (*list<string> missing = keys (i.value - ((keys rv_props{i.key}) ?? ""))) {
@@ -900,6 +963,27 @@ public class AbstractWebDavHandlerInterface {
         };
     }
 
+    #! This method is called with informational log messages
+    /** The default implementation is empty; reimplement in subclasses to provide for logging
+    */
+    logInfo(string fmt) {
+        delete argv;
+    }
+
+    #! This method is called with error log messages
+    /** The default implementation is empty; reimplement in subclasses to provide for logging
+    */
+    logError(string fmt) {
+        delete argv;
+    }
+
+    #! This method is called with debug log messages
+    /** The default implementation is empty; reimplement in subclasses to provide for logging
+    */
+    logDebug(string fmt) {
+        delete argv;
+    }
+
     #! Parse incoming XML and handle namespaces
     private hash<auto> getXml(string body) {
         nsinfo = hash<NsInfo>{};
@@ -1440,7 +1524,7 @@ public class AbstractWebDavHandlerInterface {
         }
 
         if (h.typeCode() == NT_HASH && v.typeCode() == NT_HASH) {
-            map AbstractWebDavHandlerInterface::combineValue(\h{$1.key}, $1.value), v.pairIterator();
+            map AbstractWebDavHandler::combineValue(\h{$1.key}, $1.value), v.pairIterator();
         } else {
             h = v;
         }
