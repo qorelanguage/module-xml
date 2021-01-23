@@ -46,4 +46,12 @@ export QORE_MODULE_DIR=${MODULE_SRC_DIR}/qlib:${QORE_MODULE_DIR}
 cd ${MODULE_SRC_DIR}
 for test in test/*.qtest; do
     gosu qore:qore qore $test -vv
+    RESULTS="$RESULTS $?"
+done
+
+# check the results
+for R in $RESULTS; do
+    if [ "$R" != "0" ]; then
+        exit 1 # fail
+    fi
 done
