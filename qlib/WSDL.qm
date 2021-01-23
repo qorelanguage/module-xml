@@ -3323,12 +3323,16 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
         string location;
     }
 
-    constructor(string name, string ns, bool docstyle, string httpMethod, string location, *string soapAction, *WSDL::BindingMessageDescription input, *WSDL::BindingMessageDescription output) : OperationalBinding(name, ns, docstyle, soapAction, input, output) {
+    constructor(string name, string ns, bool docstyle, string httpMethod, string location, *string soapAction,
+            *WSDL::BindingMessageDescription input, *WSDL::BindingMessageDescription output)
+            : OperationalBinding(name, ns, docstyle, soapAction, input, output) {
         self.httpMethod = httpMethod;
         self.location = location;
     }
 
-    hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h, *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg, *hash<auto> http_headers) {
+    hash<auto> serializeMessageImpl(WSOperation op, *WSMessage msg, bool request, bool soap12, auto h,
+            *hash<auto> header, string enc, *hash<auto> nsh, *int xml_opts, *string req_soapaction, *string faultmsg,
+            *hash<auto> http_headers) {
         hash<auto> rv;
 
         if (request) {
@@ -3343,27 +3347,35 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
 
         string ct;
 
-        BindingMessageDescription bmd = self{io};
+        *BindingMessageDescription bmd = self{io};
+        if (!bmd) {
+            throw SOAP_SERIALIZATION_ERROR, sprintf("no %s message description for message %y", io, name);
+        }
 
         if (!msg && (bmd.content || bmd.mimeXml))
-            throw SOAP_SERIALIZATION_ERROR, sprintf("%s value given for operation %y with no %s message: %y", request ? "request" : "response", name, io, h);
+            throw SOAP_SERIALIZATION_ERROR, sprintf("%s value given for operation %y with no %s message: %y",
+                request ? "request" : "response", name, io, h);
 
         if (bmd.content.formUrlEncoded) {
             ct = MimeTypeFormUrlEncoded;
             # application/x-www-form-urlencoded Content-Type does not have any parameters
             delete enc;
-            # TODO: throws exception when character is > 127, discussed e.g. https://www.w3.org/TR/html5/forms.html#application/x-www-form-urlencoded-encoding-algorithm
+            # TODO: throws exception when character is > 127:
+            # ex: e.g. https://www.w3.org/TR/html5/forms.html#application/x-www-form-urlencoded-encoding-algorithm
             rv.body = mime_get_form_urlencoded_string(msg.serializeAllPartData(h));
         } else if (bmd.content) {
             hash<auto> v = msg.serializeData(op.nsc, bmd.content.part, h);
             if (v."content-type") {
                 if (!bmd.content.acceptAllContentTypes) {
-                    WsdlLibPriv::checkContentType(v."content-type", bmd.content.acceptedContentTypeSubtypes + bmd.content.acceptedContentTypes);
+                    WsdlLibPriv::checkContentType(v."content-type", bmd.content.acceptedContentTypeSubtypes
+                        + bmd.content.acceptedContentTypes);
                 }
                 ct = v."content-type";
             } else {
-                if (bmd.content.acceptAllContentTypes || bmd.content.acceptedContentTypes || bmd.content.acceptedContentTypeSubtypes.size() != 1) {
-                    throw SOAP_SERIALIZATION_ERROR, sprintf("ambiguous content type in message %y related to %s operation %y", msg.name, io, op.name);
+                if (bmd.content.acceptAllContentTypes || bmd.content.acceptedContentTypes
+                    || bmd.content.acceptedContentTypeSubtypes.size() != 1) {
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("ambiguous content type in message %y related to %s "
+                        "operation %y", msg.name, io, op.name);
                 }
                 ct = bmd.content.acceptedContentTypeSubtypes[0];
             }
@@ -3443,7 +3455,13 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
     auto deserializeMessageImpl(WSOperation op, hash<auto> v, bool request) {
         string io = request ? "input" : "output";
 
-        BindingMessageDescription bmd = self{io};
+        *BindingMessageDescription bmd = self{io};
+        if (!bmd) {
+            if (!v.body.val()) {
+                return;
+            }
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("no %s message description for message %y", io, name);
+        }
 
         *string ct = v."content-type";
         if (!exists ct && !bmd.mimeXml) {
@@ -3452,11 +3470,13 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
 
         if (bmd.urlEncoded || bmd.urlReplacement) {
             # is should be processed via deserializeUrl()
-            throw SOAP_DESERIALIZATION_ERROR, sprintf("urlencoded message deserialization is not supported in binding: %y", name);
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("urlencoded message deserialization is not supported in "
+                "binding: %y", name);
         }
 
         if (!op{io} && (bmd.content || bmd.mimeXml))
-            throw SOAP_DESERIALIZATION_ERROR, sprintf("%s value given for operation %y with no %s message: %y", request ? "request" : "response", name, io, v);
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("%s value given for operation %y with no %s message: %y",
+                request ? "request" : "response", name, io, v);
 
         *WSMessage msg = op{io};
 
@@ -3471,7 +3491,8 @@ public class WSDL::HttpBinding inherits WSDL::OperationalBinding {
 
         if (bmd.content) {
             if (!bmd.content.acceptAllContentTypes) {
-                WsdlLibPriv::checkContentType(ct, bmd.content.acceptedContentTypeSubtypes + bmd.content.acceptedContentTypes);
+                WsdlLibPriv::checkContentType(ct,
+                    bmd.content.acceptedContentTypeSubtypes + bmd.content.acceptedContentTypes);
             }
             hash<auto> v2;
             v2{bmd.content.part} = v.body;

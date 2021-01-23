@@ -40,19 +40,21 @@ static void xml_module_delete();
 
 DLLLOCAL void init_option_constants(QoreNamespace& ns);
 
-// qore module symbols
-DLLEXPORT char qore_module_name[] = "xml";
-DLLEXPORT char qore_module_version[] = PACKAGE_VERSION;
-DLLEXPORT char qore_module_description[] = "xml module";
-DLLEXPORT char qore_module_author[] = "David Nichols";
-DLLEXPORT char qore_module_url[] = "http://qore.org";
-DLLEXPORT int qore_module_api_major = QORE_MODULE_API_MAJOR;
-DLLEXPORT int qore_module_api_minor = QORE_MODULE_API_MINOR;
-DLLEXPORT qore_module_init_t qore_module_init = xml_module_init;
-DLLEXPORT qore_module_ns_init_t qore_module_ns_init = xml_module_ns_init;
-DLLEXPORT qore_module_delete_t qore_module_delete = xml_module_delete;
-DLLEXPORT qore_license_t qore_module_license = QL_MIT;
-DLLEXPORT char qore_module_license_str[] = "MIT";
+// module declaration for Qore 0.9.5+
+DLLEXPORT extern "C" void xml_qore_module_desc(QoreModuleInfo& mod_info) {
+    mod_info.name = "xml";
+    mod_info.version = PACKAGE_VERSION;
+    mod_info.desc = "xml module";
+    mod_info.author = "David Nichols";
+    mod_info.url = "http://qore.org";
+    mod_info.api_major = QORE_MODULE_API_MAJOR;
+    mod_info.api_minor = QORE_MODULE_API_MINOR;
+    mod_info.init = xml_module_init;
+    mod_info.ns_init = xml_module_ns_init;
+    mod_info.del = xml_module_delete;
+    mod_info.license = QL_MIT;
+    mod_info.license_str = "MIT";
+}
 
 thread_local AbstractXmlIoInputCallback* xml_io_callback = nullptr;
 
@@ -91,7 +93,7 @@ static int qoreXmlInputCloseCallback(void* context) {
     return xml_io_callback ? xml_io_callback->close(context) : 0;
 }
 
-QoreStringNode *xml_module_init() {
+QoreStringNode* xml_module_init() {
     QoreString err;
 
     // set our generic error handler to catch initialization errors

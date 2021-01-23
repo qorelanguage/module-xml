@@ -24,13 +24,37 @@
 public namespace WebDavHandler {
 
 #! Proxy  WebDavHandler inteface class.
-public class WebDavHandlerProxyInterface inherits AbstractWebDavHandlerInterface {
+public class WebDavHandlerProxy inherits AbstractWebDavHandler {
     private {
-        hash<string, AbstractWebDavHandlerInterface> m_ifaces;
+        hash<string, AbstractWebDavHandler> m_ifaces;
     }
 
-    constructor(hash<string, AbstractWebDavHandlerInterface> interfaces, string relative_path_base = "/")
-        : AbstractWebDavHandlerInterface(relative_path_base) {
+    #! Creates the object with an empty logger and an in-memory property handler
+    /** @param interfaces the WebDAV handlers to proxy
+    */
+    constructor(hash<string, AbstractWebDavHandler> interfaces) {
+        m_ifaces = interfaces;
+    }
+
+    #! Creates the object with the given argument and an in-memory property handler
+    /** @param interfaces the WebDAV handlers to proxy
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(hash<string, AbstractWebDavHandler> interfaces, string virtual_relative_path_base)
+            : AbstractWebDavHandler(NOTHING, virtual_relative_path_base) {
+        m_ifaces = interfaces;
+    }
+
+    #! Creates the object with the given arguments
+    /** @param interfaces the WebDAV handlers to proxy
+        @param logger the logger
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(hash<string, AbstractWebDavHandler> interfaces, Logger logger,
+            string virtual_relative_path_base = "/")
+                : AbstractWebDavHandler(NOTHING, logger, NOTHING, virtual_relative_path_base) {
         m_ifaces = interfaces;
     }
 
@@ -47,8 +71,8 @@ public class WebDavHandlerProxyInterface inherits AbstractWebDavHandlerInterface
 
         if (parts.size() && m_ifaces.hasKey(parts[0])) {
 #printf("---- %s\n", "Y");
-            AbstractWebDavHandlerInterface iface = m_ifaces{parts[0]};
-            return call_object_method(iface, method_name, cx, hdr, body);
+            AbstractWebDavHandler handler = m_ifaces{parts[0]};
+            return call_object_method(handler, method_name, cx, hdr, body);
         }
 #printf("---- %s\n", "N");
     }
@@ -194,5 +218,5 @@ public class WebDavHandlerProxyInterface inherits AbstractWebDavHandlerInterface
     hash<HttpResponseInfo> handleProppatch(hash<auto> cx, hash<auto> hdr, *data body) {
         return handleChild("handleProppatch", cx, hdr, body);
     }
-} # class WebDavHandlerProxyInterface
+} # class WebDavHandlerProxy
 } # namespace WebDavHandler

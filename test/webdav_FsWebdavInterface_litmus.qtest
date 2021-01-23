@@ -7,24 +7,36 @@
 %requires HttpServer
 %requires ../qlib/WebDavHandler
 %requires QUnit
+%requires Logger
 
 %requires process
 
 %exec-class Main
 
+class WebDavTestAppender inherits LoggerAppenderWithLayout {
+    constructor() : LoggerAppenderWithLayout("WebDAV", new LoggerLayoutPattern("%d T%t [%p]: %m%n")) {
+        open();
+    }
+
+    processEventImpl(int type, auto params) {
+        switch (type) {
+            case EVENT_LOG:
+                print(params);
+                break;
+        }
+    }
+}
+
 # minimal HTTP server for this test suite
 class Server inherits HttpServer {
     private {
-        WebDavHandler::WebDavHandler handler;
-
         int verbose;
 
         static int port;
     }
 
-    constructor(WebDavHandler::AbstractWebDavHandlerInterface iface, int verbose = 0) : HttpServer(\log(), \log(), True) {
+    constructor(WebDavHandler::AbstractWebDavHandler handler, int verbose = 0) : HttpServer(Server::getOptions(verbose)) {
         self.verbose = verbose;
-        handler = new WebDavHandler::WebDavHandler(iface);
         setHandler("webdavhandler", "/", NOTHING, handler);
         setDefaultHandler("webdavhandler", handler);
 
@@ -42,6 +54,17 @@ class Server inherits HttpServer {
 
     static int getPort() {
         return port;
+    }
+
+    static hash<HttpServerOptionInfo> getOptions(int verbose) {
+        Logger logger("WebDAV", LoggerLevel::getLevelInfo());
+        if (verbose > 2) {
+            logger.addAppender(new WebDavTestAppender());
+        }
+        return <HttpServerOptionInfo>{
+            "logger": logger,
+            "debug": True,
+        };
     }
 } # class Server
 
@@ -114,9 +137,8 @@ class Main inherits QUnit::Test {
             printf("Using tmp path: %s\n", tmp.path);
         }
 
-        WebDavHandler::InMemoryWebDavPropertyHandler props();
-        WebDavHandler::FsWebDavHandlerInterface iface(props, tmp.path);
-        Server srv(iface, m_options.verbose);
+        WebDavHandler::FsWebDavHandler handler(tmp.path);
+        Server srv(handler, m_options.verbose);
         on_exit {
             srv.stop();
         }

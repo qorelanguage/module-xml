@@ -10,20 +10,13 @@
 
 %exec-class Main
 
-# logger for http server
-sub http_log(string str) {
-#    printf("%N: %s\n", now_us(), vsprintf(str, argv));
-}
-
 # minimal HTTP server for this test suite
 class Server inherits HttpServer {
     private {
-        WebDavHandler::WebDavHandler handler;
         int port;
     }
 
-    constructor(WebDavHandler::AbstractWebDavHandlerInterface iface) : HttpServer(\http_log(), \http_log()) {
-        handler = new WebDavHandler::WebDavHandler(iface);
+    constructor(WebDavHandler::AbstractWebDavHandler handler) : HttpServer() {
         setHandler("webdavhandler", "/", NOTHING, handler);
         setDefaultHandler("webdavhandler", handler);
 
@@ -41,7 +34,7 @@ class Server inherits HttpServer {
 class Client inherits HTTPClient {
     constructor(string url) : HTTPClient({
         "url": url,
-        "additional_methods": WebDavHandler::AbstractWebDavHandlerInterface::RequestMethods,
+        "additional_methods": WebDavHandler::AbstractWebDavHandler::RequestMethods,
     }) {
     }
 }
@@ -57,9 +50,8 @@ class Main inherits QUnit::Test {
     # test presence of extended HTTP methods in the server
     private test() {
         TmpDir tmp();
-        WebDavHandler::InMemoryWebDavPropertyHandler props();
-        WebDavHandler::FsWebDavHandlerInterface iface(props, tmp.path);
-        Server srv(iface);
+        WebDavHandler::FsWebDavHandler handler(tmp.path);
+        Server srv(handler);
         on_exit {
             srv.stop();
         }

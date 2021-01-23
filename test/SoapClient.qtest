@@ -266,32 +266,13 @@ class SoapClientTest inherits QUnit::Test {
 
         try {
             cleanMsgLog();
-            hash<auto> hi = ("country": "CZ", "city": "Prague_2", "zip": 12000);
+            hash<auto> hi = {"country": "CZ", "city": "Prague_2", "zip": 12000};
             h = sc.callOperation("urlEncoded1", hi);
             assertEq(server.opname, "urlEncoded1");
             assertEq(server.mdata, hi);
 
-            cleanMsgLog();
-            server.rdata = ("STR": "AbCdEf");
-            h = sc.callOperation("getMimeXml", ());
-            assertEq(server.opname, "getMimeXml");
-            assertEq(server.soap.msglogs[0].('reason', 'method'), sc.msglogs[0].('reason', 'method'));
-            assertEq("text/xml;charset=UTF-8", sc.msglogs[1]."content-type");
-            assertEq("text/xml", sc.msglogs[0]."accept");
-            assertEq(server.rdata, h);
-
-            cleanMsgLog();
-            server.rdata = ("payload": ("^attributes^": ("^content-type^": "application/plain"), "^value^": "ADATA"));
-            h = sc.callOperation("getBinary", ());
-            assertEq(server.opname, "getBinary");
-            assertEq("text/plain,text/html,image/*,application/*", sc.msglogs[0]."accept");
-            assertEq(server.rdata.payload."^attributes^"."^content-type^", sc.msglogs[1]."content-type");
-            server.rdata.payload."^value^" = binary(server.rdata.payload."^value^");
-            assertEq(server.rdata, h);
-
-            cleanMsgLog();
-            server.rdata = ("payload": "xxx");
-            assertThrows("SOAP-DESERIALIZATION-ERROR", \sc.callOperation(), ("getBinary", ()));
+            assertThrows("SOAP-SERIALIZATION-ERROR", \sc.callOperation(), ("getMimeXml", ()));
+            assertThrows("SOAP-SERIALIZATION-ERROR", \sc.callOperation(), ("getBinary", ()));
         } catch (hash<ExceptionInfo> ex) {
             printf("Exception: %s\n", get_exception_string(ex));
             rethrow;

@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file SoapClient.qm SOAP Client module implementation based on the WSDL classes
 
-/*  SoapClient.qm Copyright (C) 2012 - 2020 Qore Technologies, s.r.o.
+/*  SoapClient.qm Copyright (C) 2012 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -60,9 +60,12 @@ module SoapClient {
 
     @section soapclientintro Introduction to the SoapClient Module
 
-    The %SoapClient module implements a SOAP client for %Qore using WSDL, XSD, and SOAP support implemented in the <a href="../../WSDL/html/index.html">WSDL</a> module.
+    The %SoapClient module implements a SOAP client for %Qore using WSDL, XSD, and SOAP support implemented in the
+    <a href="../../WSDL/html/index.html">WSDL</a> module.
 
-    Create outgoing request messages by setting up a Qore data structure corresponding to the SOAP message.  Exceptions will be thrown if either the outgoing or the response message do not corespond to the WSDL.  The exceptions should be fairly verbose to allow you to quickly correct any mistakes.
+    Create outgoing request messages by setting up a Qore data structure corresponding to the SOAP message.
+    Exceptions will be thrown if either the outgoing or the response message do not corespond to the WSDL.  The
+    exceptions should be fairly verbose to allow you to quickly correct any mistakes.
 
     This module provides the following classes:
     - @ref SoapClient::SoapClient "SoapClient"
@@ -87,13 +90,16 @@ auto result = sc.call("SubmitDocument", msg);
     - required keys: one of:
       - \c "wsdl" or \c "wsdl_file": a string defining the WSDL or the URL of the WSDL
     - optional keys:
-      - \c "service": the name of the "service" to use (if more than 1 service is defined in the WSDL then this key is mandatory)
+      - \c "service": the name of the "service" to use (if more than 1 service is defined in the WSDL then this key is
+        mandatory)
       - \c "port": in case multiple port entries are found in the WSDL, give the one to be used here
       - \c "url": to override the URL defined in the WSDL
       - \c "headers": to override any HTTP headers sent in outgoing messages
       - \c "event_queue": to set an I/O event queue on the HTTPClient
-      - \c "log": a @ref closure "closure" or @ref call_reference "call reference" taking a single string argument for informational logging
-      - \c "dbglog": a @ref closure "closure" or @ref call_reference "call reference" taking a single string argument for verbose technical debugging logging
+      - \c "log": a @ref closure "closure" or @ref call_reference "call reference" taking a single string argument for
+        informational logging
+      - \c "dbglog": a @ref closure "closure" or @ref call_reference "call reference" taking a single string argument
+        for verbose technical debugging logging
 
     Also the following keys can be set to set HTTP options:
     - \c "connect_timeout"
@@ -125,11 +131,16 @@ auto result = sc.call("SubmitDocument", msg);
     - added the @ref SoapClient::SoapConnection "SoapConnection" class
 
     @subsection soapclient_0_2_4_1 SoapClient v0.2.4.1
-    - added the @ref SoapClient::SoapClient::callOperation() method (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
-    - updated SOAP response processing to throw an exception when the server responds with an error code (<a href="https://github.com/qorelanguage/qore/issues/1228">issue 1228</a>)
-    - fixed a typo in a debug logging statement (<a href="https://github.com/qorelanguage/qore/issues/1358">issue 1358</a>)
-    - fixed and documented the "info" output hash format (<a href="https://github.com/qorelanguage/qore/issues/1359">issue 1359</a>)
-    - fixed a bug in the SoapClient::constructor() where a WebService object was not supported (<a href="https://github.com/qorelanguage/qore/issues/1424">issue 1424</a>)
+    - added the @ref SoapClient::SoapClient::callOperation() method
+      (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
+    - updated SOAP response processing to throw an exception when the server responds with an error code
+      (<a href="https://github.com/qorelanguage/qore/issues/1228">issue 1228</a>)
+    - fixed a typo in a debug logging statement
+      (<a href="https://github.com/qorelanguage/qore/issues/1358">issue 1358</a>)
+    - fixed and documented the "info" output hash format
+      (<a href="https://github.com/qorelanguage/qore/issues/1359">issue 1359</a>)
+    - fixed a bug in the SoapClient::constructor() where a WebService object was not supported
+      (<a href="https://github.com/qorelanguage/qore/issues/1424">issue 1424</a>)
 
     @subsection soapclient_0_2_4 SoapClient v0.2.4
     - handle SOAP fault messages returned with 500-series error codes as Fault messages

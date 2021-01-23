@@ -24,8 +24,36 @@
 #! Main public WebDavHandler namespace
 public namespace WebDavHandler {
 #! This class returns 501 Unimplemented responses to all WebDavHandler requests except \c OPTIONS
-public class DummyWebDavHandlerInterface inherits AbstractWebDavHandlerInterface {
-    constructor(AbstractWebDavPropertyHandler property_handler, string relative_path_base = "/") : AbstractWebDavHandlerInterface(property_handler, relative_path_base) {
+public class DummyWebDavHandler inherits AbstractWebDavHandler {
+    #! Creates the object with an empty logger and an in-memory property handler
+    constructor() {
+    }
+
+    #! Creates the object with the given argument and an in-memory property handler
+    /** @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(string virtual_relative_path_base) : AbstractWebDavHandler(NOTHING, virtual_relative_path_base) {
+    }
+
+    #! Creates the object with the given arguments
+    /** @param property_handler to handle properties
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(AbstractWebDavPropertyHandler property_handler, string virtual_relative_path_base = "/")
+             : AbstractWebDavHandler(NOTHING, property_handler, virtual_relative_path_base) {
+    }
+
+    #! Creates the object with the given arguments
+    /** @param logger the logger
+        @param property_handler to handle properties
+        @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
+        stripped from requests internally when serving WebDavHandler resources
+    */
+    constructor(Logger logger, AbstractWebDavPropertyHandler property_handler =
+                new InMemoryWebDavPropertyHandler(), string virtual_relative_path_base = "/")
+                : AbstractWebDavHandler(NOTHING, logger, property_handler, virtual_relative_path_base) {
     }
 
     /**
@@ -162,9 +190,11 @@ public class DummyWebDavHandlerInterface inherits AbstractWebDavHandlerInterface
 
         @throw WEBDAVHANDLER-ERROR an error occured
 
-        @note This method always throws a \c WEBDAVHANDLER-ERROR exception to return a <tt>501 Unimplemented</tt> response
+        @note This method always throws a \c WEBDAVHANDLER-ERROR exception to return a <tt>501 Unimplemented</tt>
+        response
     */
-    private *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx, hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions) {
+    private *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx,
+            hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions) {
         throw "WEBDAVHANDLER-ERROR", "unimplemented", 501;
     }
 }
