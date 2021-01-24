@@ -41,7 +41,7 @@ static void xml_module_delete();
 DLLLOCAL void init_option_constants(QoreNamespace& ns);
 
 // module declaration for Qore 0.9.5+
-DLLEXPORT extern "C" void xml_qore_module_desc(QoreModuleInfo& mod_info) {
+extern "C" DLLEXPORT void xml_qore_module_desc(QoreModuleInfo& mod_info) {
     mod_info.name = "xml";
     mod_info.version = PACKAGE_VERSION;
     mod_info.desc = "xml module";
