@@ -4,19 +4,24 @@
 
     @section xmlintro Introduction
 
-    XML functionality in the %Qore xml module is provided by the <a href="http://xmlsoft.org">libxml2 library</a>, which provides a powerful, stable, clean, and thread-safe basis for XML integration in %Qore.  XML provides a way to describe hierarchical data, and thanks to <a href="http://xmlsoft.org">libxml2</a>, the xml module allows for easy serialization and deserialization between XML strings and %Qore data structures.
+    XML functionality in the %Qore xml module is provided by the <a href="http://xmlsoft.org">libxml2 library</a>,
+    which provides a powerful, stable, clean, and thread-safe basis for XML integration in %Qore.  XML provides a way
+    to describe hierarchical data, and thanks to <a href="http://xmlsoft.org">libxml2</a>, the xml module allows for
+    easy serialization and deserialization between XML strings and %Qore data structures.
 
     This module is released under a choice of two licenses:
     - <a href="http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html">LGPL 2.1</a>
     - MIT (see COPYING.MIT in the source distribution for more information)
     .
-    The module is tagged as such in the module's header (meaning it can be loaded unconditionally regardless of how the %Qore library was initialized).
+    The module is tagged as such in the module's header (meaning it can be loaded unconditionally regardless of how
+    the %Qore library was initialized).
 
     To use the module in a %Qore script, use the \c %%requires directive as follows:
     @code %requires xml @endcode
 
     Classes provided by this module:
-    - @ref Qore::Xml::AbstractXmlIoInputCallback "AbstractXmlIoInputCallback": a callback API for resolving external schema references
+    - @ref Qore::Xml::AbstractXmlIoInputCallback "AbstractXmlIoInputCallback": a callback API for resolving external
+      schema references
     - @ref Qore::Xml::FileSaxIterator "FileSaxIterator": an iterator class for XML strings
     - @ref Qore::Xml::InputStreamSaxIterator "InputStreamSaxIterator": an iterator class for input streams
     - @ref Qore::Xml::SaxIterator "SaxIterator": an iterator class for XML strings
@@ -34,24 +39,34 @@
     - <a href="../../XmlRpcConnection/html/index.html">XmlRpcConnection user module</a>
     - <a href="../../XmlRpcHandler/html/index.html">XmlRpcHandler user module</a>
 
-    @note XML functionality was included in the main %Qore shared library until version 0.8.1, at which time the code was removed to make this module.
+    @note XML functionality was included in the main %Qore shared library until version 0.8.1, at which time the code
+    was removed to make this module.
 
     @section optionconstants Module Option Constants
 
-    The following constants give information about the availability of XML functionality (dependent on libxml2 features at compile time):
+    The following constants give information about the availability of XML functionality (dependent on libxml2
+    features at compile time):
 
     <b>XML Option Constants</b>
     |!Name|!Type|!Description
-    |@ref Qore::Xml::Option::HAVE_PARSEXMLWITHRELAXNG "HAVE_PARSEXMLWITHRELAXNG"|\c bool|Indicates if parse_xml_with_relaxng() and Qore::Xml::XmlReader::relaxNGValidate() are available
-    |@ref Qore::Xml::Option::HAVE_PARSEXMLWITHSCHEMA "HAVE_PARSEXMLWITHSCHEMA"|\c bool|Indicates if parse_xml_with_schema() and Qore::Xml::XmlReader::schemaValidate() are available
+    |@ref Qore::Xml::Option::HAVE_PARSEXMLWITHRELAXNG "HAVE_PARSEXMLWITHRELAXNG"|\c bool|Indicates if \
+        parse_xml_with_relaxng() and Qore::Xml::XmlReader::relaxNGValidate() are available
+    |@ref Qore::Xml::Option::HAVE_PARSEXMLWITHSCHEMA "HAVE_PARSEXMLWITHSCHEMA"|\c bool|Indicates if \
+        parse_xml_with_schema() and Qore::Xml::XmlReader::schemaValidate() are available
 
-    If either of the above constants are \c False, then calling any of the dependent functions or methods will result in a run-time exception.
+    If either of the above constants are \c False, then calling any of the dependent functions or methods will result
+    in a run-time exception.
 
     @section serialization Automatic XML Serialization and Deserialization
 
-    This section describes automatic XML serialization and deserialization; for iterative or user-controlled XML parsing, see @ref xmlclasses "XML Classes".
+    This section describes automatic XML serialization and deserialization; for iterative or user-controlled XML
+    parsing, see @ref xmlclasses "XML Classes".
 
-    XML serialization (conversion from %Qore data structures to XML strings) in the xml module relies on the fact that %Qore hashes retain insertion order, which means that conversion to and from %Qore data structures and XML strings can be done without data loss and without reordering the XML elements. In general, XML serialization is relatively straighforward, but there are a few issues to be aware of, particularly regarding element attributes and lists. These issues are described in the following paragraphs.
+    XML serialization (conversion from %Qore data structures to XML strings) in the xml module relies on the fact
+    that %Qore hashes retain insertion order, which means that conversion to and from %Qore data structures and XML
+    strings can be done without data loss and without reordering the XML elements. In general, XML serialization is
+    relatively straighforward, but there are a few issues to be aware of, particularly regarding element attributes
+    and lists. These issues are described in the following paragraphs.
 
     First, a straightforward example:
 
@@ -78,7 +93,9 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
 
     @subsection xmlattributeserialization Serializing and Deserializing XML Attributes
 
-    To set XML attributes, the %Qore value must be a hash and the attributes are stored in another hash in the key \c "^attributes^". That is; the value of the \c "^attributes^" key must be a hash, and each member of this hash will represent an attribute-value pair.
+    To set XML attributes, the %Qore value must be a hash and the attributes are stored in another hash in the key
+    \c "^attributes^". That is; the value of the \c "^attributes^" key must be a hash, and each member of this hash
+    will represent an attribute-value pair.
 
     For example:
 
@@ -105,7 +122,8 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
 </record>
     @endverbatim
 
-    If instead we wanted to have text instead of child data under the "record" node, we must set the \c "^value^" key of the hash along with the \c "^attributes^" key as follows:
+    If instead we wanted to have text instead of child data under the "record" node, we must set the \c "^value^" key
+    of the hash along with the \c "^attributes^" key as follows:
 
     @code
 hash<auto> h = {
@@ -145,13 +163,22 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
   <part>part-34-28</part>
 </record>@endverbatim
 
-    It gets a little trickier when a key should repeated at the same level in an XML string, but other keys come between, for example, take the following XML string:
+    It gets a little trickier when a key should repeated at the same level in an XML string, but other keys come
+    between, for example, take the following XML string:
 
     @verbatim
 <?xml version="1.0" encoding="UTF-8"?>
 <para>Keywords: <code>this</code>, <code>that</code>, and <code>the_other</code>.</para>@endverbatim
 
-    It's not possible to use a list, because text is required in between. As described earlier, the \c "^value^" hash key can be used to serialize text in an XML string. In this case, we need to have several text nodes and several code nodes in a mixed-up order to give us the XML string we want. Because qore hases have unique keys (we can't use the same key twice in the same hash), we resort to a key naming trick that allows us to virtually duplicate our key names and therefore arrive at the XML string we want. We do this by appending a \c '^' character to the end of the key name and then some unique text. When serializing hash keys, any text after (and including) the \c '^' character is ignored, therefore we can add unique text to the special XML element name prefix to ensure that the input hash contains the data needed so that it will be serialized in the right order to the XML string as in the following example:
+    It's not possible to use a list, because text is required in between. As described earlier, the \c "^value^" hash
+    key can be used to serialize text in an XML string. In this case, we need to have several text nodes and several
+    code nodes in a mixed-up order to give us the XML string we want. Because qore hases have unique keys (we can't
+    use the same key twice in the same hash), we resort to a key naming trick that allows us to virtually duplicate
+    our key names and therefore arrive at the XML string we want. We do this by appending a \c '^' character to the
+    end of the key name and then some unique text. When serializing hash keys, any text after (and including) the
+    \c '^' character is ignored, therefore we can add unique text to the special XML element name prefix to ensure
+    that the input hash contains the data needed so that it will be serialized in the right order to the XML string
+    as in the following example:
 
     @code
 hash<auto> h = {
@@ -173,13 +200,20 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));@endcode
 <para>Keywords: <code>this</code>, <code>that</code>, and <code>the_other</code>.</para>
     @endverbatim
 
-    By ignoring the text after the second \c '^' character, unique keys can be given in the input string, and the above code will serialize to the XML string we want. In general, by using this convention, we can properly serialize multiple out-of-order keys without losing data and still have unique names for our hash keys.
+    By ignoring the text after the second \c '^' character, unique keys can be given in the input string, and the
+    above code will serialize to the XML string we want. In general, by using this convention, we can properly
+    serialize multiple out-of-order keys without losing data and still have unique names for our hash keys.
 
-    Note than when deserializing XML strings to %Qore data structures, the above rules are applied in reverse. If any out-of-order duplicate keys are detected, %Qore will automatically generate unique hash key names based on the above rules only if the @ref Qore::Xml::XPF_PRESERVE_ORDER "XPF_PRESERVE_ORDER" flag is given with the parse_xml(), parse_xml_with_relaxng() or parse_xml_with_schema() function calls.
+    Note than when deserializing XML strings to %Qore data structures, the above rules are applied in reverse. If any
+    out-of-order duplicate keys are detected, %Qore will automatically generate unique hash key names based on the
+    above rules only if the @ref Qore::Xml::XPF_PRESERVE_ORDER "XPF_PRESERVE_ORDER" flag is given with the
+    parse_xml(), parse_xml_with_relaxng() or parse_xml_with_schema() function calls.
 
     @subsection xmlcommentserialization Serializing and Deserializing XML Comments
 
-    Comments can be serialized by using the \c "^comment^" XML element prefix (as with other special element prefixes, arbitrary text can appear after the \c "^comment^" prefix to make the element name unique) as in the following example:
+    Comments can be serialized by using the \c "^comment^" XML element prefix (as with other special element prefixes,
+    arbitrary text can appear after the \c "^comment^" prefix to make the element name unique) as in the following
+    example:
 
     @code
 hash<auto> h = {
@@ -201,7 +235,9 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @subsection xmlcdataserialization Serializing and Deserializing XML CDATA
 
-    Also note that \c CDATA text will be generated if a hash key starts with \c '^cdata'; such text will not be processed for escape code substitution. When deserializing XML strings to qore data structures, CDATA text will be placed unmodified under such a hash key as well.
+    Also note that \c CDATA text will be generated if a hash key starts with \c '^cdata'; such text will not be
+    processed for escape code substitution. When deserializing XML strings to qore data structures, CDATA text will be
+    placed unmodified under such a hash key as well.
 
     <b>Functions For XML Serialization and Deserialization</b>
     |!Function Name|!Description
@@ -209,9 +245,12 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     |make_xml_fragment()|Serializes a hash into an XML string without an XML header or formatting
     |make_xml()|Serializes a hash into a complete XML string with an XML header
     |parse_xml()|parses an XML string and returns a %Qore hash structure
-    |parse_xml_with_dtd()|parses an XML string and validates it against a DTD string and returns a %Qore hash structure
-    |parse_xml_with_relaxng()|parses an XML string and validates against a RelaxNG schema string and returns a %Qore hash structure
-    |parse_xml_with_schema()|parses an XML string and validates against an XSD schema string and returns a %Qore hash structure
+    |parse_xml_with_dtd()|parses an XML string and validates it against a DTD string and returns a %Qore hash \
+        structure
+    |parse_xml_with_relaxng()|parses an XML string and validates against a RelaxNG schema string and returns a \
+        %Qore hash structure
+    |parse_xml_with_schema()|parses an XML string and validates against an XSD schema string and returns a %Qore \
+        hash structure
 
     <b>Deprecated Functions For XML Serialization and Deserialization</b>
     - @ref makeFormattedXMLFragment(): deprecated by make_xml_fragment()
@@ -237,7 +276,9 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @section XMLRPC XML-RPC
 
-    XML-RPC is a lightweight but powerful XML over HTTP web service protocol.  The xml module includes builtin support for this protocol as described here.  You can find more information about XML-RPC, including specifications and examples at http://xmlrpc.org.
+    XML-RPC is a lightweight but powerful XML over HTTP web service protocol.  The xml module includes builtin support
+    for this protocol as described here.  You can find more information about XML-RPC, including specifications and
+    examples at http://xmlrpc.org.
 
     Information about %Qore's XML-RPC serialization can be found below.
 
@@ -248,7 +289,9 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     |\c float|\c double|direct conversion
     |\c number|\c double|conversion to a double for serialization
     |\c boolean|\c boolean|direct conversion
-    |\c date|\c iso8601|Absolute date/time values will convert to the default time zone for the calling context for the output string if necessary. Note that relative date/time values (durations) will be serialized with the same format as absolute date/time values.
+    |\c date|\c iso8601|Absolute date/time values will convert to the default time zone for the calling context for \
+        the output string if necessary. Note that relative date/time values (durations) will be serialized with the \
+        same format as absolute date/time values.
     |\c binary|\c base64|direct conversion
     |\c list|\c array|direct conversion
     |\c hash|\c struct|direct conversion
@@ -264,8 +307,10 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     |make_xmlrpc_fault()|Serializes a hash into an XML string formatted for an XML-RPC fault response
     |make_xmlrpc_value()|Serializes a hash into an XML string in XML-RPC value format
     |make_xmlrpc_response()|Serializes a hash into an XML string formatted for an XML-RPC response
-    |parse_xmlrpc_call()|deserializies an XML-RPC call string, returning a %Qore hash respresenting the call information.
-    |parse_xmlrpc_response()|deserializies an XML-RPC response string, returning a %Qore hash respresenting the response information.
+    |parse_xmlrpc_call()|deserializies an XML-RPC call string, returning a %Qore hash respresenting the call \
+        information.
+    |parse_xmlrpc_response()|deserializies an XML-RPC response string, returning a %Qore hash respresenting the \
+        response information.
     |parse_xmlrpc_value()|deserializies an XML-RPC value tree, returning a %Qore hash respresenting the information.
 
     <b>Deprecated Functions For XML-RPC Serialization and Deserialization</b>
@@ -293,23 +338,37 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @section constants XML Constants
 
-    All constants (and classes and namespaces) provided by this module are created under the Qore namespace (the main namespace for the %Qore Programming Language).
+    All constants (and classes and namespaces) provided by this module are created under the Qore namespace (the main
+    namespace for the %Qore Programming Language).
 
     @section codetags Function and Method Tags
 
     @subsection NOOP NOOP
 
-    Code with this flag makes no calculations, but rather returns a constant value. This flag is given to function and method variants that return a default value depending on the type of argument(s).  When variants with this flag are resolved at parse time, a \c "call-with-type-errors" warning is raised (assuming this warning is enabled), unless \c PO_REQUIRE_TYPES or \c PO_STRICT_ARGS is set.  If \c PO_REQUIRE_TYPES or \c PO_STRICT_ARGS is set, then these variants are inaccessible at parse time; resolving to a variant with this flag set at parse time causes an exception to be thrown.
+    Code with this flag makes no calculations, but rather returns a constant value. This flag is given to function and
+    method variants that return a default value depending on the type of argument(s).  When variants with this flag
+    are resolved at parse time, a \c "call-with-type-errors" warning is raised (assuming this warning is enabled),
+    unless \c PO_REQUIRE_TYPES or \c PO_STRICT_ARGS is set.  If \c PO_REQUIRE_TYPES or \c PO_STRICT_ARGS is set, then
+    these variants are inaccessible at parse time; resolving to a variant with this flag set at parse time causes an
+    exception to be thrown.
 
-    These variants are included for backwards-compatibility with qore prior to version 0.8.0 for functions that would ignore type errors in arguments.
+    These variants are included for backwards-compatibility with qore prior to version 0.8.0 for functions that would
+    ignore type errors in arguments.
 
-    This tag is equal to @ref RUNTIME_NOOP, except no runtime effect is caused by resolving a function or method tagged with \c NOOP at runtime; this tag only affects parse time resolution.
+    This tag is equal to @ref RUNTIME_NOOP, except no runtime effect is caused by resolving a function or method
+    tagged with \c NOOP at runtime; this tag only affects parse time resolution.
 
     @subsection RUNTIME_NOOP RUNTIME_NOOP
 
-    Code with this flag makes no calculations, but rather returns a constant value.  This flag is given to function and method variants that return a default value depending on the type of argument(s).  When variants with this flag are resolved at parse time, a \c "call-with-type-errors" warning is raised (assuming this warning is enabled), unless \c PO_REQUIRE_TYPES or \c PO_STRICT_ARGS is set.  If \c PO_REQUIRE_TYPES or \c PO_STRICT_ARGS is set, then these variants are inaccessible; resolving to a variant with this flag set at parse time or run time causes an exception to be thrown.
+    Code with this flag makes no calculations, but rather returns a constant value.  This flag is given to function
+    and method variants that return a default value depending on the type of argument(s).  When variants with this
+    flag are resolved at parse time, a \c "call-with-type-errors" warning is raised (assuming this warning is
+    enabled), unless \c PO_REQUIRE_TYPES or \c PO_STRICT_ARGS is set.  If \c PO_REQUIRE_TYPES or \c PO_STRICT_ARGS is
+    set, then these variants are inaccessible; resolving to a variant with this flag set at parse time or run time
+    causes an exception to be thrown.
 
-    These variants are included for backwards-compatibility with qore prior to version 0.8.0 for functions that would ignore type errors in arguments.
+    These variants are included for backwards-compatibility with qore prior to version 0.8.0 for functions that would
+    ignore type errors in arguments.
 
     This tag is equal to @ref NOOP, except that \c RUNTIME_NOOP is also enforced at runtime.
 
@@ -317,17 +376,20 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     This flag indicates that the function or method has no side effects; it only returns a value, for example.
 
-    This tag is identical to @ref CONSTANT except that functions or methods tagged with \c RET_VALUE_ONLY could throw exceptions.
+    This tag is identical to @ref CONSTANT except that functions or methods tagged with \c RET_VALUE_ONLY could throw
+    exceptions.
 
     @subsection CONSTANT CONSTANT
 
     This flag indicates that the function or method has no side effects and does not throw any exceptions.
 
-    This tag is identical to @ref RET_VALUE_ONLY except that functions or methods tagged with \c CONSTANT do not throw exceptions.
+    This tag is identical to @ref RET_VALUE_ONLY except that functions or methods tagged with \c CONSTANT do not throw
+    exceptions.
 
     @subsection DEPRECATED DEPRECATED
 
-    Code with this flag is deprecated and may be removed in a future version of this module; if a variant with this flag is resolved at parse time, a \c "deprecated" warning is raised (assuming this warning is enabled).
+    Code with this flag is deprecated and may be removed in a future version of this module; if a variant with this
+    flag is resolved at parse time, a \c "deprecated" warning is raised (assuming this warning is enabled).
 
     @section xmlreleasenotes Release Notes
 
@@ -402,21 +464,25 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     - <a href="../../SoapHandlerDL/html/index.html">SoapHandler</a> module changes:
       - fixed a bug where the URI path was not respected when resolving SOAP calls
         (<a href="https://github.com/qorelanguage/qore/issues/2783">issue 2783</a>)
-      - implemented supoprt for handling SOAP faults based on the exception \c err string (must correspond to the fault name)
+      - implemented supoprt for handling SOAP faults based on the exception \c err string (must correspond to the
+        fault name)
         (<a href="https://github.com/qorelanguage/qore/issues/2804">issue 2804</a>)
     - <a href="../../WSDL/html/index.html">WSDL</a> module changes:
       - implemented supoprt for handling SOAP faults in response messages with SOAP bindings
         (<a href="https://github.com/qorelanguage/qore/issues/2804">issue 2804</a>)
       - fixed a bug resolving namespaces in nested schemas with late resolution with overlapping namespace prefixes
         (<a href="https://github.com/qorelanguage/qore/issues/2786">issue 2786</a>)
-      - fixed a type error in message generation (<a href="https://github.com/qorelanguage/qore/issues/2783">issue 2783</a>)
+      - fixed a type error in message generation
+        (<a href="https://github.com/qorelanguage/qore/issues/2783">issue 2783</a>)
       - implemented the \c wsdl_set_global_compat_empty_string_is_nothing() function and the
         \c "compat_empty_string_is_nothing" option for the \c WebService class for backwards compatibility
-        with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2754">issue 2754</a>)
+        with older versions of the WSDL module
+        (<a href="https://github.com/qorelanguage/qore/issues/2754">issue 2754</a>)
       - implemented the @ref WSDL::wsdl_set_global_compat_empty_string_is_nothing()
         "wsdl_set_global_compat_allow_any_header" function and the
         \c "compat_allow_any_header" option for the \c WebService class
-        for backwards compatibility with older versions of the WSDL module (<a href="https://github.com/qorelanguage/qore/issues/2765">issue 2765</a>)
+        for backwards compatibility with older versions of the WSDL module
+        (<a href="https://github.com/qorelanguage/qore/issues/2765">issue 2765</a>)
       - fixed types when deserializing to eliminate performance penalties stripping types in large data structures
         (<a href="https://github.com/qorelanguage/qore/issues/2766">issue 2766</a>)
     - fixed \c soaputil to import XSDs automatically when parsing WSDLs
@@ -425,70 +491,113 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @subsection xml14 xml Module Version 1.4
     <b>Changes and Bug Fixes in This Release</b>
-    - fixed a bug in @ref make_xml() to support underscores at start of tags (<a href="https://github.com/qorelanguage/qore/issues/1326">issue 1326</a>)
+    - fixed a bug in @ref make_xml() to support underscores at start of tags
+      (<a href="https://github.com/qorelanguage/qore/issues/1326">issue 1326</a>)
     - added the @ref Qore::Xml::InputStreamSaxIterator "InputStreamSaxIterator" class
     - added the @ref get_xml_value() function
     - exception raised when @ref make_xml() called with multi list value passed for top level element
     - added support for XML comments (@ref Qore::Xml::XPF_ADD_COMMENTS "XPF_ADD_COMMENTS")
-    - added missing support for DTD validation (<a href="https://github.com/qorelanguage/qore/issues/2267">issue 2267</a>)
+    - added missing support for DTD validation
+      (<a href="https://github.com/qorelanguage/qore/issues/2267">issue 2267</a>)
       - added parse_xml_with_dtd()
       - added @ref Qore::Xml::XmlDoc::validateDtd() "XmlDoc::validateDtd()
-    - added support for stripping namespace prefixes on element names when parsing XML (<a href="https://github.com/qorelanguage/qore/issues/2494">issue 2494</a>)
-    - added support for XSD validation with SAX parsers (<a href="https://github.com/qorelanguage/qore/issues/2489">issue 2489</a>); see
+    - added support for stripping namespace prefixes on element names when parsing XML
+      (<a href="https://github.com/qorelanguage/qore/issues/2494">issue 2494</a>)
+    - added support for XSD validation with SAX parsers
+      (<a href="https://github.com/qorelanguage/qore/issues/2489">issue 2489</a>); see
       - @ref Qore::Xml::FileSaxIterator::constructor(string, string, hash)
       - @ref Qore::Xml::InputStreamSaxIterator::constructor(Qore::InputStream, string, hash)
       - @ref Qore::Xml::XmlReader::constructor(Qore::InputStream, __7_ hash)
       - @ref Qore::Xml::SaxIterator::constructor(string, string, __7_ hash)
-    -fixed a bug where SAX parsing failed when the element being parsed had a namespace prefix (<a href="https://github.com/qorelanguage/qore/issues/2487">issue 2487</a>)
-    - added a @ref Qore::Xml::make_xml(hash, hash) "make_xml(hash, hash)" variant that allows for more control over the XML output such as date serialization formats (<a href="https://github.com/qorelanguage/qore/issues/2492">issue 2492</a>)
-    - added @ref Qore::Xml::AbstractXmlIoInputCallback "AbstractXmlIoInputCallback" to provide an abstract API for resolving external schema references (<a href="https://github.com/qorelanguage/qore/issues/2490">issue 2490</a>)
-    - extended @ref Qore::Xml::XmlDoc::constructor() "XmlDoc::constructor" with extra optional hash that allows for more control over the XML output such as date serialization formats (<a href="https://github.com/qorelanguage/qore/issues/2492">issue 2492</a>)
-    - XSD-ERROR exception thrown during document validation against schema is now more verbose about what exactly failed  (<a href="https://github.com/qorelanguage/qore/issues/2493">issue 2493</a>)
-    - fixed a bug in Windows builds (<a href="https://github.com/qorelanguage/qore/issues/2529">issue 2529</a>)
+    -fixed a bug where SAX parsing failed when the element being parsed had a namespace prefix
+     (<a href="https://github.com/qorelanguage/qore/issues/2487">issue 2487</a>)
+    - added a @ref Qore::Xml::make_xml(hash, hash) "make_xml(hash, hash)" variant that allows for more control over
+      the XML output such as date serialization formats
+      (<a href="https://github.com/qorelanguage/qore/issues/2492">issue 2492</a>)
+    - added @ref Qore::Xml::AbstractXmlIoInputCallback "AbstractXmlIoInputCallback" to provide an abstract API for
+      resolving external schema references
+      (<a href="https://github.com/qorelanguage/qore/issues/2490">issue 2490</a>)
+    - extended @ref Qore::Xml::XmlDoc::constructor() "XmlDoc::constructor" with extra optional hash that allows for
+      more control over the XML output such as date serialization formats
+      (<a href="https://github.com/qorelanguage/qore/issues/2492">issue 2492</a>)
+    - XSD-ERROR exception thrown during document validation against schema is now more verbose about what exactly
+      failed
+      (<a href="https://github.com/qorelanguage/qore/issues/2493">issue 2493</a>)
+    - fixed a bug in Windows builds
+      (<a href="https://github.com/qorelanguage/qore/issues/2529">issue 2529</a>)
     - <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> module changes:
       - added the \c SalesforceSoapConnection class
     - <a href="../../SoapClient/html/index.html">SoapClient</a> module changes:
       - added support for logging messages
       - added the \c SoapConnection class
-      - added API support for specifying the SOAP bindings in the WSDL to use (a href="https://github.com/qorelanguage/qore/issues/1116">issue 1116</a>)
+      - added API support for specifying the SOAP bindings in the WSDL to use
+        (a href="https://github.com/qorelanguage/qore/issues/1116">issue 1116</a>)
     - <a href="../../SoapHandler/html/index.html">SoapHandler</a> module changes:
       - added support for logging messages
     - <a href="../../WSDL/html/index.html">WSDL</a> module changes:
-      - fixed a bug in late resolution of \c complexTypes (<a href="https://github.com/qorelanguage/qore/issues/975">issue 975</a>)
-      - fixed a bug handling empty \c complexType declarations (<a href="https://github.com/qorelanguage/qore/issues/984">issue 984</a>)
-      - fixed a bug handling \c complexType extentions (<a href="https://github.com/qorelanguage/qore/issues/985">issue 985</a>)
-      - fixed bugs handling \c elementFormDefault="qualified" declarations when the value differs between schemas (<a href="https://github.com/qorelanguage/qore/issues/1112">issue 1112</a>)
-      - fixed a bug where \c xsi:type information was serialized when not necessary (<a href="https://github.com/qorelanguage/qore/issues/1120">issue 1120</a>)
-      - added a more user-friendly exception when WSDLs are encountered with unsupported bindings (issue <a href="https://github.com/qorelanguage/qore/issues/1116">issue 1116</a>)
+      - fixed a bug in late resolution of \c complexTypes
+        (<a href="https://github.com/qorelanguage/qore/issues/975">issue 975</a>)
+      - fixed a bug handling empty \c complexType declarations
+        (<a href="https://github.com/qorelanguage/qore/issues/984">issue 984</a>)
+      - fixed a bug handling \c complexType extentions
+        (<a href="https://github.com/qorelanguage/qore/issues/985">issue 985</a>)
+      - fixed bugs handling \c elementFormDefault="qualified" declarations when the value differs between schemas
+        (<a href="https://github.com/qorelanguage/qore/issues/1112">issue 1112</a>)
+      - fixed a bug where \c xsi:type information was serialized when not necessary
+        (<a href="https://github.com/qorelanguage/qore/issues/1120">issue 1120</a>)
+      - added a more user-friendly exception when WSDLs are encountered with unsupported bindings
+        (issue <a href="https://github.com/qorelanguage/qore/issues/1116">issue 1116</a>)
       - added \c WSDL::WSMessageHelper to generate sample messages
-      - added support for multiple SOAP bindings in the WSDL including HTTP \c GET/POST bindings (<a href="https://github.com/qorelanguage/qore/issues/1116">issue 1116</a>)
-      - fixed a bug in message serialization; all required elements must be present or an exception is thrown (<a href="https://github.com/qorelanguage/qore/issues/1713">issue 1713</a>)
-      - fixed a bug handling base type extensions to complexTypes (<a href="https://github.com/qorelanguage/qore/issues/2190">issue 2190</a>)
-    - improved argument error messages with RPC calls in the <a href="../../XmlRpcHandler/html/index.html">XmlRpcHandler</a> module (<a href="https://github.com/qorelanguage/qore/issues/2573">issue 2573</a>)
+      - added support for multiple SOAP bindings in the WSDL including HTTP \c GET/POST bindings
+        (<a href="https://github.com/qorelanguage/qore/issues/1116">issue 1116</a>)
+      - fixed a bug in message serialization; all required elements must be present or an exception is thrown
+        (<a href="https://github.com/qorelanguage/qore/issues/1713">issue 1713</a>)
+      - fixed a bug handling base type extensions to complexTypes
+        (<a href="https://github.com/qorelanguage/qore/issues/2190">issue 2190</a>)
+    - improved argument error messages with RPC calls in the
+      <a href="../../XmlRpcHandler/html/index.html">XmlRpcHandler</a> module
+      (<a href="https://github.com/qorelanguage/qore/issues/2573">issue 2573</a>)
 
     @subsection xml132 xml Module Version 1.3.2
     <b>Changes and Bug Fixes in This Release</b>
-    - fixed SOAP handler to produce correct URLs in WSDL (<a href="https://github.com/qorelanguage/qore/issues/1631">issue 1631</a>)
-    - added documentation for the WSOperation class in the <a href="../../WSDL/html/index.html">WSDL</a> module (<a href="https://github.com/qorelanguage/qore/issues/1670">issue 1670</a>)
-    - fixed \c SalesforceSoapClient::callOperation() in the <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> module to respect the \c soapaction header (<a href="https://github.com/qorelanguage/qore/issues/1659">issue 1659</a>)
+    - fixed SOAP handler to produce correct URLs in WSDL
+      (<a href="https://github.com/qorelanguage/qore/issues/1631">issue 1631</a>)
+    - added documentation for the WSOperation class in the <a href="../../WSDL/html/index.html">WSDL</a> module
+      (<a href="https://github.com/qorelanguage/qore/issues/1670">issue 1670</a>)
+    - fixed \c SalesforceSoapClient::callOperation() in the
+      <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> module to respect the
+      \c soapaction header
+      (<a href="https://github.com/qorelanguage/qore/issues/1659">issue 1659</a>)
 
     @subsection xml131 xml Module Version 1.3.1
     <b>Changes and Bug Fixes in This Release</b>
-    - fixed a memory leak in XML-RPC parsing (<a href="https://github.com/qorelanguage/qore/issues/1214">issue 1214</a>)
+    - fixed a memory leak in XML-RPC parsing
+      (<a href="https://github.com/qorelanguage/qore/issues/1214">issue 1214</a>)
     - <a href="../../WSDL/html/index.html">WSDL</a> fixes and enhancements:
-      - supress emitting a SOAPAction header in requests if the binding gives an empty string (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
-      - updated \c WSOperation::serializeRequest() to allow the SOAPAction header to be overridden in each request (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
+      - supress emitting a SOAPAction header in requests if the binding gives an empty string
+        (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
+      - updated \c WSOperation::serializeRequest() to allow the SOAPAction header to be overridden in each request
+        (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
       - respect XML generation flags in request generation
-      - fixed parsing empty base64Binary and hexBinary elements (<a href="https://github.com/qorelanguage/qore/issues/1227">issue 1227</a>)
+      - fixed parsing empty base64Binary and hexBinary elements
+        (<a href="https://github.com/qorelanguage/qore/issues/1227">issue 1227</a>)
     - <a href="../../SoapClient/html/index.html">SoapClient</a> fixes and enhancements:
-      - added the \c SoapClient::callOperation() method (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
-      - updated SOAP response processing to throw an exception when the server responds with an error code (<a href="https://github.com/qorelanguage/qore/issues/1228">issue 1228</a>)
-      - content-type in exceptional cases follows Soap version (<a href="https://github.com/qorelanguage/qore/issues/1244">issue 1244</a>)
-      - fixed a typo in a debug logging statement (<a href="https://github.com/qorelanguage/qore/issues/1358">issue 1358</a>)
-      - fixed and documented the "info" output hash format (<a href="https://github.com/qorelanguage/qore/issues/1359">issue 1359</a>)
-      - fixed a typo in a debug logging statement (<a href="https://github.com/qorelanguage/qore/issues/1358">issue 1358</a>)
-      - fixed and documented the "info" output hash format (<a href="https://github.com/qorelanguage/qore/issues/1359">issue 1359</a>)
-      - fixed a bug in the SoapClient::constructor() where a WebService object was not supported (<a href="https://github.com/qorelanguage/qore/issues/1424">issue 1424</a>)
+      - added the \c SoapClient::callOperation() method
+        (<a href="https://github.com/qorelanguage/qore/issues/1226">issue 1226</a>)
+      - updated SOAP response processing to throw an exception when the server responds with an error code
+        (<a href="https://github.com/qorelanguage/qore/issues/1228">issue 1228</a>)
+      - content-type in exceptional cases follows Soap version
+        (<a href="https://github.com/qorelanguage/qore/issues/1244">issue 1244</a>)
+      - fixed a typo in a debug logging statement
+        (<a href="https://github.com/qorelanguage/qore/issues/1358">issue 1358</a>)
+      - fixed and documented the "info" output hash format
+        (<a href="https://github.com/qorelanguage/qore/issues/1359">issue 1359</a>)
+      - fixed a typo in a debug logging statement
+        (<a href="https://github.com/qorelanguage/qore/issues/1358">issue 1358</a>)
+      - fixed and documented the "info" output hash format
+        (<a href="https://github.com/qorelanguage/qore/issues/1359">issue 1359</a>)
+      - fixed a bug in the SoapClient::constructor() where a WebService object was not supported
+        (<a href="https://github.com/qorelanguage/qore/issues/1424">issue 1424</a>)
     - added <a href="../../SalesforceSoapClient/html/index.html">SalesforceSoapClient</a> user module
     - added Salesforce.com.qtest and accompanying WSDLs
 
@@ -496,7 +605,8 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     <b>Changes and Bug Fixes in This Release</b>
     - added the @ref Qore::Xml::SaxIterator "SaxIterator" and @ref Qore::Xml::FileSaxIterator "FileSaxIterator" classes
     - <a href="../../WSDL/html/index.html">WSDL</a> fixes and enhancements:
-      - many major SOAP messaging and WSDL handling fixes including major namespace handling and serialization/deserialization fixes
+      - many major SOAP messaging and WSDL handling fixes including major namespace handling and
+        serialization/deserialization fixes
       - complexType attributes are now serialized and deserialized correctly
       - elements with the same names in different namespaces are now handled correctly
       - complexTypes wtih a sequence of choice and element elements are now handled correctly
@@ -508,12 +618,18 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
       - implemented support for operations with either a missing input or output message
       - XSD \c "integer" types are returned as integers when possible
       - fixed a bug in XSD namespace handling
-      - fixed bugs deserializing xml nil elements (<a href="https://github.com/qorelanguage/qore/issues/468">issue 468</a>)
-      - fixed a bug handling types with more than two levels of nested references (<a href="https://github.com/qorelanguage/qore/issues/560">issue 560</a>)
-      - fixed namespace prefix generation with elements in different schemas and for elements based on references (<a href="https://github.com/qorelanguage/qore/issues/561">issue 561</a>)
-      - new APIs for WebService introspection and WSDL retrieving (<a href="https://github.com/qorelanguage/qore/issues/571">issue 571</a>)
-      - fixed a bug handling empty lists for optional elements (<a href="https://github.com/qorelanguage/qore/issues/663">issue 663</a>)
-      - fixed a bug setting the \c "charset=..." value in HTTP headers (<a href="https://github.com/qorelanguage/qore/issues/906">issue 906</a>)
+      - fixed bugs deserializing xml nil elements
+        (<a href="https://github.com/qorelanguage/qore/issues/468">issue 468</a>)
+      - fixed a bug handling types with more than two levels of nested references
+        (<a href="https://github.com/qorelanguage/qore/issues/560">issue 560</a>)
+      - fixed namespace prefix generation with elements in different schemas and for elements based on references
+        (<a href="https://github.com/qorelanguage/qore/issues/561">issue 561</a>)
+      - new APIs for WebService introspection and WSDL retrieving
+        (<a href="https://github.com/qorelanguage/qore/issues/571">issue 571</a>)
+      - fixed a bug handling empty lists for optional elements
+        (<a href="https://github.com/qorelanguage/qore/issues/663">issue 663</a>)
+      - fixed a bug setting the \c "charset=..." value in HTTP headers
+        (<a href="https://github.com/qorelanguage/qore/issues/906">issue 906</a>)
     - <a href="../../SoapClient/html/index.html">SoapClient</a> fixes:
       - fixed URI request path
       - fixed agent string
@@ -537,9 +653,13 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
       - added support for debugging (verbose exception info/logging)
       - updated for new WebService APIs; improved URL matching
       - improved service URL generation
-      - WSDLs are now returned with the correct service URLs (<a href="https://github.com/qorelanguage/qore/issues/568">issue 568</a>, <a href="https://github.com/qorelanguage/qore/issues/571">issue 571</a>)
-    - user modules moved to top-level qore module directory from version-specific module directory since they are valid for multiple versions of qore
-    - implemented the following non-camel-case functions as replacements for old camel-case functions (the following camel-case function names are now deprecated):
+      - WSDLs are now returned with the correct service URLs
+        (<a href="https://github.com/qorelanguage/qore/issues/568">issue 568</a>,
+        <a href="https://github.com/qorelanguage/qore/issues/571">issue 571</a>)
+    - user modules moved to top-level qore module directory from version-specific module directory since they are
+      valid for multiple versions of qore
+    - implemented the following non-camel-case functions as replacements for old camel-case functions (the following
+      camel-case function names are now deprecated):
       - make_xml(): replaced:
          - makeXMLString()
          - makeFormattedXMLString()
@@ -584,8 +704,10 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @subsection xml12 xml Module Version 1.2
     <b>Changes and Bug Fixes in This Release</b>
-    - implemented dynamic unbinding of service methods in the <a href="../../SoapHandler/html/index.html">SoapHandler</a> module
-    - fixed bugs in @ref Qore::Xml::XmlReader::toQore() "XmlReader::toQore()" and @ref Qore::Xml::XmlReader::toQoreData() "XmlReader::toQoreData()" for SAX parsing
+    - implemented dynamic unbinding of service methods in the
+      <a href="../../SoapHandler/html/index.html">SoapHandler</a> module
+    - fixed bugs in @ref Qore::Xml::XmlReader::toQore() "XmlReader::toQore()" and
+      @ref Qore::Xml::XmlReader::toQoreData() "XmlReader::toQoreData()" for SAX parsing
     - implemented enhanced logging for the <a href="../../XmlRpcHandler/html/index.html">XmlRpcHandler</a> module
     - doc updates
 

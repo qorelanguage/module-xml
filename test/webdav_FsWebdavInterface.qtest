@@ -97,20 +97,27 @@ class Main inherits QUnit::Test {
         };
 
         string req_xml = make_xml(req);
-        on_error printf("REQUEST XML: %s\n", req_xml);
-        string xml = wd.send(req_xml, "PROPFIND", basename(tmp_file.path), NOTHING, NOTHING, \info).body;
-        hash<auto> wd_data = parse_xml(xml);
-        on_error
-            printf("response data: %N\n", wd_data);
-
-        hash<auto> props = wd_data."DAV:multistatus"."DAV:response"."DAV:propstat"."DAV:prop";
-        date creation_date = date(props."DAV:creationdate");
-        assertGe(start, creation_date);
+        string xml;
+        hash<auto> wd_data;
+        date creation_date;
+        date last_modified_date;
+        hash<auto> props;
         # GMT time zone
         TimeZone gmt(0);
-        date last_modified_date = gmt.date(props."DAV:getlastmodified"[5..], "DD Mon YYYY HH:mm:SS");
-        assertGe(start, last_modified_date);
-        assertEq(4, props."DAV:getcontentlength".toInt());
+        {
+            on_error printf("REQUEST XML: %s\n", req_xml);
+            xml = wd.send(req_xml, "PROPFIND", basename(tmp_file.path), NOTHING, NOTHING, \info).body;
+            wd_data = parse_xml(xml);
+            on_error
+                printf("response data: %N\n", wd_data);
+
+            props = wd_data."DAV:multistatus"."DAV:response"."DAV:propstat"."DAV:prop";
+            creation_date = date(props."DAV:creationdate");
+            assertGe(start, creation_date);
+            last_modified_date = gmt.date(props."DAV:getlastmodified"[5..], "DD Mon YYYY HH:mm:SS");
+            assertGe(start, last_modified_date);
+            assertEq(4, props."DAV:getcontentlength".toInt());
+        }
 
         req = {
             "DAV:propfind": {
@@ -165,6 +172,54 @@ class Main inherits QUnit::Test {
         last_modified_date = gmt.date(props."DAV:getlastmodified"[5..], "DD Mon YYYY HH:mm:SS");
         assertGe(start, last_modified_date);
         assertEq(4, props."DAV:getcontentlength".toInt());
+
+        # check our initial file
+        hash<auto> resp;
+        {
+            on_error printf("resp: %N\n", resp);
+            resp = wd.send(NOTHING, "GET", basename(tmp_file.path), NOTHING, NOTHING, \info);
+            assertEq("chunked", resp."transfer-encoding");
+            assertEq("test", resp.body);
+        }
+
+        # push a file to the server
+        string filename = get_random_string() + ".txt";
+        string content = get_random_string();
+        resp = wd.send(content, "POST", filename, NOTHING, NOTHING, \info);
+        assertEq(201, resp.status_code);
+
+        # retrieve the file we just pushed
+        {
+            on_error printf("resp: %N\n", resp);
+            resp = wd.send(NOTHING, "GET", filename, NOTHING, NOTHING, \info);
+            assertEq("chunked", resp."transfer-encoding");
+            assertEq(content, resp.body);
+        }
+
+        # stream a new file to the server
+        filename = get_random_string() + ".txt";
+        content = get_random_string();
+
+        StringInputStream is(content);
+        code send = auto sub () {
+            return is.read(4096);
+        };
+        {
+            wd.sendHTTPMessageWithCallback(send, "POST", filename, "1.1", {"Transfer-Encoding": "chunked"}, \info);
+            resp = wd.readHTTPHeader(5s);
+            on_error printf("resp: %N\n", resp);
+            if (resp."content-length") {
+                resp.body = wd.recv(resp."content-length", 5s);
+            } else if (resp."transfer-encoding" == "chunked") {
+                resp += wd.readHTTPChunkedBody(5s);
+            }
+        }
+        assertEq(201, resp.status_code);
+
+        # retrieve the file we just pushed
+        resp = wd.send(NOTHING, "GET", filename, NOTHING, NOTHING, \info);
+        assertEq("chunked", resp."transfer-encoding");
+        assertEq(content, resp.body);
     }
 } # class Main
 
