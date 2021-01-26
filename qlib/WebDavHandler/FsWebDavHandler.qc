@@ -124,17 +124,23 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
     #! Returns resources for use in a PROPFIND request based on a StatInfo hash
     private hash<auto> hstat2Resource(string path, string displayname, hash<StatInfo> h) {
-        return {
+        hash<auto> rv = {
             "DAV:displayname": displayname, #displayname.val() ? displayname : NOTHING,
-            "DAV:size": h.size,
-            "DAV:creationdate": h.ctime,
-            "DAV:getlastmodified": h.mtime,
-            "DAV:getcontentlength": h.type == "DIRECTORY" ? getContentType(path).size() : h.size,
+            "DAV:creationdate": h.ctime.format("YYYY-MM-DDTHH:mm:SSZ"),
+            # NOTE: getlastmodified uses the spec defined in
+            # RFC 2616 (https://tools.ietf.org/html/rfc2616#section-3.3.1):
+            # defined in RFC 4919 (https://tools.ietf.org/html/rfc4918#section-15.7)
+            "DAV:getlastmodified": h.mtime.format("Dy, DD Mon YYYY HH:mm:SS") + " GMT",
             "DAV:getetag": getETag(path),
             "DAV:resourcetype": h.type == "DIRECTORY" ? {"DAV:collection": NOTHING} : "",
             "DAV:getcontenttype": h.type == "DIRECTORY" ? MimeTypeText : getContentType(path),
-            "DAV:lockdiscovery": "None",
+            "DAV:supportedlock": NOTHING,
+            "DAV:lockdiscovery": NOTHING,
         };
+        if (h.type != "DIRECTORY") {
+            rv."DAV:getcontentlength" = h.size;
+        };
+        return rv;
     }
 
     #! Returns a normalized path for a raw path
@@ -836,6 +842,8 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
             if (debug) {
                 printf("FsWebDavHandler::handlePropfindImpl() additional_props: %N\n", additional_props);
             }
+        } else {
+            all_props = True;
         }
 
         # prepare response
