@@ -3,9 +3,7 @@
 %new-style
 %enable-all-warnings
 
-%requires /Users/david/src/qore/git/qore/qlib/HttpServer.qm
-
-#%requires HttpServer
+%requires HttpServer
 %requires ../qlib/WebDavHandler
 %requires QUnit
 %requires FsUtil
