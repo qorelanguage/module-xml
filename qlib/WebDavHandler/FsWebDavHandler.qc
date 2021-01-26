@@ -38,6 +38,12 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         #! The root directory for serving files
         string basePath;
         bool debug;
+
+        #! Default block size for chunked sends (32KiB)
+        const BlockSize = 32 * 1024;
+
+        #! Default I/O timeout
+        const IoTimeout = 30s;
     }
 
     #! Creates the object with an empty logger and an in-memory property handler
@@ -195,7 +201,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         );
     }
 
-    private:internal hash<HttpResponseInfo> internalGet(hash<auto> cx, hash<auto> hdr, *data body, bool get = True) {
+    private:internal hash<HttpResponseInfo> internalGet(Socket s, hash<auto> cx, hash<auto> hdr, *data body, bool get = True) {
         # load file
         string path = getPath(cx.raw_path);
         *hash<StatInfo> h = hstat(path);
@@ -221,9 +227,6 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
             case "REGULAR":
             case "SYMBOLIC-LINK": {
                 ct = getContentType(path);
-                if (get) {
-                    b = File::readBinaryFile(path);
-                }
                 size = h.size;
                 break;
             }
@@ -232,7 +235,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
                 return response(404, "%s: not a regular file (%s)", path, h.type);
         }
 
-        return <HttpResponseInfo>{
+        hash<HttpResponseInfo> rv = <HttpResponseInfo>{
             "code": 200,
             "hdr": {
                 "Content-Type": ct,
@@ -242,8 +245,20 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
                 "DAV:getlastmodified": h.mtime.format("YYYY-MM-DDTHHmmSS"),
                 "DAV:creationdate": h.ctime.format("YYYY-MM-DDTHHmmSS"),
             },
-            "body": b,
         };
+        if (b) {
+            rv.body = b;
+        } else if (get) {
+            # semd a chunked reply
+            rv.hdr."Transfer-Encoding" = "chunked";
+            FileInputStream is(path, IoTimeout);
+            code send = auto sub () {
+                return is.read(BlockSize);
+            };
+            s.sendHTTPResponseWithCallback(send, 200, HttpServer::HttpCodes{"200"}, "1.1", rv.hdr, IoTimeout);
+            rv.reply_sent = True;
+        }
+        return rv;
     }
 
     private:internal *string getDirectoryList(string path) {
@@ -287,9 +302,9 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the HTTP request
     */
-    private hash<HttpResponseInfo> handleGetImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleGetImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         # True = GET, False = HEAD
-        return internalGet(cx, hdr, body, True);
+        return internalGet(s, cx, hdr, body, True);
     }
 
     #! Handles HTTP HEAD requests for WebDavHandler resources
@@ -312,14 +327,16 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
         - \c socket-info: a hash of socket information for the listening socket (as returned by
           @ref Qore::Socket::getSocketInfo())
-        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by
+          @ref Qore::Socket::getPeerInfo())
         - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
         - \c id: the unique HTTP connection ID
         - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
         - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
         - \c user: the current RBAC username (if any)
         - \c root_path: the root URL path matched if the request was matched by a URL prefix
-        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys
+        will be present:
         - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
         - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
@@ -327,9 +344,9 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the HTTP request
     */
-    private hash<HttpResponseInfo> handleHeadImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleHeadImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         # True = GET, False = HEAD
-        return internalGet(cx, hdr, body, False);
+        return internalGet(s, cx, hdr, body, False);
     }
 
     #! Handles HTTP POST requests for WebDavHandler resources
@@ -352,14 +369,16 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         - \c socket: the bind address used to bind the listener (\c "socket-info" provides more detailed information)
         - \c socket-info: a hash of socket information for the listening socket (as returned by
           @ref Qore::Socket::getSocketInfo())
-        - \c peer-info: a hash of socket information for the remote socket (as returned by @ref Qore::Socket::getPeerInfo())
+        - \c peer-info: a hash of socket information for the remote socket (as returned by
+          @ref Qore::Socket::getPeerInfo())
         - \c url: a hash of broken-down URL information (as returned from @ref Qore::parse_url())
         - \c id: the unique HTTP connection ID
         - \c ssl: @ref True "True" if the request was encrypted with HTTPS, @ref False "False" if not
         - \c listener-id: the HTTP server listener ID (see HttpServer::getListenerInfo())
         - \c user: the current RBAC username (if any)
         - \c root_path: the root URL path matched if the request was matched by a URL prefix
-        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys will be present:
+        @param hdr incoming header hash; all keys will be converted to lower-case, additionally the following keys
+        will be present:
         - \c method: the HTTP method received (ie \c "GET", \c "POST", etc)
         - \c path: the HTTP path given in the request, after processing by @ref Qore::decode_uri_request()
         - \c http_version: the HTTP version number in the request (either \c "1.0" or \c "1.1")
@@ -367,7 +386,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the HTTP request
     */
-    private hash<HttpResponseInfo> handlePostImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handlePostImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         string path = getPath(cx.raw_path);
         if (path =~ /\/$/) {
             return response(400, "root directory already exists");
@@ -386,11 +405,21 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         # save data
         try {
-            File f();
-            if (f.open(path, O_CREAT | O_TRUNC | O_WRONLY, 0644, "UTF-8")) {
-                return response(500, "Could not create new file");
+            if (!exists body && (hdr."transfer-encoding" == "chunked")) {
+                FileOutputStream os(path);
+                s.readHTTPChunkedBodyToOutputStream(os, IoTimeout);
+            } else {
+                if (!body) {
+                    body = getMessageBody(s, hdr);
+                }
+                File f();
+                if (f.open(path, O_CREAT | O_TRUNC | O_WRONLY, 0644, "UTF-8")) {
+                    return response(500, "Could not create new file: %s", strerror());
+                }
+                if (exists body) {
+                    f.write(body);
+                }
             }
-            f.write(body);
         } catch (hash<ExceptionInfo> ex) {
             return response(400, "Destination path is not a regular file");
         }
@@ -437,8 +466,8 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the HTTP request
     */
-    private hash<HttpResponseInfo> handlePutImpl(hash<auto> cx, hash<auto> hdr, *data body) {
-        return handlePost(cx, hdr, body);
+    private hash<HttpResponseInfo> handlePutImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
+        return handlePost(s, cx, hdr, body);
     }
 
     #! Handles HTTP DELETE requests for WebDavHandler resources
@@ -476,7 +505,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the HTTP request
     */
-    private hash<HttpResponseInfo> handleDeleteImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleDeleteImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         string path = getPath(cx.raw_path);
 
         *hash<StatInfo> h = hstat(path);
@@ -524,8 +553,8 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the WebDavHandler request
     */
-    private hash<HttpResponseInfo> handleCopyImpl(hash<auto> cx, hash<auto> hdr, *data body) {
-        return doCopyMoveIntern(cx, hdr, body, True);
+    private hash<HttpResponseInfo> handleCopyImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
+        return doCopyMoveIntern(s, cx, hdr, body, True);
     }
 
     #! Handles WebDavHandler MOVE requests for WebDavHandler resources
@@ -563,11 +592,11 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the WebDavHandler request
     */
-    private hash<HttpResponseInfo> handleMoveImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleMoveImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         # additional deletion of source
         string src_path = getPath(cx.raw_path);
         # copy to target first
-        hash<HttpResponseInfo> ret = doCopyMoveIntern(cx, hdr, body, False);
+        hash<HttpResponseInfo> ret = doCopyMoveIntern(s, cx, hdr, body, False);
         # then remove src
         if (ret.code >= 200 && ret.code < 300) {
             FsUtil::remove_path(src_path);
@@ -610,7 +639,11 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the WebDavHandler request
     */
-    private hash<HttpResponseInfo> handleLockImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleLockImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
+        if (!body) {
+            body = getMessageBody(s, cx.hdr);
+        }
+
         if (!body) {
             # RFC #4918: https://tools.ietf.org/html/rfc4918#page-62
             if (hdr."if") {
@@ -681,7 +714,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the WebDavHandler request
     */
-    private hash<HttpResponseInfo> handleUnlockImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleUnlockImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         return response(501);
     }
 
@@ -720,7 +753,11 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the WebDavHandler request
     */
-    private hash<HttpResponseInfo> handleMkcolImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleMkcolImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
+        if (!body) {
+            body = getMessageBody(s, cx.hdr);
+        }
+
         # litmus: MKCOL with weird body must fail (RFC2518:8.3.1)
         if (exists body) {
             return response(415, "Unsupported Media Type");
@@ -795,7 +832,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @return the response to the WebDavHandler request
     */
-    private hash<HttpResponseInfo> handlePropfindImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handlePropfindImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         #if (debug) {
             #printf("FsWebDavHandler::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
         #}
@@ -808,6 +845,9 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         # property map: ns -> property -> True
         hash<string, hash<string, bool>> additional_props;
         bool all_props = False;
+        if (!body) {
+            body = getMessageBody(s, cx.hdr);
+        }
         if (body) {
             # parse the mandatory XML body
             hash<auto> request_xml;
@@ -872,7 +912,8 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         @throw WEBDAVHANDLER-ERROR an error occured
     */
-    private *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx, hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions) {
+    private *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx,
+            hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions) {
         string path = getNormalizedPath(cx.raw_path);
         href = path;
 
@@ -924,9 +965,9 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     }
 
     #! Process copy and moves (without deletion) internally including properties (properties are moved, files are copied)
-    private:internal hash<HttpResponseInfo> doCopyMoveIntern(hash<auto> cx, hash<auto> hdr, *data body, bool copy_props) {
+    private:internal hash<HttpResponseInfo> doCopyMoveIntern(Socket s, hash<auto> cx, hash<auto> hdr, *data body, bool copy_props) {
         try {
-            internalCopyMove(cx, hdr, body, copy_props);
+            internalCopyMove(s, cx, hdr, body, copy_props);
         } catch (hash<ExceptionInfo> ex) {
             if (ex.err =~ /^[0-9]{3}$/) {
                 return response(ex.err.toInt(), ex.desc);
@@ -940,7 +981,11 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     }
 
     #! Copy or move the file and any properties
-    private:internal internalCopyMove(hash<auto> cx, hash<auto> hdr, *data body, bool copy_props) {
+    private:internal internalCopyMove(Socket s, hash<auto> cx, hash<auto> hdr, *data body, bool copy_props) {
+        if (!body) {
+            body = getMessageBody(s, cx.hdr);
+        }
+
         string dest = hdr.destination;
         *hash<UrlInfo> url = parseURL(dest);
         string dest_path = getNormalizedPath(url.path);

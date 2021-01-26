@@ -63,7 +63,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handleGetImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleGetImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -74,7 +74,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handleHeadImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleHeadImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -85,7 +85,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handlePostImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handlePostImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -96,7 +96,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handlePutImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handlePutImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -107,7 +107,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handleDeleteImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleDeleteImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -118,7 +118,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handleCopyImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleCopyImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -129,7 +129,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handleMoveImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleMoveImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -140,7 +140,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handleLockImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleLockImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -151,7 +151,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handleUnlockImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleUnlockImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -162,7 +162,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handleMkcolImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handleMkcolImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
@@ -175,7 +175,7 @@ public class DummyWebDavHandler inherits AbstractWebDavHandler {
 
         @note This method always returns a <tt>501 Unimplemented</tt> response
     */
-    private hash<HttpResponseInfo> handlePropfindImpl(hash<auto> cx, hash<auto> hdr, *data body) {
+    private hash<HttpResponseInfo> handlePropfindImpl(Socket sock, hash<auto> cx, hash<auto> hdr, *data body) {
         return resp501();
     }
 
