@@ -197,7 +197,7 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
             string virtual_relative_path_base = "/") {
         self.logger = logger;
         self.property_handler = property_handler;
-        virtual_base_path = normalize_dir(virtual_relative_path_base);
+        virtual_base_path = normalize_dir(virtual_relative_path_base, "/");
     }
 
     #! Copies all properties from the given source URL to the target URL
@@ -216,7 +216,8 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
     }
 
     #! Returns a hash that can be serialized to an XML string for a PROPFIND request
-    private hash<auto> preparePropFindXmlResponse(string local_path, string href, bool is_collection, hash<auto> base_props, bool all_props = False, *hash<string, hash<string, bool>> additional_props) {
+    private hash<auto> preparePropFindXmlResponse(string local_path, string href, bool is_collection,
+            hash<auto> base_props, bool all_props = False, *hash<string, hash<string, bool>> additional_props) {
         # maps from status code -> namespace -> prop
         hash code_map;
 
@@ -224,7 +225,7 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
         hash<auto> rv_props;
         if (all_props) {
             rv_props{DavNs}."DAV:resourcetype" = is_collection ? {"DAV:collection": NOTHING} : NOTHING;
-            rv_props{DavNs} += map {"DAV:" + $1.key: $1.value}, base_props.pairIterator();
+            rv_props{DavNs} += base_props; #map {$1.key: $1.value}, base_props.pairIterator();
 
             # add all user props for the href
             rv_props += property_handler.getAll(local_path);
@@ -237,7 +238,8 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
                 rv_props{DavNs} += map {$1.key: $1.value}, base_props{def_props}.pairIterator();
 
                 # add 404 response for not found properties
-                if (*list<string> missing = keys (def_prop_map - ((keys rv_props{DavNs}) ?? ""))) {
+                if (*list<string> missing = keys (def_prop_map -
+                    ((map ($1 =~ x/^DAV:(.*)$/)[0], keys rv_props{DavNs}) ?? ""))) {
                     map code_map."404"{DavNs}{$1} = NOTHING, missing;
                 }
             }
