@@ -859,7 +859,9 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
         # action list
         list<hash<PropPatchActionInfo>> actions;
 
-        body = getMessageBody(cx.socket, cx.hdr, NOTHING);
+        if (!body) {
+            body = getMessageBody(s, cx.hdr);
+        }
 
         if (exists body) {
             try {

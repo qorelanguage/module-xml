@@ -118,6 +118,7 @@ class Main inherits QUnit::Test {
                 assertEq(200, ret.status_code);
             } catch (hash<ExceptionInfo> ex) {
                 assertEq("HTTP-CLIENT-RECEIVE-ERROR", ex.err, it.getKey() + ": " + ex.err);
+                on_error printf("%s\n", get_exception_string(ex));
                 assertEq(True, ex.desc =~ /501.*Not Implemented/, it.getKey() + ": " + ex.desc);
             }
         }

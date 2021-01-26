@@ -641,7 +641,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     */
     private hash<HttpResponseInfo> handleLockImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         if (!body) {
-            body = getMessageBody(s, cx.hdr, NOTHING);
+            body = getMessageBody(s, cx.hdr);
         }
 
         if (!body) {
@@ -755,7 +755,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     */
     private hash<HttpResponseInfo> handleMkcolImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         if (!body) {
-            body = getMessageBody(s, cx.hdr, NOTHING);
+            body = getMessageBody(s, cx.hdr);
         }
 
         # litmus: MKCOL with weird body must fail (RFC2518:8.3.1)
@@ -846,7 +846,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         hash<string, hash<string, bool>> additional_props;
         bool all_props = False;
         if (!body) {
-            body = getMessageBody(s, cx.hdr, NOTHING);
+            body = getMessageBody(s, cx.hdr);
         }
         if (body) {
             # parse the mandatory XML body
@@ -983,7 +983,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     #! Copy or move the file and any properties
     private:internal internalCopyMove(Socket s, hash<auto> cx, hash<auto> hdr, *data body, bool copy_props) {
         if (!body) {
-            body = getMessageBody(s, cx.hdr, NOTHING);
+            body = getMessageBody(s, cx.hdr);
         }
 
         string dest = hdr.destination;
