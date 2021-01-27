@@ -51,7 +51,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         @param auth the authentication object to use to authenticate connections
     */
     constructor(string path, *HttpServer::AbstractAuthenticator auth) : AbstractWebDavHandler(auth) {
-        basePath = normalize_dir(path);
+        init(path);
     }
 
     #! Creates the object with the given argument and an in-memory property handler
@@ -62,7 +62,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     */
     constructor(string path, *HttpServer::AbstractAuthenticator auth, string virtual_relative_path_base)
             : AbstractWebDavHandler(auth, virtual_relative_path_base) {
-        basePath = normalize_dir(path);
+        init(path);
     }
 
     #! Creates the object with the given arguments
@@ -75,7 +75,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     constructor(string path, *HttpServer::AbstractAuthenticator auth, AbstractWebDavPropertyHandler property_handler,
             string virtual_relative_path_base = "/")
              : AbstractWebDavHandler(auth, property_handler, virtual_relative_path_base) {
-        basePath = normalize_dir(path);
+        init(path);
     }
 
     #! Creates the object with the given arguments
@@ -90,37 +90,27 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
             AbstractWebDavPropertyHandler property_handler = new InMemoryWebDavPropertyHandler(),
             string virtual_relative_path_base = "/") : AbstractWebDavHandler(auth, logger, property_handler,
                 virtual_relative_path_base) {
-        basePath = normalize_dir(path);
+        init(path);
+    }
+
+    #! Common constructor initialization
+    private init(string path) {
+        basePath = normalize_dir(path) + "/";
+        if (!is_dir(basePath)) {
+            throw "WEBDAV-BASE-PATH-ERROR", sprintf("path %y is not a directory", path);
+        }
     }
 
     #! Converts a request path to a normalized real path on the filesystem in the root WebDavHandler directory
     /** @throw WEBDAVHANDLER-FORBIDDEN if the path is not valid
     */
-    private string getPath(string raw_path) {
-        string tmp = AbstractWebDavHandler::getRelativePath(raw_path);
-
-        if (tmp.equalPartial("/")) {
-            tmp = basePath + tmp;
-        } else {
-            tmp = basePath + DirSep + tmp;
+    private string getRealPath(string raw_path) {
+        string path = getRelativePath(raw_path);
+        path = normalize_dir(basePath + path, "/");
+        if (path =~ /\/$/) {
+            splice path, -1;
         }
-
-        return checkPathScope(tmp);
-    }
-
-    #! Ensures that the path is valid and returns a normalized path
-    /** @throw WEBDAVHANDLER-FORBIDDEN if the path is not valid
-    */
-    private string checkPathScope(string tmp) {
-        # it's strictly prohibitted to make file operations
-        # out of the basePath prefix
-        tmp = normalize_dir(tmp);
-
-        if (!tmp.regex("^" + basePath)) {
-            throw "WEBDAVHANDLER-FORBIDDEN", tmp;
-        }
-
-        return tmp;
+        return path;
     }
 
     #! Returns the content type for the file based on its extension
@@ -131,7 +121,8 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     #! Returns resources for use in a PROPFIND request based on a StatInfo hash
     private hash<auto> hstat2Resource(string path, string displayname, hash<StatInfo> h) {
         hash<auto> rv = {
-            "DAV:displayname": displayname, #displayname.val() ? displayname : NOTHING,
+            "DAV:displayname": displayname,
+            # creationdate uses ISO-8601 format
             "DAV:creationdate": h.ctime.format("YYYY-MM-DDTHH:mm:SSZ"),
             # NOTE: getlastmodified uses the spec defined in
             # RFC 2616 (https://tools.ietf.org/html/rfc2616#section-3.3.1):
@@ -149,26 +140,16 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         return rv;
     }
 
-    #! Returns a normalized path for a raw path
-    private string getNormalizedPath(string raw_path) {
-        raw_path = normalize_dir(getPath(raw_path));
-        if (raw_path =~ /\/$/) {
-            raw_path = raw_path.substr(0, -1);
-        }
-        return raw_path;
-    }
-
     #! Returns responses for each relevant resource
-    private:internal list<hash<auto>> preparePropFindResponse(string raw_path, string depth = "infinity", hash<StatInfo> h, bool all_props, *hash<string, hash<string, bool>> additional_props) {
-        string local_path = getNormalizedPath(raw_path);
-        if (debug) {
-            printf("FsWebDavHandler::preparePropFindResponse() AAA %y -- %y\n", raw_path, basename(raw_path));
-        }
+    private:internal list<hash<auto>> preparePropFindResponse(hash<auto> cx, string depth = "infinity",
+            hash<StatInfo> h, bool all_props, *hash<string, hash<string, bool>> additional_props) {
+        string local_path = cx.webdav_path;
+        string raw_path = cx.raw_path;
         bool is_dir = (h.type == "DIRECTORY");
 
         list<hash<auto>> res = ();
-        res += preparePropFindXmlResponse(local_path, raw_path, is_dir, hstat2Resource(local_path, basename(raw_path), h), all_props,
-            additional_props);
+        res += preparePropFindXmlResponse(local_path, raw_path, is_dir, hstat2Resource(local_path,
+            basename(raw_path), h), all_props, additional_props);
 
         if (is_dir && depth != "0") {
             Dir d();
@@ -180,7 +161,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
                     continue;
                 }
                 if (depth == "infinity" && info.type == "DIRECTORY") {
-                    res += preparePropFindResponse(local_name, depth, h, all_props, additional_props);
+                    res += preparePropFindResponse(cx, depth, h, all_props, additional_props);
                 } else {
                     raw_path =~ s/\/$//;
                     res += preparePropFindXmlResponse(local_name, raw_path + "/" + name, info.type == "DIRECTORY",
@@ -201,9 +182,10 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         );
     }
 
-    private:internal hash<HttpResponseInfo> internalGet(Socket s, hash<auto> cx, hash<auto> hdr, *data body, bool get = True) {
+    private:internal hash<HttpResponseInfo> internalGet(Socket s, hash<auto> cx, hash<auto> hdr, *data body,
+            bool get = True) {
         # load file
-        string path = getPath(cx.raw_path);
+        string path = cx.webdav_path;
         *hash<StatInfo> h = hstat(path);
         if (!h) {
             return response(404, "%s: %s", path, strerror());
@@ -387,7 +369,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         @return the response to the HTTP request
     */
     private hash<HttpResponseInfo> handlePostImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
-        string path = getPath(cx.raw_path);
+        string path = cx.webdav_path;
         if (path =~ /\/$/) {
             return response(400, "root directory already exists");
             # handle dir creation
@@ -506,7 +488,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         @return the response to the HTTP request
     */
     private hash<HttpResponseInfo> handleDeleteImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
-        string path = getPath(cx.raw_path);
+        string path = cx.webdav_path;
 
         *hash<StatInfo> h = hstat(path);
         if (!h) {
@@ -594,7 +576,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     */
     private hash<HttpResponseInfo> handleMoveImpl(Socket s, hash<auto> cx, hash<auto> hdr, *data body) {
         # additional deletion of source
-        string src_path = getPath(cx.raw_path);
+        string src_path = cx.webdav_path;
         # copy to target first
         hash<HttpResponseInfo> ret = doCopyMoveIntern(s, cx, hdr, body, False);
         # then remove src
@@ -766,7 +748,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         # don't allow dirs creation out of given prefix
         string dir_path;
         try {
-            dir_path = getPath(cx.raw_path);
+            dir_path = cx.webdav_path;
         } catch (hash<ExceptionInfo> ex) {
             if (ex.err == "WEBDAVHANDLER-FORBIDDEN") {
                 return response(403, "Forbidden");
@@ -836,7 +818,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
         #if (debug) {
             #printf("FsWebDavHandler::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, body);
         #}
-        string path = getNormalizedPath(cx.raw_path);
+        string path = cx.webdav_path;
         *hash<StatInfo> h = hstat(path);
         if (!h) {
             return response(404, "%s: %s", path, strerror());
@@ -888,7 +870,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
         # prepare response
         hash<auto> resp;
-        resp."DAV:multistatus"."DAV:response" = preparePropFindResponse(cx.raw_path, hdr.depth, h, all_props, additional_props);
+        resp."DAV:multistatus"."DAV:response" = preparePropFindResponse(cx, hdr.depth, h, all_props, additional_props);
         resp."DAV:multistatus"."^attributes^" = {"xmlns:DAV": "DAV:"};
         if (debug) {
             printf("FsWebDavHandler::handlePropfindImpl() PPP: \n%N\n%N\n%N\n", cx, hdr, resp);
@@ -914,7 +896,7 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
     */
     private *hash<string, hash<string, hash<string, bool>>> handleProppatchImpl(reference<string> href, hash<auto> cx,
             hash<auto> hdr, *hash<auto> request_xml, *list<hash<PropPatchActionInfo>> actions) {
-        string path = getNormalizedPath(cx.raw_path);
+        string path = cx.webdav_path;
         href = path;
 
         *hash<StatInfo> h = hstat(path);
@@ -986,11 +968,8 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
             body = getMessageBody(s, cx.hdr);
         }
 
-        string dest = hdr.destination;
-        *hash<UrlInfo> url = parseURL(dest);
-        string dest_path = getNormalizedPath(url.path);
-        #string dest_path = checkPathScope(basePath + url.path); # TODO/FIXME: check path validity
-        string src_path = getNormalizedPath(cx.raw_path);
+        string dest_path = cx.webdav_rest_path;
+        string src_path = cx.webdav_path;
         # TODO/FIXME: it's same code as in MKCOL -> new method?
         if (dest_path =~ /\/$/) {
             dest_path = dest_path.substr(0, dest_path.size()-1);

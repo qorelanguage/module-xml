@@ -57,6 +57,12 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
             "PROPPATCH": "handleProppatch",
         };
 
+        #! A hash of methods that require a Destination header
+        const DestMethods = {
+            "COPY": True,
+            "MOVE": True,
+        };
+
         #! List of WebDavHandler methods in a string suitable for use in HTTP responses
         const AllowHeaderValue = RequestMethods.keys().join(",");
 
@@ -135,12 +141,25 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
     hash<HttpResponseInfo> handleRequest(HttpListenerInterface listener, Socket s, hash<auto> cx, hash<auto> hdr,
             *data body) {
         if (*string method = RequestMethods{hdr.method}) {
-            hash<HttpResponseInfo> r = call_object_method(self, method, s, cx, hdr, body);
-            # MUST have a Content-Length header in the response, even for HTTP responses that cannot return a msg body
-            if (!r.body && !r.hdr."Content-Length") {
-                r.hdr."Content-Length" = "0";
+            # parse destination path if needed
+            if (DestMethods{method}) {
+                if (!exists hdr.destination) {
+                    return response(400, "WebDAV request missing 'Destination' header for method %y", method);
+                }
+                cx.webdav_dest_path = getRealPath(parseURL(hdr.destination) ?? hdr.destination);
             }
-            return r;
+            # parse source path
+            cx.webdav_path = getRealPath(cx.raw_path);
+            *hash<HttpResponseInfo> rv = checkAuth(hdr.method, cx, hdr, body);
+            if (!rv) {
+                #printf("%y\n", cx{"raw_path", "webdav_path", "webdav_dest_path"});
+                rv = call_object_method(self, method, s, cx, hdr, body);
+            }
+            # MUST have a Content-Length header in the response, even for HTTP responses that cannot return a msg body
+            if (!rv.body && !rv.hdr."Content-Length" && !rv.hdr."Transfer-Encoding") {
+                rv.hdr."Content-Length" = "0";
+            }
+            return rv;
         }
 
         return response(405, "Method Not Allowed");
@@ -197,7 +216,26 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
             string virtual_relative_path_base = "/") {
         self.logger = logger;
         self.property_handler = property_handler;
-        virtual_base_path = normalize_dir(virtual_relative_path_base, "/");
+        virtual_base_path = normalize_dir(virtual_relative_path_base, "/")[1..];
+    }
+
+    #! Converts a request path to a normalized real path on the filesystem in the root WebDavHandler directory
+    /** @throw WEBDAVHANDLER-FORBIDDEN if the path is not valid
+    */
+    private string getRealPath(string raw_path) {
+        string path = getRelativePath(raw_path);
+        path = normalize_dir(path, "/");
+        if (path =~ /\/$/) {
+            splice path, -1;
+        }
+        return path;
+    }
+
+    #! Checks if the request is authorized; if not, this method must return a value
+    /** Override this in a subclass to implement authorization controls
+    */
+    private *hash<HttpResponseInfo> checkAuth(string method, hash<auto> cx, hash<auto> hdr, *data body) {
+        # this method intentionally left blank: all requests are authorized
     }
 
     #! Copies all properties from the given source URL to the target URL
