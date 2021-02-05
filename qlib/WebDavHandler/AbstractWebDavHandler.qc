@@ -99,8 +99,10 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
         @param virtual_relative_path_base the virtual base path for WebDavHandler requests; this path will be
         stripped from requests internally when serving WebDavHandler resources
     */
-    constructor(*AbstractAuthenticator auth, string virtual_relative_path_base) : AbstractHttpRequestHandler(auth, True) {
-        init(new Logger("WebDAV", LoggerLevel::getLevelInfo()), new InMemoryWebDavPropertyHandler(), virtual_relative_path_base);
+    constructor(*AbstractAuthenticator auth, string virtual_relative_path_base) 
+          : AbstractHttpRequestHandler(auth, True) {
+        init(new Logger("WebDAV", LoggerLevel::getLevelInfo()), new InMemoryWebDavPropertyHandler(), 
+          virtual_relative_path_base);
     }
 
     #! Creates the object with the given arguments
@@ -172,7 +174,7 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
         argument
     */
     string getRelativePath(string raw_path) {
-        return regex_subst(raw_path, "^" + virtual_base_path, "");
+        return regex_subst(raw_path, "^/?" + virtual_base_path, "");
     }
 
     #! Returns a hash that can be used as an HTTP response with the given HTTP response code and response message
@@ -1008,24 +1010,24 @@ public class AbstractWebDavHandler inherits public HttpServer::AbstractHttpReque
     }
 
     #! This method is called with informational log messages
-    /** The default implementation is empty; reimplement in subclasses to provide for logging
+    /** 
     */
     logInfo(string fmt) {
-        delete argv;
+        logger.logArgs(LoggerLevel::INFO, fmt, argv);
     }
 
     #! This method is called with error log messages
-    /** The default implementation is empty; reimplement in subclasses to provide for logging
+    /** 
     */
     logError(string fmt) {
-        delete argv;
+        logger.logArgs(LoggerLevel::ERROR, fmt, argv);
     }
 
     #! This method is called with debug log messages
-    /** The default implementation is empty; reimplement in subclasses to provide for logging
+    /** 
     */
     logDebug(string fmt) {
-        delete argv;
+        logger.logArgs(LoggerLevel::DEBUG, fmt, argv);
     }
 
     #! Parse incoming XML and handle namespaces
