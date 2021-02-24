@@ -4563,6 +4563,9 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         #! the WSDL string
         string wsdl;
 
+        #! a cryptographic hash for the WSDL source
+        string wsdl_hash;
+
         #! options used in the constructor
         *hash<auto> opts;
 
@@ -5021,6 +5024,13 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         return wsdl;
     }
 
+    #! returns a cryptographic hash for the WSDL source
+    /** @return a cryptographic hash for the WSDL source
+    */
+    string getWSDLHash() {
+        return wsdl_hash;
+    }
+
     #! returns the XML string for the WSDL, adjusting the URLs for binding locations depending on the caller
     /** @param base_url the url to be prepended before the service name;
                         it must include all the handler prefixes (like \c /SOAP)
@@ -5093,6 +5103,7 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
 
         # save WSDL text
         wsdl = str;
+        wsdl_hash = str.toSHA512();
 
         # save options
         self.opts = opts;
