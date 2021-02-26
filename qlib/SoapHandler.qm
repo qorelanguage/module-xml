@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file SoapHandler.qm SOAP handler module providing the SoapHandler class to be registered as a handler with the Qore HttpServer module
 
-/*  SoapHandler.qm Copyright (C) 2012 - 2018 Qore Technologies, s.r.o.
+/*  SoapHandler.qm Copyright (C) 2012 - 2021 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.8.13
+%requires qore >= 0.9
 
 # requires XML functionality
 %requires xml
@@ -707,22 +707,19 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
 
             if (!method) {
                 # SOAP action is not explicitly specified, e.g. HTTP binding, try get it from path
-                rwl.readLock();
-                on_exit rwl.readUnlock();
+                # issue #4187: do not run SOAP operation calls in the lock
                 *string args;
-                if (exists mapMethodPathToOperation{hdr.method}) {
-                    TreeMap tm = mapMethodPathToOperation{hdr.method};
-                    method = matchMethod(tm, path, \args);
-                    if (!method && alt_path) {
-                        method = tm.get(alt_path, \args);
-                    }
-                    /*
-                    if (!method) {
-                        if (cx.root_path && path.equalPartialPath(cx.root_path)) {
-                            method = tm.get(path.substr(cx.root_path.size()), \args);
+                {
+                    rwl.readLock();
+                    on_exit rwl.readUnlock();
+
+                    if (exists mapMethodPathToOperation{hdr.method}) {
+                        TreeMap tm = mapMethodPathToOperation{hdr.method};
+                        method = matchMethod(tm, path, \args);
+                        if (!method && alt_path) {
+                            method = tm.get(alt_path, \args);
                         }
                     }
-                    */
                 }
                 if (method && method.parseUrlOnly) {
                     try {
