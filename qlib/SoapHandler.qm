@@ -247,7 +247,7 @@ public namespace SoapHandler {
             on_exit rwl.writeUnlock();
 
             # remove URI path -> method mappings
-            foreach hash h in (ruri_methods{unique_id}.pairIterator()) {
+            foreach hash<auto> h in (ruri_methods{unique_id}.pairIterator()) {
                 map remove uri_methods{h.key}{$1}, keys h.value;
                 if (!uri_methods{h.key}) {
                     remove uri_methods{h.key};
@@ -272,7 +272,7 @@ public namespace SoapHandler {
             remove rwsph{unique_id};
 
             # remove URI path -> SOAPAction mappings for service
-            foreach hash h in (ruri_sam{unique_id}.pairIterator()) {
+            foreach hash<auto> h in (ruri_sam{unique_id}.pairIterator()) {
                 map remove uri_sam{h.key}{$1}, keys h.value;
                 if (!uri_sam{h.key}) {
                     remove uri_sam{h.key};
@@ -300,8 +300,8 @@ public namespace SoapHandler {
                         # assume that "path" is the name of the service
                         hash<auto> svch = ws.getService(method.path);
                         if (svch.port) {
-                            # if we have a simple path with no directory separators and no scheme, then the value will be in the "host" field
-                            # after parse_url()
+                            # if we have a simple path with no directory separators and no scheme, then the value will
+                            # be in the "host" field after parse_url()
                             hash<auto> h = parse_url(svch.port.firstValue().address);
                             method.altpath = h.path ?? h.host;
                         }
@@ -327,10 +327,21 @@ public namespace SoapHandler {
 
                 # verify if the operation mapping can be added first
                 if (!method.altpath && sa && sam{sa}.operation && sam{sa}.operation != method.operation) {
-                    throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
+                    throw "SOAPACTION-ERROR", sprintf("cannot register soapAction %y for operation %y because it is "
+                        "already registered for operation %y", sa, method.operation.name, sam{sa}.operation.name);
                 }
                 if (method.altpath && wsph{method.altpath} && wsph{method.altpath} != ws) {
-                    throw "SOAP-PATH-ERROR", sprintf("URI path %y is already bound to another WebService; remove the existing WebService before binding another service to the same URI path", method.altpath);
+                    # find conflicting ID
+                    string conflicting_id;
+                    foreach hash<auto> i in (rwsph.pairIterator()) {
+                        if (i.value{method.altpath}) {
+                            conflicting_id = i.key;
+                            break;
+                        }
+                    }
+                    throw "SOAP-PATH-ERROR", sprintf("URI path %y is already bound to another WebService with unique "
+                        "ID %y; remove the existing WebService before binding another service to the same URI path",
+                        method.altpath, conflicting_id);
                 }
 
                 # add SOAPAction mapping if possible
