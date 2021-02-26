@@ -708,11 +708,11 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
             if (!method) {
                 # SOAP action is not explicitly specified, e.g. HTTP binding, try get it from path
                 # issue #4187: do not run SOAP operation calls in the lock
+                *string args;
                 {
                     rwl.readLock();
                     on_exit rwl.readUnlock();
 
-                    *string args;
                     if (exists mapMethodPathToOperation{hdr.method}) {
                         TreeMap tm = mapMethodPathToOperation{hdr.method};
                         method = matchMethod(tm, path, \args);
