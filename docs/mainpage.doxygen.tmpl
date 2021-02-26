@@ -395,6 +395,9 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @subsection xml15 xml Module Version 1.5
     <b>Changes and Bug Fixes in This Release</b>
+    - updated the <a href="../../SoapHandler/html/index.html">SoapHandler</a> module to not run SOAP operations in the
+      \c SoapHandler lock
+      (<a href="https://github.com/qorelanguage/qore/issues/4178">issue 4178</a>)
     - fixed errors handling missing message descriptions
       (<a href="https://github.com/qorelanguage/qore/issues/4144">issue 4144</a>)
     - fixed namespace paths for all internal declarations
