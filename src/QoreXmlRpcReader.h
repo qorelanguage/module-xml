@@ -53,7 +53,7 @@ namespace intern { // make classes local
             if (is_set)
                 *vp = v;
             else
-                discard(val.assignAndSanitize(v), 0);
+                discard(val.assign(v), 0);
         }
 
         DLLLOCAL void setReference(QoreValue* v) {
