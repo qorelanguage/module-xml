@@ -4,7 +4,7 @@
 
     Qore Programming Language
 
-    Copyright (C) 2003 - 2018 Qore Technologies, s.r.o.
+    Copyright (C) 2003 - 2021 Qore Technologies, s.r.o.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -50,10 +50,11 @@ namespace intern { // make classes local
         }
 
         DLLLOCAL void set(QoreValue v) {
-            if (is_set)
+            if (is_set) {
                 *vp = v;
-            else
+            } else {
                 discard(val.assign(v), 0);
+            }
         }
 
         DLLLOCAL void setReference(QoreValue* v) {
@@ -64,19 +65,18 @@ namespace intern { // make classes local
         }
     };
 
-   class xml_node {
-   public:
-      QoreValue& node;
-      xml_node* next;
-      int depth;
-      int vcount;
-      int cdcount;
-      int commentcount;
+    class xml_node {
+    public:
+        QoreValue& node;
+        xml_node* next = nullptr;
+        int depth;
+        int vcount = 0;
+        int cdcount = 0;
+        int commentcount = 0;
 
-      DLLLOCAL xml_node(QoreValue& n, int d)
-         : node(n), next(0), depth(d), vcount(0), cdcount(0), commentcount(0) {
-      }
-   };
+        DLLLOCAL xml_node(QoreValue& n, int d) : node(n), depth(d) {
+        }
+    };
 
     class xml_stack {
     private:
@@ -149,48 +149,48 @@ namespace intern { // make classes local
 
 class QoreXmlRpcReader : public QoreXmlReader {
 public:
-   DLLLOCAL QoreXmlRpcReader(const QoreString* n_xml, int options, ExceptionSink* xsink) : QoreXmlReader(n_xml, options, xsink) {
-   }
+    DLLLOCAL QoreXmlRpcReader(const QoreString* n_xml, int options, ExceptionSink* xsink) : QoreXmlReader(n_xml, options, xsink) {
+    }
 
-   DLLLOCAL int readXmlRpc(ExceptionSink* xsink) {
-      return readSkipWhitespace(xsink) != 1;
-   }
+    DLLLOCAL int readXmlRpc(ExceptionSink* xsink) {
+        return readSkipWhitespace(xsink) != 1;
+    }
 
-   DLLLOCAL int readXmlRpc(const char* info, ExceptionSink* xsink) {
-      return readSkipWhitespace(info, xsink) != 1;
-   }
+    DLLLOCAL int readXmlRpc(const char* info, ExceptionSink* xsink) {
+        return readSkipWhitespace(info, xsink) != 1;
+    }
 
-   DLLLOCAL int readXmlRpcNode(ExceptionSink* xsink) {
-      int nt = nodeTypeSkipWhitespace();
-      if (nt == -1 && !*xsink)
-         xsink->raiseException("PARSE-XMLRPC-ERROR", "error parsing XML string");
-      return nt;
-   }
+    DLLLOCAL int readXmlRpcNode(ExceptionSink* xsink) {
+        int nt = nodeTypeSkipWhitespace();
+        if (nt == -1 && !*xsink)
+            xsink->raiseException("PARSE-XMLRPC-ERROR", "error parsing XML string");
+        return nt;
+    }
 
-   DLLLOCAL int checkXmlRpcMemberName(const char* member, ExceptionSink* xsink, bool close = false) {
-      const char* name = (const char*)xmlTextReaderConstName(reader);
-      if (!name) {
-         xsink->raiseExceptionArg("PARSE-XMLRPC-ERROR", xml ? new QoreStringNode(*xml) : 0, "expecting %selement '%s', got NOTHING", close ? "closing " : "", member);
-         return -1;
-      }
+    DLLLOCAL int checkXmlRpcMemberName(const char* member, ExceptionSink* xsink, bool close = false) {
+        const char* name = (const char*)xmlTextReaderConstName(reader);
+        if (!name) {
+            xsink->raiseExceptionArg("PARSE-XMLRPC-ERROR", xml ? new QoreStringNode(*xml) : 0, "expecting %selement '%s', got NOTHING", close ? "closing " : "", member);
+            return -1;
+        }
 
-      if (strcmp(name, member)) {
-         xsink->raiseExceptionArg("PARSE-XMLRPC-ERROR", xml ? new QoreStringNode(*xml) : 0, "expecting %selement '%s', got '%s'", close ? "closing " : "", member, name);
-         return -1;
-      }
-      return 0;
-   }
+        if (strcmp(name, member)) {
+            xsink->raiseExceptionArg("PARSE-XMLRPC-ERROR", xml ? new QoreStringNode(*xml) : 0, "expecting %selement '%s', got '%s'", close ? "closing " : "", member, name);
+            return -1;
+        }
+        return 0;
+    }
 
-   DLLLOCAL int getArray(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, ExceptionSink* xsink);
-   DLLLOCAL int getStruct(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, ExceptionSink* xsink);
-   DLLLOCAL int getString(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, ExceptionSink* xsink);
-   DLLLOCAL int getBoolean(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
-   DLLLOCAL int getInt(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
-   DLLLOCAL int getDouble(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
-   DLLLOCAL int getDate(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
-   DLLLOCAL int getBase64(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
-   DLLLOCAL int getValueData(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, bool read_next, ExceptionSink* xsink);
-   DLLLOCAL int getParams(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, ExceptionSink* xsink);
+    DLLLOCAL int getArray(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, ExceptionSink* xsink);
+    DLLLOCAL int getStruct(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, ExceptionSink* xsink);
+    DLLLOCAL int getString(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, ExceptionSink* xsink);
+    DLLLOCAL int getBoolean(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
+    DLLLOCAL int getInt(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
+    DLLLOCAL int getDouble(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
+    DLLLOCAL int getDate(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
+    DLLLOCAL int getBase64(Qore::Xml::intern::XmlRpcValue *v, ExceptionSink* xsink);
+    DLLLOCAL int getValueData(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, bool read_next, ExceptionSink* xsink);
+    DLLLOCAL int getParams(Qore::Xml::intern::XmlRpcValue *v, const QoreEncoding* data_ccsid, ExceptionSink* xsink);
 };
 
 #endif
