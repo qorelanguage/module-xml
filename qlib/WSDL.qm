@@ -905,21 +905,21 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
         }
 
         #printf("DEBUG: FORCE: type: %y, nstype: %y, val: %y\n", type, nstype, val);
-        if (omitType)
+        if (omitType) {
             if (comments) {
                 return comments + (
                     "^value^": val
                 );
             } else
                 return val;
-        else
-            return (
-                comments +
+        } else {
+            return comments + {
                 "^attributes^": (
                     "xsi:type": sprintf("%s:%s", ons, type),
                 ),
                 "^value^": val,
-            );
+            };
+        }
     }
 
     auto deserialize(string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto val) {
@@ -5414,7 +5414,7 @@ public class WSDL::WSMessageHelper {
             int i = 1;
             while (i <= n) {
                 if (comments) {
-                    v{'^comment^'} = ( list(sprintf("#%d", i))+comments).join(';');
+                    v{'^comment^'} = (list(sprintf("#%d", i)) + comments).join(';');
                 }
                 push l, v;
                 i++;
