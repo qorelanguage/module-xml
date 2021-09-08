@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.10
+%requires qore >= 1.0
 
 # requires XML functionality
 %requires xml
@@ -50,7 +50,7 @@
 %strict-args
 
 module SoapHandler {
-    version = "0.3";
+    version = "0.3.1";
     desc = "SoapHandler module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -68,6 +68,10 @@ module SoapHandler {
     This module provides the @ref SoapHandler::SoapHandler "SoapHandler" class which can be used to provide an RPC handler for the HttpServer class provided by the HttpServer module.
 
     @section soaphandler_relnotes SoapHandler Release History
+
+    @subsection soaphandler_0_3_1 SoapHandler 0.3.1
+    - fixed a type error processing messages on listeners with no "hostname" socket info value
+      (<a href="https://github.com/qorelanguage/qore/issues/4307">issue 4307</a>)
 
     @subsection soaphandler_0_3 SoapHandler 0.3
     - do not run SOAP operations in the SoapHandler lock
@@ -454,14 +458,16 @@ public namespace SoapHandler {
                 method.exactMatch = !hb.input.urlReplacement;
                 method.path = ltrim(method.path ?? hb.location, "/");
                 if (index(method.path, "?") >= 0) {
-                    throw "SOAPACTION-ERROR", sprintf("cannot register path %y for operation %y because it contains parameters", method.path, method.operation.name);
+                    throw "SOAPACTION-ERROR", sprintf("cannot register path %y for operation %y because it contains "
+                        "parameters", method.path, method.operation.name);
                 }
                 mapMethodPathToOperation{hb.httpMethod}.put(method.path, method);
-            }
-            else if (!exists binding) {
-                throw "SOAPACTION-ERROR", sprintf("cannot register operation %y because it has no binding", method.operation.name);
+            } else if (!exists binding) {
+                throw "SOAPACTION-ERROR", sprintf("cannot register operation %y because it has no binding", 
+                    method.operation.name);
             } else {
-                throw "SOAPACTION-ERROR", sprintf("cannot register operation %y because it has unsupported binding: %y", method.operation.name, binding.className());
+                throw "SOAPACTION-ERROR", sprintf("cannot register operation %y because it has unsupported "
+                    "binding: %y", method.operation.name, binding.className());
             }
             #printf("DEBUG: SoapHandler::addMethodInternal() %N %N\n", method.name, method.path);
         }
@@ -493,10 +499,10 @@ public namespace SoapHandler {
 
         /** Method is to be overriden to implement custom logging HTTP messages handled by this object.
             @par cx context passed from @ref HttpServer::HttpServer "HttpServer"
-            @par msg information about message to be logged. There are keys 'reason' with value 'request', 'response' or 'error',
-                 'header' (HTTP header, in casew ) and 'body' containing XML data in readable form, i.e. uncompressed and in case of
-                 multipart message only the related part is passed. Method is executed before message is sent or after
-                 has been received. Do not allow exception raising in method not to interrupt handler function.
+            @par msg information about message to be logged. There are keys 'reason' with value 'request', 'response' 
+            or 'error', 'header' (HTTP header, in casew ) and 'body' containing XML data in readable form, i.e. 
+            uncompressed and in case of multipart message only the related part is passed. The method is executed 
+            before the message is sent or after it has been received.  This method must not throw exceptions.
 
             @par Example:
             @code{.py}
@@ -512,33 +518,49 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
         }
 
         # don't reimplement this method; fix/enhance it in the module
-        private hash<auto> makeSoapFaultResponse(hash<auto> cx, string errLog, bool soap12, string err, string desc, *bool fmt) {
-            hash o;
+        private hash<auto> makeSoapFaultResponse(hash<auto> cx, string errLog, bool soap12, string err, string desc, 
+                *bool fmt) {
+            hash<auto> o;
             if (soap12) {
-                o = ENVELOPE_12_NS;
-                o."soapenv:Envelope"."soapenv:Body" =
-                    ("soapenv:Fault":
-                     ("soapenv:Code": ("soapenv:Value": "soapenv:Sender"),
-                      "soapenv:Reason": ("soapenv:Text": sprintf("%s: %s", err, desc))));
-                      # optional Node, Role, Detail, see https://www.w3.org/TR/soap12/, 5.4 Fault
-            }
-            else {
-                o = ENVELOPE_11_NS;
-                o."soapenv:Envelope"."soapenv:Body" =
-                    ("soapenv:Fault":
-                      ("faultcode": "soapenv:Client",
-                       "faultstring": sprintf("%s: %s", err, desc)));
+                o = ENVELOPE_12_NS + {
+                    "soapenv:Envelope": {
+                        "soapenv:Body": {
+                            "soapenv:Fault": {
+                                "soapenv:Code": {
+                                    "soapenv:Value": "soapenv:Sender",
+                                },
+                                "soapenv:Reason": {
+                                    "soapenv:Text": sprintf("%s: %s", err, desc),
+                                },
+                            },
+                        },
+                    },
+                };
+                # optional Node, Role, Detail, see https://www.w3.org/TR/soap12/, 5.4 Fault
+            } else {
+                o = ENVELOPE_11_NS + {
+                    "soapenv:Envelope": {
+                        "soapenv:Body": {
+                            "soapenv:Fault": {
+                                "faultcode": "soapenv:Client",
+                                "faultstring": sprintf("%s: %s", err, desc),
+                            },
+                        },
+                    },
+                };
                 # optional faultActor,  https://www.w3.org/TR/2000/NOTE-SOAP-20000508/ 4.4 SOAP fault
             }
             #TODO: http binding https://www.w3.org/TR/2007/REC-soap12-part2-20070427/#soapinhttp
             int code = soap12 ? 400 : 500;
-            hash<auto> msg = (
+            hash<auto> msg = {
                 "code": code,
                 "errlog": errLog,
                 "body": make_xml(o, fmt ? XGF_ADD_FORMATTING: 0),
-                "hdr": ("Content-Type" : WSDLLib::getSoapMimeType12(soap12)),
-            );
-            msglog(cx, ('reason': 'error', 'code': code, 'header': msg.hdr, 'body': msg.body));
+                "hdr": {
+                    "Content-Type": WSDLLib::getSoapMimeType12(soap12),
+                },
+            };
+            msglog(cx, {'reason': 'error', 'code': code, 'header': msg.hdr, 'body': msg.body});
             return msg;
         }
 
@@ -546,7 +568,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
         final private *hash<auto> callOperation(hash<auto> cx, auto args, hash<auto> method, bool reqsoap12) {
             # NOTE: internal methods have no operation definition and can take no parameters
             hash<auto> h;
-            if (method.internal) {
+            if (method.internal) {                
                 h.body = call_object_method(self, method.function);
                 return h;
             }
@@ -593,8 +615,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                             }
                             splice msg, -2, 2;
                             msg += "), ";
-                        }
-                        else
+                        } else
                             msg += sprintf("%n, ", arg);
                     }
                     # remove the last two characters from the string if any were added
@@ -736,7 +757,9 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                     try {
                         msglog(cx, {'reason': 'request', 'method': hdr.method, 'path': path});  # we need to log the request
                         #printf("DEBUG: context: %N\nargs: %N\n", cx, args);
-                        return ("code": 200) + callOperation(cx, args, method, reqsoap12);
+                        return {
+                            "code": 200,
+                         } + callOperation(cx, args, method, reqsoap12);
                     } catch (hash<ExceptionInfo> ex) {
                         string str = debug
                             ? get_exception_string(ex)
@@ -784,9 +807,11 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                 if (sih.family == AF_UNIX) {
                     host = sprintf("socket=%s", encode_url(sih.address, True));
                 } else {
-                    host = sih.hostname;
-                    if (host == "::" || host == "0.0.0.0")
+                    # issue #4307: hostname is not always set, address is
+                    host = sih.hostname ?? sih.address;
+                    if (host == "::" || host == "0.0.0.0") {
                         host = gethostname();
+                    }
                 }
 
                 string base_url = sprintf("http%s://%s", cx.ssl ? "s" : "", host);
@@ -795,19 +820,18 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                     if (cx.ssl) {
                         if (port != 443)
                             base_url += ":" + port;
-                    }
-                    else if (port != 80)
+                    } else if (port != 80)
                         base_url += ":" + port;
                 }
                 if (cx.root_path) {
                     base_url += "/" + cx.root_path;
                 }
 
-                return (
+                return {
                     "code": 200,
                     "body": ws.getWSDL(base_url),
                     "hdr": {"Content-Type": "text/xml"},
-                );
+                };
             }
 
             if (method || hdr.method == "POST") {
@@ -888,7 +912,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                 if (method) {
                     try {
                         #printf("DEBUG: context: %N\nargs: %N\n", cx, args);
-                        return ("code": 200) + callOperation(cx, args, method, reqsoap12);
+                        return {"code": 200} + callOperation(cx, args, method, reqsoap12);
                     } catch (hash<ExceptionInfo> ex) {
                         string str = debug
                             ? get_exception_string(ex)
@@ -898,10 +922,10 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                 }
             }
 
-            return (
+            return {
                 "code" : 501,
                 "body" : sprintf("don't know how to handle request with method %y", hdr.method),
-            );
+            };
         }
 
         private *WebService tryMatch(string path) {
