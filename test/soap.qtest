@@ -789,18 +789,10 @@ class SoapTest inherits QUnit::Test {
         assertEq("test", eh.body);
 
         op = ws.getOperation("noInput");
-        h = op.serializeRequest();
-        xh = parse_xml(h.body);
-        compareSoapMsgs("no-input", EmptyReq, xh);
-        eh = op.deserializeRequest(h);
-        assertEq(NOTHING, eh);
+        assertThrows("SOAP-SERIALIZATION-ERROR", "input", \op.serializeRequest());
 
         op = ws.getOperation("noOutput");
-        h = op.serializeResponse();
-        xh = parse_xml(h.body);
-        compareSoapMsgs("no-output", EmptyRes, xh);
-        eh = op.deserializeResponse(h);
-        assertEq(NOTHING, eh);
+        assertThrows("SOAP-SERIALIZATION-ERROR", "output", \op.serializeResponse());
 
         op = ws.getOperation("headerVal");
         h = op.serializeRequest(NOTHING, HeaderVal1);

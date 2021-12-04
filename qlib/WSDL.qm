@@ -913,13 +913,12 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
             } else
                 return val;
         else
-            return (
-                comments +
+            return comments + {
                 "^attributes^": (
                     "xsi:type": sprintf("%s:%s", ons, type),
                 ),
                 "^value^": val,
-            );
+            };
     }
 
     auto deserialize(string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto val) {
@@ -2968,7 +2967,10 @@ public class WSDL::SoapBinding inherits WSDL::OperationalBinding {
 
         string io = request ? "input" : "output";
 
-        BindingMessageDescription bmd = self{io};
+        *BindingMessageDescription bmd = self{io};
+        if (!bmd) {
+            throw SOAP_SERIALIZATION_ERROR, sprintf("no %s message description for message %y", io, name);
+        }
 
         if (!exists req_soapaction)
             req_soapaction = soapAction;
