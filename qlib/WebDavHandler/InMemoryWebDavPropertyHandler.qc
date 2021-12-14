@@ -58,7 +58,7 @@ public class InMemoryWebDavPropertyHandler inherits AbstractWebDavPropertyHandle
     }
 
     #! Returns all properties in all namespaces
-    /** @retun a hash as NS -> property -> value
+    /** @return a hash as NS -> property -> value
     */
     *hash<string, hash<auto>> getAll(string resource) {
         AutoReadLock al(m_lock);
@@ -69,7 +69,7 @@ public class InMemoryWebDavPropertyHandler inherits AbstractWebDavPropertyHandle
     }
 
     #! Returns all properties in the given namespaces
-    /** @retun a hash as property -> value
+    /** @return a hash as property -> value
     */
     *hash<auto> getAllInNamespace(string resource, string ns) {
         AutoReadLock al(m_lock);
