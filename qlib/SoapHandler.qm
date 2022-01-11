@@ -771,9 +771,8 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                 hash<auto> sih = cx."socket-info";
                 if (sih.family == AF_UNIX) {
                     host = sprintf("socket=%s", encode_url(sih.address, True));
-                }
-                else {
-                    host = sih.hostname;
+                } else {
+                    host = sih.hostname ?? sih.address;
                     if (host == "::" || host == "0.0.0.0")
                         host = gethostname();
                 }

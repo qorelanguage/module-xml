@@ -4,7 +4,7 @@ project(qore-xml-module)
 
 set (VERSION_MAJOR 1)
 set (VERSION_MINOR 5)
-set (VERSION_PATCH 0)
+set (VERSION_PATCH 1)
 
 find_package(Qore 0.9 REQUIRED)
 find_package(LibXml2 REQUIRED)
