@@ -1,4 +1,4 @@
-%global mod_ver 1.5
+%global mod_ver 1.5.1
 
 %{?_datarootdir: %global mydatarootdir %_datarootdir}
 %{!?_datarootdir: %global mydatarootdir /usr/share}
@@ -46,7 +46,6 @@ License: LGPL
 Group: Development/Languages/Other
 URL: http://qore.org
 Source: http://prdownloads.sourceforge.net/qore/%{name}-%{version}.tar.bz2
-#Source0: %{name}-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 Requires: /usr/bin/env
 Requires: qore-module(abi)%{?_isa} = %{module_api}
@@ -105,6 +104,9 @@ rm -rf $RPM_BUILD_ROOT
 %doc COPYING.LGPL COPYING.MIT README RELEASE-NOTES AUTHORS
 
 %changelog
+* Tue Jan 25 2022 David Nichols <david@qore.org> - 1.5.1
+- updated to version 1.5.1
+
 * Tue Jun 19 2018 David Nichols <david@qore.org> - 1.5
 - updated to version 1.5
 
