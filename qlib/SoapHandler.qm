@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file SoapHandler.qm SOAP handler module providing the SoapHandler class to be registered as a handler with the Qore HttpServer module
 
-/*  SoapHandler.qm Copyright (C) 2012 - 2021 Qore Technologies, s.r.o.
+/*  SoapHandler.qm Copyright (C) 2012 - 2022 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -50,7 +50,7 @@
 %strict-args
 
 module SoapHandler {
-    version = "0.3.1";
+    version = "0.3.2";
     desc = "SoapHandler module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -68,6 +68,10 @@ module SoapHandler {
     This module provides the @ref SoapHandler::SoapHandler "SoapHandler" class which can be used to provide an RPC handler for the HttpServer class provided by the HttpServer module.
 
     @section soaphandler_relnotes SoapHandler Release History
+
+    @subsection soaphandler_0_3_2 SoapHandler 0.3.2
+    - fixed errors propagating XSD types in WSDLs to data providers
+      (<a href="https://github.com/qorelanguage/qore/issues/4436">issue 4436</a>)
 
     @subsection soaphandler_0_3_1 SoapHandler 0.3.1
     - fixed a type error processing messages on listeners with no "hostname" socket info value
@@ -463,7 +467,7 @@ public namespace SoapHandler {
                 }
                 mapMethodPathToOperation{hb.httpMethod}.put(method.path, method);
             } else if (!exists binding) {
-                throw "SOAPACTION-ERROR", sprintf("cannot register operation %y because it has no binding", 
+                throw "SOAPACTION-ERROR", sprintf("cannot register operation %y because it has no binding",
                     method.operation.name);
             } else {
                 throw "SOAPACTION-ERROR", sprintf("cannot register operation %y because it has unsupported "
@@ -499,9 +503,9 @@ public namespace SoapHandler {
 
         /** Method is to be overriden to implement custom logging HTTP messages handled by this object.
             @par cx context passed from @ref HttpServer::HttpServer "HttpServer"
-            @par msg information about message to be logged. There are keys 'reason' with value 'request', 'response' 
-            or 'error', 'header' (HTTP header, in casew ) and 'body' containing XML data in readable form, i.e. 
-            uncompressed and in case of multipart message only the related part is passed. The method is executed 
+            @par msg information about message to be logged. There are keys 'reason' with value 'request', 'response'
+            or 'error', 'header' (HTTP header, in casew ) and 'body' containing XML data in readable form, i.e.
+            uncompressed and in case of multipart message only the related part is passed. The method is executed
             before the message is sent or after it has been received.  This method must not throw exceptions.
 
             @par Example:
@@ -518,7 +522,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
         }
 
         # don't reimplement this method; fix/enhance it in the module
-        private hash<auto> makeSoapFaultResponse(hash<auto> cx, string errLog, bool soap12, string err, string desc, 
+        private hash<auto> makeSoapFaultResponse(hash<auto> cx, string errLog, bool soap12, string err, string desc,
                 *bool fmt) {
             hash<auto> o;
             if (soap12) {
@@ -568,7 +572,7 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
         final private *hash<auto> callOperation(hash<auto> cx, auto args, hash<auto> method, bool reqsoap12) {
             # NOTE: internal methods have no operation definition and can take no parameters
             hash<auto> h;
-            if (method.internal) {                
+            if (method.internal) {
                 h.body = call_object_method(self, method.function);
                 return h;
             }

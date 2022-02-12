@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! Qore SoapRequestDataProvider module definition
 
-/** SoapRequestDataProvider.qc Copyright 2019 - 2020 Qore Technologies, s.r.o.
+/** SoapRequestDataProvider.qc Copyright 2019 - 2022 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -21,17 +21,6 @@
     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     DEALINGS IN THE SOFTWARE.
 */
-
-# minimum required Qore version
-%requires qore >= 0.9.4
-# assume local scope for variables, do not use "$" signs
-%new-style
-# require type definitions everywhere
-%require-types
-# strict argument handling
-%strict-args
-# enable all warnings
-%enable-all-warnings
 
 #! contains all public definitions in the SoapRequestDataProvider module
 public namespace SoapDataProvider {
@@ -194,7 +183,8 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     #! Returns the description of the record type, if any
     private:internal *hash<string, AbstractDataField> getRecordTypeIntern() {
         AbstractDataProviderType type = op.output.getDataProviderType();
-        if (type.getBaseTypeCode() == NT_LIST && (*hash<string, AbstractDataField> rv = type.getElementType().getFields())) {
+        if (type.getBaseTypeCode() == NT_LIST
+            && (*hash<string, AbstractDataField> rv = type.getElementType().getFields())) {
             return rv;
         }
     }

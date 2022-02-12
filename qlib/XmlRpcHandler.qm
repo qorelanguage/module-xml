@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file XmlRpcHandler.qm @brief XML-RPC handler class definition for the HttpServer module
 
-/*  XmlRpcHandler.qm Copyright (C) 2012 - 2019 Qore Technologies, s.r.o.
+/*  XmlRpcHandler.qm Copyright (C) 2012 - 2022 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
