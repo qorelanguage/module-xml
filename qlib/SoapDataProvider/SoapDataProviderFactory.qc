@@ -30,6 +30,16 @@ public class SoapDataProviderFactory inherits AbstractDataProviderFactory {
         static Class cls = new Class("SoapDataProvider");
     }
 
+    #! Returns static factory information without \a provider_info
+    /** @return static factory information without \a provider_info which is provided by @ref getProviedrInfo()
+    */
+    private hash<DataProviderFactoryInfo> getInfoImpl() {
+        return <DataProviderFactoryInfo>{
+            "name": "soap",
+            "api_management": True,
+        };
+    }
+
     #! Returns the name of the data provider factory
     private string getNameImpl() {
         return "soap";

@@ -396,9 +396,13 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     @subsection xml152 xml Module Version 1.5.2
     <b>Changes and Bug Fixes in This Release</b>
     - <a href="../../SoapDataProvider/html/index.html">SoapDataProvider</a>:
+      - fixed handling operations missing input or output types
+        (<a href="https://github.com/qorelanguage/qore/issues/4440">issue 4440</a>)
       - fixed SOAP data provider factory info APIs
         (<a href="https://github.com/qorelanguage/qore/issues/4438">issue 4438</a>)
     - <a href="../../SoapHandler/html/index.html">SoapHandler</a>:
+      - fixed bugs where invalid XML messages were returned with some SOAP fault responses
+        (<a href="https://github.com/qorelanguage/qore/issues/4441">issue 4441</a>)
       - fixed errors propagating XSD types in WSDLs to data providers
         (<a href="https://github.com/qorelanguage/qore/issues/4436">issue 4436</a>)
     - <a href="../../WSDL/html/index.html">WSDL</a>:
