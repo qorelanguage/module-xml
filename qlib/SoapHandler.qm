@@ -70,6 +70,8 @@ module SoapHandler {
     @section soaphandler_relnotes SoapHandler Release History
 
     @subsection soaphandler_0_3_2 SoapHandler 0.3.2
+    - fixed bugs where invalid XML messages were returned with some SOAP fault responses
+      (<a href="https://github.com/qorelanguage/qore/issues/4441">issue 4441</a>)
     - fixed errors propagating XSD types in WSDLs to data providers
       (<a href="https://github.com/qorelanguage/qore/issues/4436">issue 4436</a>)
 
@@ -524,32 +526,27 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
         # don't reimplement this method; fix/enhance it in the module
         private hash<auto> makeSoapFaultResponse(hash<auto> cx, string errLog, bool soap12, string err, string desc,
                 *bool fmt) {
-            hash<auto> o;
+            # do not use hash<auto> here; types must be stripped
+            hash o;
             if (soap12) {
-                o = ENVELOPE_12_NS + {
-                    "soapenv:Envelope": {
-                        "soapenv:Body": {
-                            "soapenv:Fault": {
-                                "soapenv:Code": {
-                                    "soapenv:Value": "soapenv:Sender",
-                                },
-                                "soapenv:Reason": {
-                                    "soapenv:Text": sprintf("%s: %s", err, desc),
-                                },
-                            },
+                o = ENVELOPE_12_NS;
+                o."soapenv:Envelope"."soapenv:Body" = {
+                    "soapenv:Fault": {
+                        "soapenv:Code": {
+                            "soapenv:Value": "soapenv:Sender",
+                        },
+                        "soapenv:Reason": {
+                            "soapenv:Text": sprintf("%s: %s", err, desc),
                         },
                     },
                 };
                 # optional Node, Role, Detail, see https://www.w3.org/TR/soap12/, 5.4 Fault
             } else {
-                o = ENVELOPE_11_NS + {
-                    "soapenv:Envelope": {
-                        "soapenv:Body": {
-                            "soapenv:Fault": {
-                                "faultcode": "soapenv:Client",
-                                "faultstring": sprintf("%s: %s", err, desc),
-                            },
-                        },
+                o = ENVELOPE_11_NS;
+                o."soapenv:Envelope"."soapenv:Body" = {
+                    "soapenv:Fault": {
+                        "faultcode": "soapenv:Client",
+                        "faultstring": sprintf("%s: %s", err, desc),
                     },
                 };
                 # optional faultActor,  https://www.w3.org/TR/2000/NOTE-SOAP-20000508/ 4.4 SOAP fault

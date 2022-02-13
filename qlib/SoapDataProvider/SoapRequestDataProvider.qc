@@ -67,7 +67,9 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
 
     #! Returns the description of a successful request message, if any
     private *AbstractDataProviderType getRequestTypeImpl() {
-        return op.input.getDataProviderType();
+        if (op.input) {
+            return op.input.getDataProviderType();
+        }
     }
 
     #! Returns the description of a response message, if this object represents a response message
@@ -78,7 +80,9 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
         @throw INVALID-OPERATION the data provider does not support the request API
     */
     private *AbstractDataProviderType getResponseTypeImpl() {
-        return op.output.getDataProviderType();
+        if (op.output) {
+            return op.output.getDataProviderType();
+        }
     }
 
     #! Returns a hash of error responses, if any
@@ -183,6 +187,9 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
 
     #! Returns the description of the record type, if any
     private:internal *hash<string, AbstractDataField> getRecordTypeIntern() {
+        if (!op.output) {
+            return;
+        }
         AbstractDataProviderType type = op.output.getDataProviderType();
         if (type.getBaseTypeCode() == NT_LIST
             && (*hash<string, AbstractDataField> rv = type.getElementType().getFields())) {
