@@ -104,9 +104,18 @@ set(QORE_DOX_TMPL_SRC
 
 add_library(${module_name} MODULE ${QPP_SOURCES} ${CPP_SRC})
 
-qore_binary_module(${module_name} "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}" ${LIBXML2_LIBRARIES})
+qore_external_binary_module(${module_name} "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}" ${LIBXML2_LIBRARIES})
 qore_user_modules("${QMOD}")
 install(PROGRAMS ${SCRIPTS} DESTINATION bin)
+
+qore_external_user_module("qlib/WSDL.qm" "")
+qore_external_user_module("qlib/SoapClient.qm" "WSDL")
+qore_external_user_module("qlib/SoapHandler.qm" "WSDL")
+qore_external_user_module("qlib/SalesforceSoapClient.qm" "WSDL;SoapClient")
+qore_external_user_module("qlib/SoapDataProvider" "WSDL;SoapClient")
+qore_external_user_module("qlib/WebDavHandler" "")
+qore_external_user_module("qlib/XmlRpcConnection.qm" "")
+qore_external_user_module("qlib/XmlRpcHandler.qm" "")
 
 qore_dist("${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 

@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.9
+%requires qore >= 1.0
 
 # requires XML functionality
 %requires xml
@@ -43,7 +43,7 @@
 %disable-warning unreferenced-variable
 
 module WSDL {
-    version = "0.5.1";
+    version = "0.5.2";
     desc = "WSDL module providing functionality for SOAP";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -78,6 +78,11 @@ module WSDL {
     - <a href="../../SoapHandler/html/index.html">SoapHandler user module</a>
 
     @section wsdlrelnotes WSDL Module Release Notes
+
+    @subsection wsdl_0_5_2 WSDL v0.5.2
+    - fixed a bug where the web service's name was not reported correctly by the
+      @ref WSDL::WebService "WebService" object
+      (<a href="https://github.com/qorelanguage/qore/issues/4437">issue 4437</a>)
 
     @subsection wsdl_0_5_1 WSDL v0.5.1
     - added support for the FileLocationHandler module
@@ -5126,7 +5131,7 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         WSDL::XsdBase::removeNS(\h.definitions);
 
         # set name
-        name = h.service."^attributes^".name ?? "unknown";
+        name = h.definitions.service."^attributes^".name ?? "unnamed-soap-service";
 
         nsc = new Namespaces(h.definitions."^attributes^");
         if (opts.compat_empty_string_is_nothing || global_compat_empty_string_is_nothing) {
@@ -5139,7 +5144,8 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         #printf("%y\n", h.definitions.types);
 
         if (exists h.definitions.types) {
-            parseTypes(h.definitions.types, opts.http_client instanceof HTTPClient ? opts.http_client : NOTHING, opts.http_headers);
+            parseTypes(h.definitions.types, opts.http_client instanceof HTTPClient ? opts.http_client : NOTHING,
+                opts.http_headers);
         }
 
         if (exists h.definitions.message) {

@@ -35,14 +35,15 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     }
 
     #! Creates the object from the arguments
-    constructor(WebService webservice, *SoapClient soapclient, WSOperation op) : SoapDataProviderBase(webservice, op) {
+    constructor(WebService webservice, *SoapClient soapclient, WSOperation op)
+            : SoapDataProviderBase(webservice, op) {
         self.soapclient = soapclient;
         record_type = getRecordTypeIntern();
     }
 
     #! Returns the data provider name
     string getName() {
-        return webservice.getName() + "/" + op.name + "/" + "request";
+        return webservice.getName() + "/" + op.name;
     }
 
     #! Returns data provider info
