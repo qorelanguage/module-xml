@@ -56,7 +56,7 @@ public class SoapDataProvider inherits AbstractDataProvider {
         const ConstructorOptions = {
             "schema": <DataProviderOptionInfo>{
                 "type": (
-                    AbstractDataProviderType::get(StringType, NOTHING, {DTT_FromFile: True}),
+                    AbstractDataProviderType::get(StringType, NOTHING, {DTT_FromFile: True, DTT_FromLocation: True}),
                     AbstractDataProviderType::get(new Type("WebService")),
                 ),
                 "desc": "the SOAP schema object (WebService) or source URL for the WSDL",
