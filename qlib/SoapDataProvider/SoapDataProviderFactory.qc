@@ -27,22 +27,22 @@ public namespace SoapDataProvider {
 #! The SOAP data provider factory
 public class SoapDataProviderFactory inherits AbstractDataProviderFactory {
     private {
+        #! Data provider type info
         static Class cls = new Class("SoapDataProvider");
-    }
 
-    #! Returns static factory information without \a provider_info
-    /** @return static factory information without \a provider_info which is provided by @ref getProviedrInfo()
-    */
-    private hash<DataProviderFactoryInfo> getInfoImpl() {
-        return <DataProviderFactoryInfo>{
+        #! Factory info
+        const FactoryInfo = <DataProviderFactoryInfo>{
             "name": "soap",
+            "desc": "SOAP API data provider factory",
             "api_management": True,
         };
     }
 
-    #! Returns the name of the data provider factory
-    private string getNameImpl() {
-        return "soap";
+    #! Returns static factory information without \a provider_info
+    /** @return static factory information without \a provider_info which is provided by @ref getProviderInfo()
+    */
+    private hash<DataProviderFactoryInfo> getInfoImpl() {
+        return FactoryInfo;
     }
 
     #! Returns static provider information
