@@ -7,6 +7,11 @@ set (VERSION_MINOR 5)
 set (VERSION_PATCH 2)
 
 find_package(Qore 1.0 REQUIRED)
+
+if (DEFINED ENV{LIBXML2_LIBRARY})
+  set(LIBXML2_LIBRARY $ENV{LIBXML2_LIBRARY})
+endif()
+
 find_package(LibXml2 REQUIRED)
 find_package(OpenSSL REQUIRED)
 
