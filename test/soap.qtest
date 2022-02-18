@@ -148,6 +148,7 @@ class SoapTest inherits QUnit::Test {
                         "issue3367": {
                             "st:i3367": {"^attributes^": {"xmlns": ""}},
                         },
+                        "issue4452": "1",
                         "logo": "dGVzdA==",
                     ),
                 ),
@@ -673,6 +674,7 @@ class SoapTest inherits QUnit::Test {
                     },
                 },
             },
+            "issue4452": "1",
             "logo": binary("test"),
         );
 
@@ -739,6 +741,7 @@ class SoapTest inherits QUnit::Test {
             "issue3367": {
                 "i3367": "",
             },
+            "issue4452": "1",
         );
 
         assertEq(req_r, h, "attr-deser-our");
@@ -786,6 +789,7 @@ class SoapTest inherits QUnit::Test {
         h = op.deserializeRequest(h);
 
         req_r.issue3367.i3367 = NOTHING;
+        req_r.issue4452 = NOTHING;
         assertEq(req_r, h, "attr-deser-soapui");
 
         h = op.serializeResponse(Res_1);
@@ -987,7 +991,7 @@ class SoapTest inherits QUnit::Test {
         hash req = (
             "arg1": "x",
             "arg2": "y",
-            );
+        );
 
         hash h = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING);
         hash xh = parse_xml(h.body);
