@@ -541,6 +541,7 @@ class SoapTest inherits QUnit::Test {
     }
 
     constructor() : QUnit::Test("SoapTest", "1.0") {
+        addTestCase("issue 4449", \issue4449());
         addTestCase("issue 3029", \issue3029());
         addTestCase("WSDLLib", \wsdlLibTest());
         addTestCase("issue 2793", \issue2793());
@@ -548,6 +549,19 @@ class SoapTest inherits QUnit::Test {
         addTestCase("Test1", \test1());
         addTestCase("multi", \multiTest());
         set_return_value(main());
+    }
+
+    issue4449() {
+        WebService ws = WSDLLib::getWebServiceFromUrl(get_script_dir() + "/issue-4449.wsdl");
+        WSOperation op = ws.getOperation("test1");
+
+        hash<auto> req = {
+            "arg1": "x",
+            "arg2": "y",
+        };
+        hash<auto> h = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING);
+        assertEq("POST", h.method);
+        assertEq(Type::String, h.body.type());
     }
 
     issue3029() {
@@ -973,7 +987,7 @@ class SoapTest inherits QUnit::Test {
         hash req = (
             "arg1": "x",
             "arg2": "y",
-            );
+        );
 
         hash h = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING);
         hash xh = parse_xml(h.body);

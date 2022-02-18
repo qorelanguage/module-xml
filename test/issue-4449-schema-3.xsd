@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xsd:schema targetNamespace="http://qore.org/issue-4449"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:tns="http://qore.org/issue-4449"
+    elementFormDefault="qualified">
+  <xsd:element name="test1">
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element name="arg1" type="xsd:string"/>
+        <xsd:element name="arg2" type="xsd:string"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:element name="test1Response">
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element ref="tns:Root" minOccurs="0" maxOccurs="unbounded"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:element name="Root">
+    <xsd:complexType>
+      <xsd:sequence maxOccurs="1" minOccurs="1">
+        <xsd:element name="Struct" maxOccurs="unbounded" minOccurs="1">
+          <xsd:complexType>
+            <xsd:sequence>
+              <xsd:element name="arg1" maxOccurs="1" minOccurs="1" type="xsd:string"/>
+              <xsd:element name="arg2" maxOccurs="1" minOccurs="1" type="xsd:string"/>
+            </xsd:sequence>
+          </xsd:complexType>
+        </xsd:element>
+        <xsd:element name="res1" maxOccurs="1" minOccurs="1" type="xsd:string"/>
+        <xsd:element name="res2" maxOccurs="1" minOccurs="0" type="xsd:string"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+</xsd:schema>
