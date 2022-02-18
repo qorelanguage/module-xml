@@ -81,6 +81,8 @@ module WSDL {
     @section wsdlrelnotes WSDL Module Release Notes
 
     @subsection wsdl_0_5_3 WSDL v0.5.3
+    - fixed a bug handling \c complexType elements with a \c sequence and and \a any element
+      (<a href="https://github.com/qorelanguage/qore/issues/4452">issue 4452</a>)
     - fixed a confusing bug in the error message for
       @ref WSDL::WSDLLib::getWebServiceFromUrl() "WSDLLib::getWebServiceFromUrl()" when the file could not be read
       (<a href="https://github.com/qorelanguage/qore/issues/4451">issue 4451</a>)
@@ -1727,8 +1729,9 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             remove d.extension."^attributes^";
             WSDL::XsdBase::removeNS(\d.extension);
             parseAttributes(\d.extension, unresolved, nsc);
-        } else if (ct)
+        } else if (ct) {
             parseData(ct, unresolved, nsc);
+        }
         else {
             # empty complex type
             cx_type = XET_NONE;
@@ -1818,8 +1821,12 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                     choices += ech;
                 }
             }
-        } else
+            if (d.sequence."any") {
+                anyAttribute = True;
+            }
+        } else {
             throw "XSD-COMPLEXTYPE-ERROR", sprintf("unknown keys in %y", d);
+        }
     }
 
     private parseAttributes(reference d, XsdLateResolverHelper unresolved, Namespaces nsc) {
@@ -1953,10 +1960,14 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 h = h."^value^";
             rh."^value^" = simpleType.serialize(nsc, h, omitType);
         } else if (cx_type != XET_NONE) {
-            if (exists h && h.typeCode() != NT_HASH)
-                throw SOAP_SERIALIZATION_ERROR, sprintf("expecting hash<auto> argument to serialize from complexType %y (got %y, type %y)", getName(), h, type(h));
-
-            if (cx_type == XET_SEQUENCE || cx_type == XET_ALL) {
+            if (exists h && h.typeCode() != NT_HASH) {
+                if (!anyAttribute) {
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("expecting hash<auto> argument to serialize from "
+                        "complexType %y (got %y, type %y)", getName(), h, type(h));
+                } else {
+                    rh = {"^value^": h};
+                }
+            } else if (cx_type == XET_SEQUENCE || cx_type == XET_ALL) {
                 foreach string p in (keys elementmap) {
                     #printf("DEBUG element: %y (%y)\nvalue: %y\n", p, elementmap{p}, h{p});
                     rh += serializeElement(nsc, p, elementmap{p}, h, omitType);
@@ -2038,7 +2049,7 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return rh;
     }
 
-    *hash<auto> deserialize(string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto oval) {
+    auto deserialize(string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto oval) {
         #printf("XsdComplexType::deserialize() name: %y val: %y required: %y\n", getName(), oval, required);
         if (exists array)
             return array.deserialize(en, tmap, mrh, oval);
@@ -2052,7 +2063,12 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
 
         # to avoid "RUNTIME-TYPE-ERROR" exceptions in the next line`
         if (exists oval && oval.typeCode() != NT_HASH) {
-            throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize complex type %y from Qore type %y (expecting \"hash\")", getName(), oval.type());
+            if (!anyAttribute) {
+                throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize complex type %y from Qore type %y "
+                    "(expecting \"hash\")", getName(), oval.type());
+            } else {
+                oval = {"^value^": oval};
+            }
         }
         *hash<auto> val = oval;
         *hash<auto> attr = val."^attributes^";
@@ -2136,15 +2152,25 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                     #printf("choice em: %y h: %y\n", ch.elementmap.keys(), h);
                 }
                 delete val."^attributes^";
-                if (val)
-                    throw SOAP_DESERIALIZATION_ERROR, sprintf("invalid element %y passed in type %y for element %y (expecting %y)", (keys val)[0], getName(), en, keys elementmap);
+                if (val) {
+                    if (!anyAttribute) {
+                        throw SOAP_DESERIALIZATION_ERROR, sprintf("invalid element %y passed in type %y for element %y "
+                            "(expecting %y)", (keys val)[0], getName(), en, keys elementmap);
+                    } else {
+                        rh = val;
+                    }
+                }
             } else { # "choice" - union
                 rh += parseChoice(val, elementmap, en, tmap, mrh, True);
             }
         }
 
-        if (ah)
+        if (ah) {
             rh."^attributes^" = ah;
+        }
+        if (rh.size() == 1 && rh."^value^") {
+            return rh."^value^";
+        }
         return rh;
     }
 

@@ -262,6 +262,11 @@
           <s:element name="i3367" nillable="true" type="s:string" />
         </s:sequence>
       </s:complexType>
+      <s:complexType name="i4452">
+        <s:sequence>
+          <s:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </s:sequence>
+      </s:complexType>
     </s:schema>
     <s:schema xmlns:tns1="http://qore.org/simpletest1" elementFormDefault="qualified" targetNamespace="http://qore.org/simpletest1">
       <s:element name="issue86" type="tns1:issue86_1" />
@@ -299,6 +304,7 @@
     <wsdl:part name="issue2899_3" element="tns:issue2899_3"/>
     <wsdl:part name="issue2899_4" type="tns:i2899_2"/>
     <wsdl:part name="issue3367" type="tns:i3367"/>
+    <wsdl:part name="issue4452" type="tns:i4452"/>
     <wsdl:part name="logo" type="s:base64Binary" />
   </wsdl:message>
   <wsdl:message name="m4">
