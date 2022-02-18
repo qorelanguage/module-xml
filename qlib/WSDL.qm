@@ -4661,9 +4661,6 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         /** @note there is no need to serialize \c def_path as it will be set with the saved options
         */
         transient *string def_path;
-
-        #! issue #4449: map of imports used while parsing
-        transient hash<string, bool> import_map;
     }
 
     private {
@@ -4672,6 +4669,9 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
 
         # service bindings; name -> Binding
         hash<string, Binding> binding();
+
+        #! issue #4449: map of imports used while parsing
+        transient hash<string, bool> import_map;
     }
 
     #! creates the WebService object
