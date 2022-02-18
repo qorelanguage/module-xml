@@ -43,7 +43,7 @@
 %disable-warning unreferenced-variable
 
 module WSDL {
-    version = "0.5.2";
+    version = "0.5.3";
     desc = "WSDL module providing functionality for SOAP";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -68,7 +68,8 @@ module WSDL {
     The main purpose of this module is to provide the infrastructure for developing SOAP client and server services.
 
     The main components of this module are as follows:
-    - @ref WSDL::WebService "WebService": represents a WSDL file; an easy way to get an object of this type from a URL is by calling WSDL::WSDLLib::getWSDL()
+    - @ref WSDL::WebService "WebService": represents a WSDL file; an easy way to get an object of this type from a URL
+      is by calling WSDL::WSDLLib::getWSDL()
     - @ref WSDL::WSDLLib "WSDLLib": a class of static functions providing helper functions for the module
     - @ref WSDL::WSOperation "WSOperation": a class representing a single operation from a SOAP web service
     - @ref WSDL::WSMessageHelper "WSMessageHelper": a class to create sample messages used by SOAP operations
@@ -78,6 +79,13 @@ module WSDL {
     - <a href="../../SoapHandler/html/index.html">SoapHandler user module</a>
 
     @section wsdlrelnotes WSDL Module Release Notes
+
+    @subsection wsdl_0_5_3 WSDL v0.5.3
+    - fixed a confusing bug in the error message for
+      @ref WSDL::WSDLLib::getWebServiceFromUrl() "WSDLLib::getWebServiceFromUrl()" when the file could not be read
+      (<a href="https://github.com/qorelanguage/qore/issues/4451">issue 4451</a>)
+    - fixed bugs loading URLs with multiple imports of the same external XSD schema
+      (<a href="https://github.com/qorelanguage/qore/issues/4449">issue 4449</a>)
 
     @subsection wsdl_0_5_2 WSDL v0.5.2
     - fixed a bug where the web service's name was not reported correctly by the
@@ -295,8 +303,10 @@ public class WSDL::WSDLLib {
     */
     static data getFile(string fn, bool as_string = True) {
         *data rv = as_string ? ReadOnlyFile::readTextFile(fn) : ReadOnlyFile::readBinaryFile(fn);
-        if (!exists rv)
+        if (!exists rv) {
             throw "WSDL-LIB-ERROR", sprintf("file %y is empty or could not be read as a normal file", fn);
+        }
+
         return rv;
     }
 
@@ -304,10 +314,11 @@ public class WSDL::WSDLLib {
     /** called by WSDLLib::getFileFromURL() in case the scheme is "http"
     */
     static string getHTTP(string url, *string path, *HTTPClient hc, *hash<auto> headers, bool as_string = True) {
-        if (hc)
+        if (hc) {
             hc.setURL(url);
-        else
+        } else {
             hc = new HTTPClient(("url": url));
+        }
         string body;
         try {
             body = hc.get(path ? path : "/", headers);
@@ -322,15 +333,17 @@ public class WSDL::WSDLLib {
     */
     static data getFTP(string url, string path, bool as_string = True) {
         string file = basename(path);
-        if (!file)
+        if (!file) {
             throw "WSDL-LIB-ERROR", sprintf("missing file name in URL %y", url);
+        }
 
         FtpClient f(url);
         f.connect();
 
         string dir = dirname(path);
-        if (dir)
+        if (dir) {
             f.cwd(dir);
+        }
 
         return as_string ? f.getAsString(file) : f.getAsBinary(file);
     }
@@ -341,15 +354,17 @@ public class WSDL::WSDLLib {
 
         @note uses the \c FileLocationHandler module to retrieve file data for all schemes except \c "file://" and
         \c "http(s)://", which uses @ref WSDL::WSDLLib::getFileFromUrl() "WSDLLib::getFileFromUrl()" and
-        @ref @ref WSDL::WSDLLib::getHTTP() "WSDLLib::getHTTP()" respectively for backwards compatibility
+        @ref WSDL::WSDLLib::getHTTP() "WSDLLib::getHTTP()" respectively for backwards compatibility
      */
-    static data getFileFromURL(string url, string def_protocol = "file", *HTTPClient http_client, *hash<auto> http_headers, bool as_string = True, *string def_path, *reference new_def_path) {
+    static data getFileFromURL(string url, string def_protocol = "file", *HTTPClient http_client,
+            *hash<auto> http_headers, bool as_string = True, *string def_path, *reference new_def_path) {
         try {
-            return WSDLLib::getFileFromURL(url, parse_url(url), def_protocol, http_client, http_headers, as_string, def_path, \new_def_path);
+            return WSDLLib::getFileFromURL(url, parse_url(url), def_protocol, http_client, http_headers, as_string,
+                def_path, \new_def_path);
         } catch (hash<ExceptionInfo> ex) {
             # see if a scheme is given in the location
             if (url !~ /^\w+:\/\//) {
-                url = def_protocol + "://";
+                url = def_protocol + "://" + url;
             }
             return FileLocationHandler::getFileFromLocation(as_string, url);
         }
@@ -361,9 +376,10 @@ public class WSDL::WSDLLib {
 
         @note uses the \c FileLocationHandler module to retrieve file data for all schemes except \c "file://" and
         \c "http(s)://", which uses @ref WSDL::WSDLLib::getFileFromUrl() "WSDLLib::getFileFromUrl()" and
-        @ref @ref WSDL::WSDLLib::getHTTP() "WSDLLib::getHTTP()" respectively for backwards compatibility
+        @ref WSDL::WSDLLib::getHTTP() "WSDLLib::getHTTP()" respectively for backwards compatibility
      */
-    static data getFileFromURL(string url, hash<auto> u, string def_protocol = "file", *HTTPClient http_client, *hash<auto> http_headers, bool as_string = False, *string def_path, *reference new_def_path) {
+    static data getFileFromURL(string url, hash<auto> u, string def_protocol = "file", *HTTPClient http_client,
+            *hash<auto> http_headers, bool as_string = False, *string def_path, *reference new_def_path) {
         bool used_def_protocol;
         if (!exists u.protocol) {
             u.protocol = def_protocol;
@@ -373,20 +389,23 @@ public class WSDL::WSDLLib {
         switch (u.protocol) {
             case "file": {
                 string path;
-                if (u.host)
+                if (u.host) {
                     path = u.host;
+                }
                 if (u.path) {
-                    if (path)
+                    if (path) {
                         path += DirSep;
+                    }
                     path += u.path;
                 }
                 # do environment variable substitution
                 map path = replace(path, "\$" + $1, ENV.$1), (path =~ x/\$(\w+)/g);
 
-                if (def_path && !absolute_path(path))
+                if (def_path && !absolute_path(path)) {
                     path = def_path + DirSep + path;
-                else
+                } else {
                     new_def_path = dirname(path);
+                }
                 return WSDLLib::getFile(path, as_string);
             }
 
@@ -411,8 +430,9 @@ public class WSDL::WSDLLib {
         is performed on the path string
      */
     static string getWSDL(string wsdl, *HTTPClient http_client, *hash<auto> http_headers, *reference new_def_path) {
-        if (wsdl =~ /^</)
+        if (wsdl =~ /^</) {
             return wsdl;
+        }
         return WSDLLib::getFileFromURL(wsdl, "file", http_client, http_headers, NOTHING, NOTHING, \new_def_path);
     }
 
@@ -4104,6 +4124,15 @@ class WSDL::NamespacePrefixHelper {
 
         # overridden default namespace
         bool def_ns;
+
+        # schema description
+        string desc;
+
+        #! schema internal ID
+        int id = ++count;
+
+        #! schema ID counter
+        static int count = 0;
     }
 
     constructor(Namespaces nsc, *hash<auto> nsattr) {
@@ -4114,11 +4143,19 @@ class WSDL::NamespacePrefixHelper {
             if (nsattr.targetNamespace) {
                 nsc.pushTargetNamespace(nsattr.targetNamespace);
                 targ_ns = True;
+                desc = sprintf("schema-%d-targetNamespace:%s", id, nsattr.targetNamespace);
             }
             if (nsattr.xmlns) {
                 nsc.pushDefaultNamespace(nsattr.xmlns);
                 def_ns = True;
+                if (!desc) {
+                    desc = sprintf("schema-%d-xmlns:%s", id, nsattr.xmlns);
+                }
             }
+        }
+
+        if (!desc) {
+            desc = sprintf("schema-%d", id);
         }
     }
 
@@ -4133,6 +4170,10 @@ class WSDL::NamespacePrefixHelper {
 
     save(string k, string v) {
         h{k} = v;
+    }
+
+    string getDesc() {
+        return desc;
     }
 }
 
@@ -4620,6 +4661,9 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         /** @note there is no need to serialize \c def_path as it will be set with the saved options
         */
         transient *string def_path;
+
+        #! issue #4449: map of imports used while parsing
+        transient hash<string, bool> import_map;
     }
 
     private {
@@ -4851,12 +4895,18 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
                 *hash<auto> a = import."^attributes^";
                 # import file
                 if (a.schemaLocation) {
+                    # issue #4449: do not import the same schema more than once
+                    if (import_map{a.schemaLocation}) {
+                        continue;
+                    }
+                    import_map{a.schemaLocation} = True;
                     hash<auto> h = parse_url(a.schemaLocation);
                     string xsd;
                     if (!h.protocol && try_import) {
                         xsd = call_function(try_import, a.schemaLocation);
                     } else {
-                        xsd = WSDLLib::getFileFromURL(a.schemaLocation, "file", http_client, http_headers, NOTHING, def_path);
+                        xsd = WSDLLib::getFileFromURL(a.schemaLocation, "file", http_client, http_headers, NOTHING,
+                            def_path);
                     }
 
                     # parse XML to Qore data structure ignoring XML element order
@@ -4864,7 +4914,8 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
 
                     # parse namespace definitions in schema attributes
                     if (xh.size() != 1)
-                        throw WSDL_ERROR, sprintf("expecting a single element indicating an XSD schema in the imported file; got instead: %y", xh.keys());
+                        throw WSDL_ERROR, sprintf("%s: expecting a single element indicating an XSD schema in the "
+                            "imported file; got instead: %y", nph.getDesc(), xh.keys());
 
                     # get schema member name
                     string sk = xh.firstKey();
@@ -4881,17 +4932,21 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
 
                     # verify that the top-level key indicates an XSD schema definition
                     (*string ns, *string mem) = (sk =~ x/^([^:]+):([^:]+)$/);
-                    if (ns && !nsc.isSchema(ns))
-                        throw WSDL_ERROR, sprintf("expecting imported schema definition to be in XSD namespace %y, got %y: %y instead", XSD_NS, ns, nsc.getInputNamespaceUri(ns));
+                    if (ns && !nsc.isSchema(ns)) {
+                        throw WSDL_ERROR, sprintf("%s: expecting imported schema definition to be in XSD namespace %y, "
+                            "got %y: %y instead", nph.getDesc(), XSD_NS, ns, nsc.getInputNamespaceUri(ns));
+                    }
 
                     parseTypes(xh);
+                    continue;
                 }
             }
 
             foreach hash<auto> st in (schema.simpleType) {
                 XsdSimpleType t(st, nsc, unresolved, usedocns);
-                if (tmap{t.name})
-                    throw WSDL_ERROR, sprintf("type %y declared twice", t.name);
+                if (tmap{t.name}) {
+                    throw WSDL_ERROR, sprintf("%s: type (simpleType) %y declared twice", nph.getDesc(), t.name);
+                }
                 tmap{t.name} = t;
 
                 #tmap.add(t);
@@ -4899,8 +4954,9 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
             }
             foreach hash<auto> ct in (schema.complexType) {
                 XsdComplexType t(ct, nsc, unresolved, usedocns);
-                if (tmap{t.name})
-                    throw WSDL_ERROR, sprintf("type %y declared twice", t.name);
+                if (tmap{t.name}) {
+                    throw WSDL_ERROR, sprintf("%s: type (complexType) %y declared twice", nph.getDesc(), t.name);
+                }
                 tmap{t.name} = t;
 
                 #tmap.add(t);
@@ -4928,8 +4984,9 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
                     #printf("DEBUG: adding element %y (ns %y name %y)\n", attr.name, element.ns, element.name);
                 }
 
-                if (emap{element.ns}{element.name})
-                    throw WSDL_ERROR, sprintf("element %y declared twice in namespace %y", element.name, element.ns);
+                if (emap{element.ns}{element.name}) {
+                    throw WSDL_ERROR, sprintf("%s: element %y declared twice in namespace %y", nph.getDesc(), element.name, element.ns);
+                }
                 emap{element.ns}{element.name} = element;
                 #printf("DEBUG: added element %s -> %s\n", element.ns, element.name);
             }

@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+    xmlns:http="http://schemas.xmlsoap.org/wsdl/http/"
+    xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/"
+    xmlns:tns="http://qore.org/issue-4449"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="http://qore.org/issue-4449">
+  <types>
+    <xsd:schema>
+      <xsd:import namespace="http://qore.org/issue-4449" schemaLocation="issue-4449-schema-1.xsd"/>
+    </xsd:schema>
+    <xsd:schema>
+      <xsd:import namespace="http://qore.org/issue-4449-1" schemaLocation="issue-4449-schema-2.xsd"/>
+    </xsd:schema>
+  </types>
+  <message name="test1In">
+    <part name="parameters" element="tns:test1"/>
+  </message>
+  <message name="test1Out">
+    <part name="parameters" element="tns:test1Response"/>
+  </message>
+  <portType name="test1PortType">
+    <operation name="test1">
+      <input message="tns:test1In"/>
+      <output message="tns:test1Out"/>
+    </operation>
+  </portType>
+  <binding name="test1SoapBinding" type="tns:test1PortType">
+    <soap:binding xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" transport="http://schemas.xmlsoap.org/soap/http" style="document"/>
+    <operation name="test1">
+      <soap:operation xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="http://example.com/test1/test1_ws/test1" style="document"/>
+      <input>
+        <soap:body xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" use="literal"/>
+      </input>
+      <output>
+        <soap:body xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" use="literal"/>
+      </output>
+    </operation>
+  </binding>
+  <service name="test1SoapService">
+    <port binding="tns:test1SoapBinding" name="test1SoapPort">
+      <soap:address xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" location="http://192.168.25.105:8080/test1_ws/services/test1SoapService"/>
+    </port>
+  </service>
+</wsdl:definitions>

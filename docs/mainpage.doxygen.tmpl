@@ -393,6 +393,16 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @section xmlreleasenotes Release Notes
 
+    @subsection xml153 xml Module Version 1.5.3
+    <b>Changes and Bug Fixes in This Release</b>
+    - <a href="../../WSDL/html/index.html">WSDL</a>:
+      - fixed a confusing bug in the error message for \c WSDLLib::getWebServiceFromUrl() when the file could not be
+        read
+        (<a href="https://github.com/qorelanguage/qore/issues/4451">issue 4451</a>)
+      - fixed bugs loading URLs with multiple imports of the same external XSD schema
+        (<a href="https://github.com/qorelanguage/qore/issues/4449">issue 4449</a>)
+
+
     @subsection xml152 xml Module Version 1.5.2
     <b>Changes and Bug Fixes in This Release</b>
     - <a href="../../SoapDataProvider/html/index.html">SoapDataProvider</a>:
