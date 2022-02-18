@@ -344,7 +344,7 @@ public class WSDL::WSDLLib {
         } catch (hash<ExceptionInfo> ex) {
             # see if a scheme is given in the location
             if (url !~ /^\w+:\/\//) {
-                url = def_protocol + "://";
+                url = def_protocol + "://" + url;
             }
             return FileLocationHandler::getFileFromLocation(as_string, url);
         }
@@ -4580,6 +4580,9 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
 
         # service bindings; name -> Binding
         hash<string, Binding> binding();
+
+        #! issue #4449: map of imports used while parsing
+        transient hash<string, bool> import_map;
     }
 
     #! creates the WebService object
@@ -4804,6 +4807,11 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
                 *hash<auto> a = import."^attributes^";
                 # import file
                 if (a.schemaLocation) {
+                    # issue #4449: do not import the same schema more than once
+                    if (import_map{a.schemaLocation}) {
+                        continue;
+                    }
+                    import_map{a.schemaLocation} = True;
                     hash<auto> h = parse_url(a.schemaLocation);
                     string xsd;
                     if (!h.protocol && try_import) {
