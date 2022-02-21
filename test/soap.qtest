@@ -148,7 +148,9 @@ class SoapTest inherits QUnit::Test {
                         "issue3367": {
                             "st:i3367": {"^attributes^": {"xmlns": ""}},
                         },
-                        "issue4452": "1",
+                        "issue4452-1": "1",
+                        "issue4452-2": {"a": "1"},
+                        "issue4452-3": {"^cdata^": "some data"},
                         "logo": "dGVzdA==",
                     ),
                 ),
@@ -674,7 +676,9 @@ class SoapTest inherits QUnit::Test {
                     },
                 },
             },
-            "issue4452": "1",
+            "issue4452-1": "1",
+            "issue4452-2": {"a": "1"},
+            "issue4452-3": {"^cdata^": "some data"},
             "logo": binary("test"),
         );
 
@@ -689,7 +693,7 @@ class SoapTest inherits QUnit::Test {
         hash h = op.serializeRequest(req, NOTHING, NOTHING, NOTHING, XGF_ADD_FORMATTING, "TEST");
         assertEq("TEST", h.hdr.SOAPAction);
         hash xh = parse_xml(h.body);
-        #printf("body: %y\n", h.body);
+        on_error printf("body: %y\n", h.body);
         xh."soapenv:Envelope"."soapenv:Body"."sim:setInfo"."issue3367"."sim:i3367"."^attributes^"."xmlns" = "";
         compareSoapMsgs("attr-ser", Req_1, xh);
 
@@ -741,7 +745,9 @@ class SoapTest inherits QUnit::Test {
             "issue3367": {
                 "i3367": "",
             },
-            "issue4452": "1",
+            "issue4452-1": "1",
+            "issue4452-2": {"a": "1"},
+            "issue4452-3": {"^cdata^": "some data"},
         );
 
         assertEq(req_r, h, "attr-deser-our");
@@ -789,7 +795,9 @@ class SoapTest inherits QUnit::Test {
         h = op.deserializeRequest(h);
 
         req_r.issue3367.i3367 = NOTHING;
-        req_r.issue4452 = NOTHING;
+        req_r."issue4452-1" = NOTHING;
+        req_r."issue4452-2" = NOTHING;
+        req_r."issue4452-3" = NOTHING;
         assertEq(req_r, h, "attr-deser-soapui");
 
         h = op.serializeResponse(Res_1);
@@ -1061,16 +1069,18 @@ class SoapTest inherits QUnit::Test {
 
             compareSoapValue(assert, "Envelope.Body", b1, b2, nh1, nh2);
         } catch (hash ex) {
+            /*
             # to provide real info what failed
             list stack = get_all_thread_call_stacks(){gettid()};
             int i = 1;
             while (exists stack[i]) {
                 if (stack[i].file == stack[0].file) {
-                    #printf("test: %N\n%N\nExpected: %N\nActual: %N\n", stack[i], ex, h1, h2);
+                    printf("test: %N\n%N\nExpected: %N\nActual: %N\n", stack[i], ex, h1, h2);
                     break;
                 }
                 i++;
             }
+            */
             rethrow;
         }
     }

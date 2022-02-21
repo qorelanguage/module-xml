@@ -1762,7 +1762,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             cast<XsdComplexType>(t).finalize(tmap, nsc);
             # combine base type and new type
             elementmap = cast<hash<string, XsdElement>>(cast<XsdComplexType>(t).elementmap + elementmap);
-            #printf("DEBUG: extended %s (%s) with %s (%y) elements: %y\n", name, self.uniqueHash(), extension, cast<XsdComplexType>(t).elementmap.keys(), elementmap.keys());
+            #printf("DEBUG: extended %s (%s) with %s (%y) elements: %y\n", name, self.uniqueHash(), extension,
+            #     cast<XsdComplexType>(t).elementmap.keys(), keys elementmap);
         }
     }
 
@@ -1936,17 +1937,22 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             if (h."^attributes^") {
                 hash<auto> mah = remove h."^attributes^";
                 foreach string k in (keys mah) {
-                    if (!attrs{k})
-                        throw SOAP_SERIALIZATION_ERROR, sprintf("cannot set unknown attribute %y of element %y; known attributes: %y", k, getName(), attrs.keys());
-                    if (attrs{k}.use == "prohibited")
-                        throw SOAP_SERIALIZATION_ERROR, sprintf("cannot set attribute %y of element %y; the WSDL marks this attribute as prohibited", k, getName());
+                    if (!attrs{k}) {
+                        throw SOAP_SERIALIZATION_ERROR, sprintf("cannot set unknown attribute %y of element %y; known "
+                            "attributes: %y", k, getName(), attrs.keys());
+                    }
+                    if (attrs{k}.use == "prohibited") {
+                        throw SOAP_SERIALIZATION_ERROR, sprintf("cannot set attribute %y of element %y; the WSDL "
+                            "marks this attribute as prohibited", k, getName());
+                    }
                     ah{k} = mah{k};
                 }
             }
             # check for required attributes
             foreach XsdAttribute attr in (attrs.iterator()) {
                 if (attr.use == "required" && !exists ah.(attr.name))
-                    throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize element %y without attribute %y; the WSDL marks this attribute as required", getName(), attr.name);
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize element %y without attribute %y; the "
+                        "WSDL marks this attribute as required", getName(), attr.name);
             }
             foreach string k in (keys h) {
                 if (k =~ /^\^comment/) {
@@ -1989,7 +1995,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                     *hash<auto> vhch = hch{kl};
                     if (!vh && !vhch) {
                         if (ch.required)
-                            throw SOAP_SERIALIZATION_ERROR, sprintf("expecting one of %y to serialize choice / union in complexType %y but no such keys were supplied", ch.elementmap.keys(), getName());
+                            throw SOAP_SERIALIZATION_ERROR, sprintf("expecting one of %y to serialize choice / union "
+                                "in complexType %y but no such keys were supplied", ch.elementmap.keys(), getName());
                     } else {
                         if (vh) {
                             rh += serializeChoice(nsc, ch.elementmap, vh, omitType, False);
@@ -2004,11 +2011,16 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 }
 
                 if (h) {
-                    auto kl = h.size() == 1 ? h.firstKey() : h.keys();
-                    throw SOAP_SERIALIZATION_ERROR, sprintf("%y %s of type %y (valid elements: %y)", kl, kl.lsize() == 1 ? "is an invalid member" : "are invalid members", getName(), elementmap.keys());
+                    if (!anyAttribute) {
+                        auto kl = h.size() == 1 ? h.firstKey() : h.keys();
+                        throw SOAP_SERIALIZATION_ERROR, sprintf("%y %s of type %y (valid elements: %y)", kl,
+                            kl.lsize() == 1 ? "is an invalid member" : "are invalid members", getName(), elementmap.keys());
+                    }
+                    rh += h;
                 }
                 if (hch) {
-                    throw SOAP_SERIALIZATION_ERROR, sprintf("unknown choice members %y provided via ^choices^ in %y", keys hch, getName());
+                    throw SOAP_SERIALIZATION_ERROR, sprintf("unknown choice members %y provided via ^choices^ in %y",
+                        keys hch, getName());
                 }
             } else { # "choice" - union
                 rh = serializeChoice(nsc, elementmap, h, omitType, False);
@@ -2033,14 +2045,17 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return rh;
     }
 
-    private hash<auto> serializeChoice(Namespaces nsc, hash<string, XsdElement> emap, hash<auto> h, *softbool omitType, bool all_members) {
+    private hash<auto> serializeChoice(Namespaces nsc, hash<string, XsdElement> emap, hash<auto> h,
+            *softbool omitType, bool all_members) {
         # normally there is only one choice but we also need output example message where all options are enumerated
         if (!all_members && elements h > 1)
-            throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize choice / union in complexType %y with more than 1 member (%y)", getName(), h.keys());
+            throw SOAP_SERIALIZATION_ERROR, sprintf("cannot serialize choice / union in complexType %y with more "
+                "than 1 member (%y)", getName(), h.keys());
         *hash<auto> rh;
         foreach string key in (keys h) {
             if (!emap{key})
-                throw SOAP_SERIALIZATION_ERROR, sprintf("%y is an invalid member of choice / union in complexType %y; expecting one of: %y", key, getName(), emap.keys());
+                throw SOAP_SERIALIZATION_ERROR, sprintf("%y is an invalid member of choice / union in complexType "
+                    "%y; expecting one of: %y", key, getName(), emap.keys());
 
             # add namespace if necessary
             rh += serializeElement(nsc, key, emap{key}, h, omitType);
@@ -2080,10 +2095,12 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             foreach XsdAttribute xa in (attrs.iterator()) {
                 *string attr_val = val."^attributes^".(xa.name);
                 if (xa.use == "required" && !exists attr_val)
-                    throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize element %y without attribute %y; the WSDL marks this attribute as required", getName(), xa.name);
+                    throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize element %y without attribute %y; "
+                        "the WSDL marks this attribute as required", getName(), xa.name);
                 if (exists attr_val) {
                     if (attr.use == "prohibited")
-                        throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize element %y with attribute %y; the WSDL marks this attribute as prohibited", getName(), xa.name);
+                        throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize element %y with attribute %y; "
+                            "the WSDL marks this attribute as prohibited", getName(), xa.name);
                     ah.(xa.name) = xa.getValue(attr_val);
                 }
             }
@@ -2105,7 +2122,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                         return t.deserialize(en, tmap, mrh, oval);
                     }
 
-                    throw SOAP_DESERIALIZATION_ERROR, sprintf("expecting ComplexType type %y for element %y, got %y", getName(), en, tn);
+                    throw SOAP_DESERIALIZATION_ERROR, sprintf("expecting ComplexType type %y for element %y, got %y",
+                        getName(), en, tn);
                 }
             }
         }
@@ -2127,7 +2145,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 rh."^value^" = sv;
         } else if (cx_type != XET_NONE) {
             if (exists val && val.typeCode() != NT_HASH)
-                throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize element %y type %y from qore type %y (expecting hash)", en, getName(), val.type());
+                throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize element %y type %y from qore type %y "
+                    "(expecting hash)", en, getName(), val.type());
 
             if (cx_type == XET_SEQUENCE || cx_type == XET_ALL) {
                 #printf("XsdComplexType::deserialize() name: %y val: %y required: %y\n", getName(), val, required);
@@ -2174,18 +2193,22 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return rh;
     }
 
-    private *hash<auto> parseChoice(hash<auto> val, hash<string, XsdElement> emap, string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, *bool required) {
+    private *hash<auto> parseChoice(hash<auto> val, hash<string, XsdElement> emap, string en,
+            hash<string, XsdAbstractType> tmap, *hash<auto> mrh, *bool required) {
         list<auto> kl = val.keys();
         if (elements kl > 1)
-            throw SOAP_DESERIALIZATION_ERROR, sprintf("too many elements supplied for choice / union in type %y for element %y (%y)", getName(), en, kl);
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("too many elements supplied for choice / union in type %y for "
+                "element %y (%y)", getName(), en, kl);
         *string key = kl[0];
         if (!exists key) {
             if (required)
-                throw SOAP_DESERIALIZATION_ERROR, sprintf("missing element for choice / union in type %y for element %y (expecting one of: %y)", getName(), en, emap.keys());
+                throw SOAP_DESERIALIZATION_ERROR, sprintf("missing element for choice / union in type %y for element "
+                    "%y (expecting one of: %y)", getName(), en, emap.keys());
             return;
         }
         if (!exists emap{key})
-            throw SOAP_DESERIALIZATION_ERROR, sprintf("element %y is not a valid element for choice / union in type %y for element %y (valid elements: %y)", key, getName(), en, emap.keys());
+            throw SOAP_DESERIALIZATION_ERROR, sprintf("element %y is not a valid element for choice / union in type "
+                "%y for element %y (valid elements: %y)", key, getName(), en, emap.keys());
 
         return (key: emap{key}.deserialize(tmap, mrh, getValue(mrh, val{key}), val.hasKey(key)));
     }
