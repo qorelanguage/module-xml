@@ -304,7 +304,9 @@
     <wsdl:part name="issue2899_3" element="tns:issue2899_3"/>
     <wsdl:part name="issue2899_4" type="tns:i2899_2"/>
     <wsdl:part name="issue3367" type="tns:i3367"/>
-    <wsdl:part name="issue4452" type="tns:i4452"/>
+    <wsdl:part name="issue4452-1" type="tns:i4452"/>
+    <wsdl:part name="issue4452-2" type="tns:i4452"/>
+    <wsdl:part name="issue4452-3" type="tns:i4452"/>
     <wsdl:part name="logo" type="s:base64Binary" />
   </wsdl:message>
   <wsdl:message name="m4">
