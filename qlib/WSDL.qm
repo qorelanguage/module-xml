@@ -4377,8 +4377,6 @@ public class WSDL::Namespaces inherits Serializable {
 
                     # issue #3194: rename clashing namespace prefixes
                     string new_prefix = getUniquePrefix(uri);
-
-
                     ns{new_prefix} = nsc.ns{prefix};
                     nsc.nsr{uri} = new_prefix;
                 } else {
@@ -4394,7 +4392,8 @@ public class WSDL::Namespaces inherits Serializable {
                 if (imap{k} == v) {
                     continue;
                 }
-                throw "WSDL-NAMESPACE-ERROR", sprintf("imported schema uses prefix %y to refer to %y, however this prefix was previously defined with %y", k, v, imap{k});
+                # issue #4455: rename clashing namespace prefixes
+                k = getUniquePrefix(v);
             }
             imap{k} = v;
         }

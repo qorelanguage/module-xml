@@ -1,6 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <xsd:schema targetNamespace="http://qore.org/issue-4449"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:oth="http://test/other-1"
     elementFormDefault="qualified">
   <xsd:import schemaLocation="issue-4449-schema-3.xsd" namespace="http://www.infinica.com/processes"/>
   <xsd:complexType name="dummy1">
