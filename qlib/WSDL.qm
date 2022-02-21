@@ -1971,8 +1971,11 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 }
 
                 if (h) {
-                    auto kl = h.size() == 1 ? h.firstKey() : h.keys();
-                    throw SOAP_SERIALIZATION_ERROR, sprintf("%y %s of type %y (valid elements: %y)", kl, kl.lsize() == 1 ? "is an invalid member" : "are invalid members", getName(), elementmap.keys());
+                    if (!anyAttribute) {
+                        auto kl = h.size() == 1 ? h.firstKey() : h.keys();
+                        throw SOAP_SERIALIZATION_ERROR, sprintf("%y %s of type %y (valid elements: %y)", kl, kl.lsize() == 1 ? "is an invalid member" : "are invalid members", getName(), elementmap.keys());
+                    }
+                    rh += h;
                 }
                 if (hch) {
                     throw SOAP_SERIALIZATION_ERROR, sprintf("unknown choice members %y provided via ^choices^ in %y", keys hch, getName());
