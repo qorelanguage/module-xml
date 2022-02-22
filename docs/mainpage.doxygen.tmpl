@@ -330,6 +330,19 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @section xmlreleasenotes Release Notes
 
+    @subsection xml1511 xml Module Version 1.5.1.1
+    <b>Changes and Bug Fixes in This Release</b>
+    - <a href="../../WSDL/html/index.html">WSDL</a>:
+      - fixed a bug merging namespaces in externsl XSDs with overlapping prefixes
+        (<a href="https://github.com/qorelanguage/qore/issues/4455">issue 4455</a>)
+      - fixed a bug handling \c complexType elements with a \c sequence and and \a any element
+        (<a href="https://github.com/qorelanguage/qore/issues/4452">issue 4452</a>)
+      - fixed a confusing bug in the error message for \c WSDLLib::getWebServiceFromUrl() when the file could not be
+        read
+        (<a href="https://github.com/qorelanguage/qore/issues/4451">issue 4451</a>)
+      - fixed bugs loading URLs with multiple imports of the same external XSD schema
+        (<a href="https://github.com/qorelanguage/qore/issues/4449">issue 4449</a>)
+
     @subsection xml151 xml Module Version 1.5.1
     <b>Changes and Bug Fixes in This Release</b>
     - <a href="../../SoapHandler/html/index.html">SoapHandler</a>:

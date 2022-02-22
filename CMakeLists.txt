@@ -5,6 +5,7 @@ project(qore-xml-module)
 set (VERSION_MAJOR 1)
 set (VERSION_MINOR 5)
 set (VERSION_PATCH 1)
+set (VERSION_SUB 1)
 
 find_package(Qore 0.9 REQUIRED)
 find_package(LibXml2 REQUIRED)
@@ -103,11 +104,20 @@ set(QORE_DOX_TMPL_SRC
 
 add_library(${module_name} SHARED ${QPP_SOURCES} ${CPP_SRC})
 
-qore_binary_module(${module_name} "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}" ${LIBXML2_LIBRARIES})
+if (VERSION_SUB)
+    qore_binary_module(${module_name} "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}" ${LIBXML2_LIBRARIES})
+else()
+    qore_binary_module(${module_name} "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_SUB}" ${LIBXML2_LIBRARIES})
+endif()
+
 qore_user_modules("${QMOD}")
 install(PROGRAMS ${SCRIPTS} DESTINATION bin)
 
-qore_dist("${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+if (VERSION_SUB)
+    qore_dist("${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+else()
+    qore_dist("${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_SUB}")
+endif()
 
 qore_config_info()
 
