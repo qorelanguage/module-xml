@@ -396,6 +396,8 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
     @subsection xml153 xml Module Version 1.5.3
     <b>Changes and Bug Fixes in This Release</b>
     - <a href="../../WSDL/html/index.html">WSDL</a>:
+      - fixed a bug merging namespaces in externsl XSDs with overlapping prefixes
+        (<a href="https://github.com/qorelanguage/qore/issues/4455">issue 4455</a>)
       - fixed a bug handling \c complexType elements with a \c sequence and and \a any element
         (<a href="https://github.com/qorelanguage/qore/issues/4452">issue 4452</a>)
       - fixed a confusing bug in the error message for \c WSDLLib::getWebServiceFromUrl() when the file could not be
@@ -403,7 +405,6 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
         (<a href="https://github.com/qorelanguage/qore/issues/4451">issue 4451</a>)
       - fixed bugs loading URLs with multiple imports of the same external XSD schema
         (<a href="https://github.com/qorelanguage/qore/issues/4449">issue 4449</a>)
-
 
     @subsection xml152 xml Module Version 1.5.2
     <b>Changes and Bug Fixes in This Release</b>
@@ -418,8 +419,6 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
       - fixed errors propagating XSD types in WSDLs to data providers
         (<a href="https://github.com/qorelanguage/qore/issues/4436">issue 4436</a>)
     - <a href="../../WSDL/html/index.html">WSDL</a>:
-      - fixed a bug merging namespaces in externsl XSDs with overlapping prefixes
-        (<a href="https://github.com/qorelanguage/qore/issues/4455">issue 4455</a>)
       - fixed a bug where the web service's name was not reported correctly by the \c WebService object
         (<a href="https://github.com/qorelanguage/qore/issues/4437">issue 4437</a>)
 
