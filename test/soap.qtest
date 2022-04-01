@@ -2,7 +2,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
 # requires at least this qore version to run
-%requires qore >= 0.8.13
+%requires qore >= 1.0
 
 %new-style
 %require-types
@@ -13,6 +13,7 @@
 %requires Util
 
 %requires ../qlib/WSDL.qm
+%requires ../qlib/SoapDataProvider
 %requires xml
 
 %exec-class SoapTest
@@ -415,7 +416,7 @@ class SoapTest inherits QUnit::Test {
             "country": "CZ",
             "city": "Prague 2",
             "zip": 12000,
-            );
+        );
 
         const MultiReq = (
             "OrderNumber": "TEST-123",
@@ -455,7 +456,7 @@ class SoapTest inherits QUnit::Test {
                 "Price": 130.00n,
                 "FTC": True,
             ),
-            );
+        );
 
         const SoapEnvAttrMult = (
             "^attributes^": (
@@ -464,7 +465,7 @@ class SoapTest inherits QUnit::Test {
                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
                 "xmlns:fu": "http://www.example.com/shop/fulfillment",
             ),
-            );
+        );
 
         const Multi_Req_1 = (
             "soap:Envelope": SoapEnvAttrMult + (
@@ -513,7 +514,7 @@ class SoapTest inherits QUnit::Test {
                     "fu:swaBinary": NOTHING,
                 ),
             ),
-            );
+        );
 
         const Timestamp = now_us().toString();
         const TxId = get_random_string();
@@ -531,7 +532,7 @@ class SoapTest inherits QUnit::Test {
                     ),
                 ),
             ),
-            );
+        );
 
         const SoapUiExampleRequest = "<soapenv:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:hel=\"http://www.examples.com/wsdl/HelloService.wsdl\">
    <soapenv:Header/>
@@ -544,6 +545,7 @@ class SoapTest inherits QUnit::Test {
     }
 
     constructor() : QUnit::Test("SoapTest", "1.0") {
+        addTestCase("SoapDataProvider tests", \soapDataProviderTest());
         addTestCase("issue 4449", \issue4449());
         addTestCase("issue 3029", \issue3029());
         addTestCase("WSDLLib", \wsdlLibTest());
@@ -552,6 +554,26 @@ class SoapTest inherits QUnit::Test {
         addTestCase("Test1", \test1());
         addTestCase("multi", \multiTest());
         set_return_value(main());
+    }
+
+    soapDataProviderTest() {
+        {
+            SoapDataProvider provider({"schema": ReadOnlyFile::readTextFile(get_script_dir() + "/example.wsdl")});
+            AbstractDataProvider p0 = provider.getChildProviderPath("sayHello");
+            AbstractDataProviderType req = p0.getRequestType();
+            assertEq(NT_STRING, req.getField("firstName").getType().getBaseTypeCode());
+            AbstractDataProviderType resp = p0.getResponseType();
+            assertEq(NT_STRING, resp.getField("greeting").getType().getBaseTypeCode());
+            assertThrows("INVALID-REQUEST", "invalid request argument", \p0.doRequest(), 1);
+        }
+        {
+            SoapDataProvider provider({"schema": ReadOnlyFile::readTextFile(get_script_dir() + "/test.wsdl")});
+            AbstractDataProvider p0 = provider.getChildProviderPath("setInfo");
+            AbstractDataProviderType req = p0.getRequestType();
+            AbstractDataField test = req.getField("test");
+            assertEq(NT_STRING, test.getType().getBaseTypeCode());
+            assertEq(("test", "other"), test.getAllowedValues());
+        }
     }
 
     issue4449() {

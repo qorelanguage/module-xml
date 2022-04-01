@@ -56,23 +56,32 @@ public class SoapDataProvider inherits AbstractDataProvider {
         const ConstructorOptions = {
             "schema": <DataProviderOptionInfo>{
                 "type": (
-                    AbstractDataProviderType::get(StringType, NOTHING, {DTT_FromFile: True, DTT_FromLocation: True}),
+                    AbstractDataProviderType::get(StringType, NOTHING, {
+                        DTT_FromFile: True,
+                        DTT_FromLocation: True,
+                    }),
                     AbstractDataProviderType::get(new Type("WebService")),
                 ),
                 "desc": "the SOAP schema object (WebService) or source URL for the WSDL",
                 "required": True,
             },
             "soapclient": <DataProviderOptionInfo>{
-                "type": AbstractDataProviderType::get(new Type("SoapClient")),
+                "type": AbstractDataProviderType::get(new Type("SoapClient"), NOTHING, {
+                    DTT_ClientOnly: True,
+                }),
                 "desc": "the SoapClient object",
             },
             "url": <DataProviderOptionInfo>{
-                "type": AbstractDataProviderType::get(StringType),
+                "type": AbstractDataProviderType::get(StringType, NOTHING, {
+                    DTT_ClientOnly: True,
+                }),
                 "desc": "the URL to the SOAP server; overrides any URL in the schema or in any SoapClient object "
                     "passed as an option",
             },
             "soapclient_options": <DataProviderOptionInfo>{
-                "type": AbstractDataProviderType::get(AutoHashType),
+                "type": AbstractDataProviderType::get(AutoHashType, NOTHING, {
+                    DTT_ClientOnly: True,
+                }),
                 "desc": "options to the SoapClient constructor; only used if a SoapClient object is created for a "
                     "call",
             },
