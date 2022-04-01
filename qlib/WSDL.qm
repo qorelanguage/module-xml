@@ -43,7 +43,7 @@
 %disable-warning unreferenced-variable
 
 module WSDL {
-    version = "0.5.3";
+    version = "0.5.4";
     desc = "WSDL module providing functionality for SOAP";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -79,6 +79,10 @@ module WSDL {
     - <a href="../../SoapHandler/html/index.html">SoapHandler user module</a>
 
     @section wsdlrelnotes WSDL Module Release Notes
+
+    @subsection wsdl_0_5_4 WSDL v0.5.4
+    - fixed a bug returning data provider type info for simpleTypes with union definitions
+      (<a href="https://github.com/qorelanguage/qore/issues/4480">issue 4480</a>)
 
     @subsection wsdl_0_5_3 WSDL v0.5.3
     - fixed a bug handling \c complexType elements with a \c sequence and and \a any element
@@ -769,6 +773,10 @@ public class WSDL::XsdAbstractType inherits WSDL::XsdNamedData {
         return ons;
     }
 
+    *list<auto> getAllowedValues() {
+        # this method intentionally left empty
+    }
+
     abstract auto serialize(Namespaces nsc, auto val, *softbool omitType);
     abstract auto deserialize(string en, hash<string, XsdAbstractType> tmap, *hash<auto> mrh, auto val);
     abstract AbstractDataProviderType getDataProviderType();
@@ -1268,11 +1276,11 @@ public class WSDL::XsdAttribute inherits WSDL::XsdTypedData {
     public {
         string use = "optional";
 
-        const AllowedUseValues = (
+        const AllowedUseValues = {
             "optional": True,
             "required": True,
             "prohibited": True,
-            );
+        };
     }
 
     constructor(hash<auto> attr, Namespaces nsc, *XsdAbstractType n_type, XsdLateResolverHelper unresolved) : XsdTypedData(\attr) {
@@ -1307,7 +1315,8 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         bool usedocns;
     }
 
-    constructor(hash<auto> e, Namespaces nsc, *XsdAbstractType n_type, XsdLateResolverHelper unresolved, bool n_usedocns) : XsdTypedData(\e) {
+    constructor(hash<auto> e, Namespaces nsc, *XsdAbstractType n_type, XsdLateResolverHelper unresolved,
+            bool n_usedocns) : XsdTypedData(\e) {
         usedocns = n_usedocns;
 
         if (!ns)
@@ -1323,14 +1332,16 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         if (exists a.minOccurs)
             minOccurs = int(a.minOccurs);
 
-        if (exists a.maxOccurs)
+        if (exists a.maxOccurs) {
             if (a.maxOccurs == "unbounded")
                 maxOccurs = -1;
             else
                 maxOccurs = int(a.maxOccurs);
+        }
 
         if (maxOccurs != -1 && minOccurs > maxOccurs)
-            throw "XSD-ELEMENT-ERROR", sprintf("minOccurs (%d) > maxOccurs (%d) for element %s", minOccurs, maxOccurs, name);
+            throw "XSD-ELEMENT-ERROR", sprintf("minOccurs (%d) > maxOccurs (%d) for element %s", minOccurs, maxOccurs,
+                name);
 
         if (a.nillable == "true")
             nillable = True;
@@ -1338,10 +1349,12 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
         if (a.type) {
             if (!nsc.doType(a.type, \typeinfo, \type))
                 unresolved.add(self);
-        } else if (e.simpleType)
-            type = new XsdSimpleType(e.simpleType, nsc, unresolved, usedocns, sprintf("simpleType for element %y", name));
-        else if (e.hasKey("complexType")) {
-            type = new XsdComplexType(e.complexType, nsc, unresolved, usedocns, sprintf("complexType for element %y", name));
+        } else if (e.simpleType) {
+            type = new XsdSimpleType(e.simpleType, nsc, unresolved, usedocns, sprintf("simpleType for element %y",
+                name));
+        } else if (e.hasKey("complexType")) {
+            type = new XsdComplexType(e.complexType, nsc, unresolved, usedocns, sprintf("complexType for element %y",
+                name));
             if (!type.isRequired() && !exists a.minOccurs)
                 minOccurs = 0;
             if (type.isNillable() && !exists a.nillable)
@@ -1356,6 +1369,10 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
 
     AbstractDataProviderType getDataProviderType() {
         return type.getDataProviderType();
+    }
+
+    *list<auto> getAllowedValues() {
+        return type.getAllowedValues();
     }
 
     assimilate(WSDL::XsdElement other) {
@@ -1477,6 +1494,64 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
     }
 }
 
+public class WSDL::UnionDataType inherits AbstractDataProviderType {
+    public {
+        list<AbstractDataProviderType> types;
+    }
+
+    constructor(list<XsdAbstractType> unionTypes) {
+        types = map $1.getDataProviderType(), unionTypes;
+    }
+
+    string getName() {
+        return "XsdUnionType";
+    }
+
+    bool isAssignableFrom(AbstractDataProviderType t) {
+        foreach AbstractDataProviderType t0 in (types) {
+            if (t0.isAssignableFrom(t)) {
+                return True;
+            }
+        }
+        return False;
+    }
+
+    *Type getValueType() {
+        return AutoType;
+    }
+
+    *AbstractDataProviderType getElementType() {
+    }
+
+    *hash<string, AbstractDataField> getFields() {
+        hash<string, AbstractDataField> rv;
+        map rv += $1.getFields(), types;
+        return rv;
+    }
+
+    hash<string, bool> getAcceptTypeHash() {
+        hash<string, bool> rv;
+        map rv += $1.getAcceptTypeHash(), types;
+        return rv;
+    }
+
+    hash<string, bool> getReturnTypeHash() {
+        hash<string, bool> rv;
+        map rv += $1.getReturnTypeHash(), types;
+        return rv;
+    }
+
+    auto acceptsValue(auto value) {
+        foreach AbstractDataProviderType t in (types) {
+            try {
+                return t.acceptsValue(value);
+            } catch () {
+            }
+        }
+        throw "RUNTIME-TYPE-ERROR", sprintf("no union type member accepts values of type %y", value.type());
+    }
+}
+
 #! XSD simple type class
 public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
     public {
@@ -1484,12 +1559,13 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
         hash<auto> typeinfo;
         list<hash<auto>> union;
         list<XsdAbstractType> unionTypes;
-        XsdSimpleType unionSimpleType;
         XsdAbstractType type;
+        AbstractDataProviderType dataType;
         bool usedocns;
     }
 
-    constructor(hash<auto> st, Namespaces nsc, XsdLateResolverHelper unresolved, bool n_usedocns, *string desc_name) : XsdAbstractType(\st, nsc, desc_name) {
+    constructor(hash<auto> st, Namespaces nsc, XsdLateResolverHelper unresolved, bool n_usedocns, *string desc_name)
+            : XsdAbstractType(\st, nsc, desc_name) {
         usedocns = n_usedocns;
         #any a = st."^attributes^";
         delete st."^attributes^";
@@ -1526,23 +1602,36 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
             }
             WSDL::XsdBase::removeNS(\u);
             if (u.simpleType) {
-                unionSimpleType = new XsdSimpleType(u.simpleType, nsc, unresolved, n_usedocns);
+                unionTypes += new XsdSimpleType(u.simpleType, nsc, unresolved, n_usedocns);
             }
 
             if (union) {
                 unresolved.add(self);
+            } else if (unionTypes) {
+                dataType = new UnionDataType(unionTypes);
             }
         } else if (st.list) {
             throw "XSD-SIMPLETYPE-ERROR", sprintf("unsupported list definition in simpleType %y", name);
         } else {
-            throw "XSD-SIMPLETYPE-ERROR", sprintf("missing restriction, union, or list element in simpleType %y", name);
+            throw "XSD-SIMPLETYPE-ERROR", sprintf("missing restriction, union, or list element in simpleType %y",
+                name);
         }
 
         #printf("DEBUG: st: %y\n", self); exit();
     }
 
+    finalizeResolved() {
+        if (!type && unionTypes) {
+            dataType = new UnionDataType(unionTypes);
+        }
+    }
+
     AbstractDataProviderType getDataProviderType() {
-        return type.getDataProviderType();
+        return dataType ?? type.getDataProviderType();
+    }
+
+    *list<auto> getAllowedValues() {
+        return keys enum;
     }
 
     auto serialize(Namespaces nsc, auto val, *softbool omitType) {
@@ -1557,7 +1646,8 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
                 val = val."^value^";
         }
         if (enum && !enum{val}) {
-            throw "SOAP-SERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y is not in the enumeration list<auto> (%y)", val, name, enum.keys());
+            throw "SOAP-SERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y is not in the enumeration "
+                "list<auto> (%y)", val, name, enum.keys());
         }
 
         if (unionTypes) {
@@ -1570,7 +1660,9 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
                     exl += ex;
                 }
             }
-            throw "SOAP-SERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y could not be serialized with union types: %y", val, name, (map sprintf("type %y: %s: %s", unionTypes[$#].getName(), $1.err, $1.desc), exl));
+            throw "SOAP-SERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y could not be serialized with "
+                "union types: %y", val, name, (map sprintf("type %y: %s: %s", unionTypes[$#].getName(), $1.err,
+                $1.desc), exl));
         }
 
         return rh + type.serialize(nsc, val, omitType);
@@ -1587,13 +1679,16 @@ public class WSDL::XsdSimpleType inherits WSDL::XsdAbstractType {
                     exl += ex;
                 }
             }
-            throw "SOAP-DESERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y could not be deserialized with union types: %y", val, name, (map sprintf("type %y: %s: %s", unionTypes[$#].getName(), $1.err, $1.desc), exl));
+            throw "SOAP-DESERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y could not be deserialized "
+                "with union types: %y", val, name, (map sprintf("type %y: %s: %s", unionTypes[$#].getName(), $1.err,
+                $1.desc), exl));
         }
 
         auto v = type.deserialize(en, tmap, mrh, val);
 
         if (enum && !enum{v})
-            throw "SOAP-DESERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y while deserializing element %y is not in the enumeration list<auto> (%y)", v, name, en, enum.keys());
+            throw "SOAP-DESERIALIZATION-ERROR", sprintf("value %y passed to simpleType %y while deserializing "
+                "element %y is not in the enumeration list<auto> (%y)", v, name, en, enum.keys());
 
         return v;
     }
@@ -1652,7 +1747,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
     }
 
     # ct can be NOTHING in case of an empty complex type
-    constructor(*hash<auto> ct, Namespaces nsc, XsdLateResolverHelper unresolved, bool n_usedocns, *string desc_name) : XsdAbstractType(\ct, nsc, desc_name) {
+    constructor(*hash<auto> ct, Namespaces nsc, XsdLateResolverHelper unresolved, bool n_usedocns, *string desc_name)
+            : XsdAbstractType(\ct, nsc, desc_name) {
         usedocns = n_usedocns;
         #any a = ct."^attributes^";
         delete ct."^attributes^";
@@ -1731,12 +1827,17 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             parseAttributes(\d.extension, unresolved, nsc);
         } else if (ct) {
             parseData(ct, unresolved, nsc);
-        }
-        else {
+        } else {
             # empty complex type
             cx_type = XET_NONE;
             required = True;
             requires_value = False;
+        }
+    }
+
+    *list<auto> getAllowedValues() {
+        if (simpleType) {
+            return simpleType.getAllowedValues();
         }
     }
 
@@ -1771,7 +1872,9 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
     checkExtends(XsdAbstractType t, string ename) {
         if (extension == t.name || t == self)
             return;
-        throw SOAP_SERIALIZATION_ERROR, sprintf("explicit type %y given for element %y, type %y, however the types are not compatible%s", name, ename, t.name, extension ? sprintf("; %y extends %y", name, extension) : "");
+        throw SOAP_SERIALIZATION_ERROR, sprintf("explicit type %y given for element %y, type %y, however the types "
+            "are not compatible%s", name, ename, t.name,
+            extension ? sprintf("; %y extends %y", name, extension) : "");
     }
 
     private parseData(hash<auto> d, XsdLateResolverHelper unresolved, Namespaces nsc) {
@@ -1794,7 +1897,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         }
 
         if (d.size() > 1)
-            throw WSDL_ERROR, sprintf("%s: expecting a single element in the complexType hash, got: %y", name, d.keys());
+            throw WSDL_ERROR, sprintf("%s: expecting a single element in the complexType hash, got: %y", name,
+                d.keys());
 
         string k = d.firstKey();
         if (k == "all") {
@@ -1861,7 +1965,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         return !elementmap && !simpleType;
     }
 
-    private hash<string, XsdElement> parseElements(softlist<auto> el, XsdLateResolverHelper unresolved, Namespaces nsc, bool for_object = True) {
+    private hash<string, XsdElement> parseElements(softlist<auto> el, XsdLateResolverHelper unresolved,
+            Namespaces nsc, bool for_object = True) {
         #printf("DEBUG: XsdComplexType::parseElements(%y)\n", el);
         hash<string, XsdElement> h();
         foreach hash<auto> e in (el) {
@@ -1895,7 +2000,8 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             case XET_SEQUENCE:
             case XET_ALL: {
                 HashDataType rv(name);
-                map rv.addField(new QoreDataField($1.key, NOTHING, $1.value.getDataProviderType())), elementmap.pairIterator();
+                map rv.addField(new QoreDataField($1.key, NOTHING, $1.value.getDataProviderType(), NOTHING,
+                    $1.value.getAllowedValues())), elementmap.pairIterator();
                 return rv;
             }
 
@@ -2601,8 +2707,14 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
     #! Returns the data provider type for this message
     AbstractDataProviderType getDataProviderType() {
         HashDataType rv(name);
-        map rv.addField(new QoreDataField($1.name, NOTHING,
-            $1.type ? $1.type.getDataProviderType() : $1.element.getDataProviderType())),
+        map rv.addField(
+            new QoreDataField(
+                $1.name,
+                NOTHING,
+                $1.type ? $1.type.getDataProviderType() : $1.element.getDataProviderType(),
+                NOTHING,
+                $1.type ? $1.type.getAllowedValues() : $1.element.getAllowedValues()
+            )),
             args.iterator();
         return rv;
     }
@@ -4874,6 +4986,7 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
         foreach hash<auto> typeinfo in (t.union) {
             t.unionTypes += resolveType(typeinfo);
         }
+        t.finalizeResolved();
     }
 
     private resolveType(XsdElement xe) {
