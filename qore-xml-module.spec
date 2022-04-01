@@ -1,4 +1,4 @@
-%global mod_ver 1.5.3
+%global mod_ver 1.6.0
 
 %{?_datarootdir: %global mydatarootdir %_datarootdir}
 %{!?_datarootdir: %global mydatarootdir /usr/share}
@@ -50,7 +50,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 Requires: /usr/bin/env
 Requires: qore-module(abi)%{?_isa} = %{module_api}
 BuildRequires: gcc-c++
-BuildRequires: qore-devel >= 0.9.4
+BuildRequires: qore-devel >= 1.0
 BuildRequires: libxml2-devel
 BuildRequires: openssl-devel
 BuildRequires: qore
@@ -104,6 +104,9 @@ rm -rf $RPM_BUILD_ROOT
 %doc COPYING.LGPL COPYING.MIT README RELEASE-NOTES AUTHORS
 
 %changelog
+* Fri Apr 1 2022 David Nichols <david@qore.org> - 1.6.0
+- updated to version 1.6.0
+
 * Fri Feb 18 2022 David Nichols <david@qore.org> - 1.5.3
 - updated to version 1.5.3
 

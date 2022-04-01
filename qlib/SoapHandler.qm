@@ -638,17 +638,15 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                 args = cx;
 
             try {
-                if (method.internal)
-                    rv = call_object_method_args(self, method.function, args);
-                else
-                    rv = call_function_args(method.function, args);
+                rv = dispatchSoapOperationCall(method, args);
             } catch (hash<ExceptionInfo> ex) {
                 # issue #2804: see if the exception error code is a valid fault for the operation
                 #printf("err: %y has fault: %y\n", ex.err, method.operation.hasFault(ex.err));
                 if (ex.err.typeCode() == NT_STRING && method.operation.hasFault(ex.err)) {
                     try {
                         auto header = remove rv."^header^";
-                        h += method.operation.serializeFault(ex.err, ex.desc ?? "no description provided", ex.arg, header, NOTHING, NOTHING, NOTHING, NOTHING, method.binding);
+                        h += method.operation.serializeFault(ex.err, ex.desc ?? "no description provided", ex.arg,
+                            header, NOTHING, NOTHING, NOTHING, NOTHING, method.binding);
                         h.code = reqsoap12 ? 400 : 500;
                         msglog(cx, {"reason": "error", "code": h.code, "header": h.hdr, "body": h.body});
                         return h;
@@ -666,7 +664,8 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
             if (method.operation.output) {
                 try {
                     auto header = remove rv."^header^";
-                    h += method.operation.serializeResponse(rv, header, NOTHING, NOTHING, reqsoap12, NOTHING, method.binding);
+                    h += method.operation.serializeResponse(rv, header, NOTHING, NOTHING, reqsoap12, NOTHING,
+                        method.binding);
                     msglog(cx, ('reason': 'response', 'code': 200, 'header': h.hdr, 'body': h.body));
                 } catch (hash<ExceptionInfo> ex) {
                     if (method.err_func)
@@ -677,6 +676,14 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
             #log(cx, "body=%N", h.body);
 
             return h;
+        }
+
+        #! Dispatches the SOAP operation call and returns the result for validation and serialization
+        private auto dispatchSoapOperationCall(hash<auto> method, auto args) {
+            if (method.internal) {
+                return call_object_method_args(self, method.function, args);
+            }
+            return call_function_args(method.function, args);
         }
 
         private *hash<auto> matchMethod(TreeMap tm, string path, reference unmatched) {

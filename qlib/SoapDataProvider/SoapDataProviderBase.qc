@@ -40,6 +40,16 @@ public class SoapDataProviderBase inherits AbstractDataProvider {
         self.op = op;
     }
 
+    #! Returns the WebService object
+    WebService getWebService() {
+        return webservice;
+    }
+
+    #! Returns the option object
+    WSOperation getOperation() {
+        return op;
+    }
+
     #! Returns data provider static info
     private hash<DataProviderInfo> getStaticInfoImpl() {
         return SoapDataProvider::ProviderInfo - "constructor_options";
