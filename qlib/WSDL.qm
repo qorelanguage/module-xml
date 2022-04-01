@@ -482,7 +482,8 @@ public class WSDL::WSDLLib {
                     hh{hi} = ha;
                 }
                 if (!exists hh."content-id")
-                    throw "SOAP-MESSAGE-ERROR", sprintf("expecting part header Content-ID in part %d; headers: %y", i, hh);
+                    throw "SOAP-MESSAGE-ERROR", sprintf("expecting part header Content-ID in part %d; headers: %y",
+                        i, hh);
 
                 auto b;
                 if (hh."content-transfer-encoding" == "binary") {
@@ -505,12 +506,13 @@ public class WSDL::WSDLLib {
                 }
 
                 if (hh."content-id" !~ /^\<.*\>$/)
-                    throw "SOAP-MESSAGE-ERROR", sprintf("expected part ID to have the following format: <id>, instead got %s", hh."content-id");
+                    throw "SOAP-MESSAGE-ERROR", sprintf("expected part ID to have the following format: <id>, "
+                        "instead got %s", hh."content-id");
 
                 hash<auto> p = (
                     "hdr": hh,
                     "body": b,
-                    );
+                );
 
                 if ((!exists msg."_qore_multipart_start" && i == 1)
                     || (exists msg."_qore_multipart_start" && msg."_qore_multipart_start" == hh."content-id")) {
@@ -1158,7 +1160,11 @@ public class WSDL::XsdBaseType inherits WSDL::XsdAbstractType {
                 return StringType;
 
             case "base64Binary":
+                return Base64BinaryType;
+
             case "hexBinary":
+                return HexBinaryType;
+
             case "binary":
                 return BinaryType;
         }

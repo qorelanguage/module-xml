@@ -120,7 +120,7 @@ public class SoapDataProvider inherits AbstractDataProvider {
 
         if (!soapclient) {
             if (copts.url || copts.soapclient_options) {
-                hash<auto> opts = copts.soapclient_options + {
+                hash<auto> opts += copts.soapclient_options + {
                     "wsdl": webservice,
                 };
                 if (copts.url) {

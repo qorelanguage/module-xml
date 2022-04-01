@@ -109,26 +109,29 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
         This will execute the request and perform a default search on any record(s) returned
     */
     private AbstractDataProviderRecordIterator searchRecordsImpl(*hash<auto> where_cond, *hash<auto> search_options) {
-        hash<auto> resp = doRequestIntern(search_options);
+        auto resp = doRequestIntern(search_options);
+        if (resp.response) {
+            resp = resp.response;
+        }
         # return an iterator for the result
         AbstractIterator i;
-        switch (resp.response.typeCode()) {
+        switch (resp.typeCode()) {
             case NT_HASH:
-                i = new SingleValueIterator(resp.response);
+                i = new SingleValueIterator(resp);
                 break;
             case NT_LIST:
-                i = new ListIterator(resp.response);
+                i = new ListIterator(resp);
                 break;
             default:
                 throw "SOAP-SEARCH-ERROR", sprintf("the response has type %y, which does not support searching",
-                    resp.response.type());
+                    resp.type());
                 break;
         }
         return new DefaultRecordIterator(i, where_cond);
     }
 
     #! Makes a REST request and returns the response
-    private hash<auto> doRequestIntern(auto req, *hash<auto> options) {
+    private auto doRequestIntern(auto req, *hash<auto> options) {
         SoapClient soap = getSoapClient();
         # make the call
         return soap.callOperation(op.name, req, options);

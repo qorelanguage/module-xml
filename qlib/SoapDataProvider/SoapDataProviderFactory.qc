@@ -35,6 +35,7 @@ public class SoapDataProviderFactory inherits AbstractDataProviderFactory {
             "name": "soap",
             "desc": "SOAP API data provider factory",
             "api_management": True,
+            "api_profiles": "soap",
         };
     }
 

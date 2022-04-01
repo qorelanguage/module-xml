@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 0.9.5
+%requires qore >= 1.0
 
 %requires(reexport) xml
 %requires(reexport) WSDL

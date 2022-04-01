@@ -197,10 +197,16 @@ public namespace SoapHandler {
 
         #! creates the handler with the given method list
         /** @param auth an authentication object (use new AbstractAuthenticator() for no authentication)
-            @param n_getLogMessage an optional closure or call reference to be called when an incoming request is received; if this is set then it will be called with the following arguments: a context hash (see HttpServer::AbstractHttpRequestHandler::handleRequest() for a description of the context hash), the method definition as passed in the methods argument to this constructor, and a reference to the arguments in this call
-            @param dbg this parameter is set to @ref Qore::True "True", then additional information will be logged when errors occur
+            @param n_getLogMessage an optional closure or call reference to be called when an incoming request is
+            received; if this is set then it will be called with the following arguments: a context hash (see
+            HttpServer::AbstractHttpRequestHandler::handleRequest() for a description of the context hash), the method
+            definition as passed in the methods argument to this constructor, and a reference to the arguments in this
+            call
+            @param dbg this parameter is set to @ref Qore::True "True", then additional information will be logged
+            when errors occur
          */
-        constructor(AbstractAuthenticator auth, *code n_getLogMessage, bool dbg = False) : AbstractHttpRequestHandler(auth) {
+        constructor(AbstractAuthenticator auth, *code n_getLogMessage, bool dbg = False)
+                : AbstractHttpRequestHandler(auth) {
             getLogMessage = n_getLogMessage;
             debug = dbg;
         }
@@ -208,19 +214,26 @@ public namespace SoapHandler {
         #! adds a method to the handler dynamically
         /** @param ws the WebService object for the method
             @param op the WSOperation object for the web service operation the method corresponds to
-            @param func a call reference, a closure, or a string function name to call with the deserialized arguments to the method; the return value will be serialized to SOAP according to the WSDL and sent back to the caller
+            @param func a call reference, a closure, or a string function name to call with the deserialized
+            arguments to the method; the return value will be serialized to SOAP according to the WSDL and sent back
+            to the caller
             @param help optional help text for the method
-            @param logopt log options which can be used by a custom logger (see the \a getLogMessage parameter in the constructor)
+            @param logopt log options which can be used by a custom logger (see the \a getLogMessage parameter in the
+            constructor)
             @param cmark an optional "context marker" for the method
             @param path an optional path for the method (assumed to be the name of the service)
-            @param err_func a call reference, a closure, or a string function name to call with error information if an exception is thrown with SOAP data
+            @param err_func a call reference, a closure, or a string function name to call with error information if
+            an exception is thrown with SOAP data
             @param altpath an alternate path for the service / WSDL
             @param binding SOAP binding name, leave empty to use the first assigned binding
-            @param unique_id the unique ID for the backend service implementation for all operations on this WSDL; necessary for any removeService() call
+            @param unique_id the unique ID for the backend service implementation for all operations on this WSDL;
+            necessary for any removeService() call
          */
-        addMethod(WebService ws, WSOperation op, auto func, *string help, *int logopt, auto cmark, *string path, auto err_func, *string altpath, *string binding, *string unique_id) {
-            if (!func.callp() && func.TypeCode() != NT_STRING) {
-                throw "SOAP-SERVER-ADDMETHOD-PARAMETER-ERROR", sprintf("second argument is not a function name or callable value type (got: %y)", func);
+        addMethod(WebService ws, WSOperation op, auto func, *string help, *int logopt, auto cmark, *string path,
+                auto err_func, *string altpath, *string binding, *string unique_id) {
+            if (!func.callp() && func.typeCode() != NT_STRING) {
+                throw "SOAP-SERVER-ADDMETHOD-PARAMETER-ERROR", sprintf("second argument is not a function name or "
+                    "callable value type (got: %y)", func);
             }
 
             addMethodInternal(ws, {
@@ -423,7 +436,8 @@ public namespace SoapHandler {
                         }
                     }
 
-                    #printf("DEBUG: method.altpath: %y rn: %y uri_methods: %y uri_methods{%y}: %y\n", method.altpath, rn, keys uri_methods, method.altpath, keys uri_methods{method.altpath});
+                    #printf("DEBUG: method.altpath: %y rn: %y uri_methods: %y uri_methods{%y}: %y\n", method.altpath,
+                    #    rn, keys uri_methods, method.altpath, keys uri_methods{method.altpath});
                     if (method.altpath && !uri_methods{method.altpath}{rn}) {
                         uri_methods{method.altpath}{rn} = method;
 
@@ -627,18 +641,10 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
 
                 log(cx, msg);
             }
-            #printf("about to call function '%s' (method=%s params=%N)\n", method.function, method.name, args);flush();
             auto rv;
 
-            if (args.typeCode() == NT_LIST)
-                unshift args, cx;
-            else if (exists args)
-                args = (cx, args);
-            else
-                args = cx;
-
             try {
-                rv = dispatchSoapOperationCall(method, args);
+                rv = dispatchSoapOperationCall(method, cx, args);
             } catch (hash<ExceptionInfo> ex) {
                 # issue #2804: see if the exception error code is a valid fault for the operation
                 #printf("err: %y has fault: %y\n", ex.err, method.operation.hasFault(ex.err));
@@ -679,7 +685,15 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
         }
 
         #! Dispatches the SOAP operation call and returns the result for validation and serialization
-        private auto dispatchSoapOperationCall(hash<auto> method, auto args) {
+        private auto dispatchSoapOperationCall(hash<auto> method, hash<auto> cx, auto args) {
+            if (args.typeCode() == NT_LIST) {
+                unshift args, cx;
+            } else if (exists args) {
+                args = (cx, args);
+            } else {
+                args = cx;
+            }
+
             if (method.internal) {
                 return call_object_method_args(self, method.function, args);
             }
@@ -737,11 +751,14 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                     rwl.readLock();
                     on_exit rwl.readUnlock();
 
-                    #printf("DEBUG: path: %y alt_path: %y soapaction: %y us: %y urs: %y s: %y\n", path, alt_path, soapaction, exists uri_sam{path}{soapaction}, exists uri_sam{alt_path}{soapaction}, exists sam{soapaction});
+                    #printf("DEBUG: path: %y alt_path: %y soapaction: %y us: %y urs: %y s: %y\n", path, alt_path,
+                    #   soapaction, exists uri_sam{path}{soapaction}, exists uri_sam{alt_path}{soapaction},
+                    #   exists sam{soapaction});
 
                     # issue #2783 respect URI paths when matching
                     method = uri_sam{path}{soapaction} ?? uri_sam{alt_path}{soapaction} ?? sam{soapaction};
-                    #printf("DEBUG: request matched with SoapAction %y method: %y us: %y\n", soapaction, keys method, keys uri_sam);
+                    #printf("DEBUG: request matched with SoapAction %y method: %y us: %y\n", soapaction, keys method,
+                    #   keys uri_sam);
                 }
             }
 
@@ -763,7 +780,8 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                 }
                 if (method && method.parseUrlOnly) {
                     try {
-                        msglog(cx, {'reason': 'request', 'method': hdr.method, 'path': path});  # we need to log the request
+                        # we need to log the request
+                        msglog(cx, {'reason': 'request', 'method': hdr.method, 'path': path});
                         #printf("DEBUG: context: %N\nargs: %N\n", cx, args);
                         return {
                             "code": 200,
@@ -843,7 +861,8 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
             }
 
             if (method || hdr.method == "POST") {
-                # still chance to get method from xml element in case of SoapBinding (i.e.POST), we need parse message now
+                # still chance to get method from xml element in case of SoapBinding (i.e.POST), we need parse message
+                # now
                 auto args;
                 try {
                     *string ct = hdr."_qore_orig_content_type";
@@ -870,7 +889,8 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
 
                         if (!method) {
                             # get SOAP operation name from top XML element
-                            if (!exists element && exists args.Envelope.Body && args.Envelope.Body.typeCode() == NT_HASH ) {
+                            if (!exists element && exists args.Envelope.Body
+                                && args.Envelope.Body.typeCode() == NT_HASH ) {
                                 foreach string k in (keys args.Envelope.Body) {
                                     if (k == "multiRef" || k == "^attributes^")
                                         continue;
@@ -886,7 +906,9 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                                 #   alt_path, element, exists uri_methods{path}{element},
                                 #   exists uri_methods{alt_path}{element}, exists methods{element});
                                 # issue #2783: respect UTI paths when matching
-                                method = uri_methods{path}{element} ?? uri_methods{alt_path}{element} ?? methods{element};
+                                method = uri_methods{path}{element}
+                                    ?? uri_methods{alt_path}{element}
+                                    ?? methods{element};
                             }
                         }
 
@@ -897,7 +919,8 @@ private nothing msglog(hash<auto> cx, hash<auto> msg) {
                                 if (attr{k} == SOAP_12_ENV)
                                     reqsoap12 = True;
                                 else if (attr{k} != SOAP_11_ENV)
-                                    throw "SOAP-CALL-ERROR", sprintf("unsupported SOAP envelope received: %n", attr{k});
+                                    throw "SOAP-CALL-ERROR", sprintf("unsupported SOAP envelope received: %n",
+                                        attr{k});
                                 break;
                             }
                         }
