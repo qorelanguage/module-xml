@@ -42,7 +42,7 @@ Summary: XML module for Qore
 Name: qore-xml-module
 Version: %{mod_ver}
 Release: 1%{dist}
-License: LGPL
+License: LGPL-2.1-or-later OR GPL-2.0-or-later OR MIT
 Group: Development/Languages/Other
 URL: http://qore.org
 Source: http://prdownloads.sourceforge.net/qore/%{name}-%{version}.tar.bz2
