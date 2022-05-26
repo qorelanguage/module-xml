@@ -54,6 +54,7 @@ BuildRequires: qore-devel >= 1.0
 BuildRequires: libxml2-devel
 BuildRequires: openssl-devel
 BuildRequires: qore
+BuildRequires: fdupes
 
 %description
 This package contains the xml module for the Qore Programming Language.
@@ -91,6 +92,7 @@ mkdir -p $RPM_BUILD_ROOT/%{module_dir}
 mkdir -p $RPM_BUILD_ROOT/%{user_module_dir}
 mkdir -p $RPM_BUILD_ROOT/usr/share/doc/qore-xml-module
 make install DESTDIR=$RPM_BUILD_ROOT
+%fdupes -s %{__builddir}/html
 
 %clean
 rm -rf $RPM_BUILD_ROOT
