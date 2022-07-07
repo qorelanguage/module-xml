@@ -393,6 +393,12 @@ printf("%s\n", make_xml(h, XGF_ADD_FORMATTING));
 
     @section xmlreleasenotes Release Notes
 
+    @subsection xml161 xml Module Version 1.6.1
+    - <a href="../../SoapDataProvider/html/index.html">SoapDataProvider</a>:
+      - fixed a bug where data providers could return local names as paths with \c "/" characters in them, breaking
+        some clients traversing the data provider hierarchy
+        (<a href="https://github.com/qorelanguage/qore/issues/4555">issue 4555</a>)
+
     @subsection xml16 xml Module Version 1.6
     <b>Changes and Bug Fixes in This Release</b>
     - <a href="../../SoapDataProvider/html/index.html">SoapDataProvider</a>:

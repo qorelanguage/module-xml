@@ -38,7 +38,7 @@
 %requires(reexport) SoapClient
 
 module SoapDataProvider {
-    version = "1.0";
+    version = "1.1";
     desc = "user module providing a data provider API for SOAP messaging";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -81,6 +81,11 @@ module SoapDataProvider {
     - @ref SoapDataProvider::SoapResponseDataProvider "SoapResponseDataProvider"
 
     @section soapdataprovider_relnotes Release Notes
+
+    @subsection soapdataprovider_v1_1 SoapDataProvider v1.1
+    - fixed a bug where data providers could return local names as paths with \c "/" characters in them, breaking
+      some clients traversing the data provider hierarchy
+      (<a href="https://github.com/qorelanguage/qore/issues/4555">issue 4555</a>)
 
     @subsection soapdataprovider_v1_0 SoapDataProvider v1.0
     - initial release of the module
