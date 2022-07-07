@@ -43,7 +43,7 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
 
     #! Returns the data provider name
     string getName() {
-        return webservice.getName() + "/" + op.name;
+        return op.name;
     }
 
     #! Returns data provider info
