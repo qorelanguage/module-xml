@@ -43,7 +43,7 @@
 %enable-all-warnings
 
 module SoapClient {
-    version = "0.5";
+    version = "1.0";
     desc = "SoapClient module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -109,6 +109,10 @@ auto result = sc.call("SubmitDocument", msg);
     - \c "timeout"
 
     @section soapclientrelnotes SoapClient Release Notes
+
+    @subsection soapclient_1.0 SoapClient v1.0
+    - added information about data provider capabilities to connection info
+      (<a href="https://github.com/qorelanguage/qore/issues/4576">issue 4576</a>)
 
     @subsection soapclient_0_5 SoapClient v0.5
     - implemented support for a data provider scheme cache and rich option information for connections
@@ -799,6 +803,8 @@ public class SoapConnection inherits HttpBasedConnection {
         real_opts = ("wsdl": real_url) + opts;
         # rename "target_url" to "url"
         real_opts.url = remove opts.target_url;
+
+        children_can_support_apis = True;
     }
 
     #! returns \c "soap"

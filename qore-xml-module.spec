@@ -1,4 +1,4 @@
-%global mod_ver 1.6.1
+%global mod_ver 1.7.0
 
 %{?_datarootdir: %global mydatarootdir %_datarootdir}
 %{!?_datarootdir: %global mydatarootdir /usr/share}
@@ -106,6 +106,9 @@ rm -rf $RPM_BUILD_ROOT
 %doc COPYING.LGPL COPYING.MIT README RELEASE-NOTES AUTHORS
 
 %changelog
+* Wed Sep 14 2022 David Nichols <david@qore.org> - 1.7.0
+- updated to version 1.7.0
+
 * Thu Jul 7 2022 David Nichols <david@qore.org> - 1.6.1
 - updated to version 1.6.1
 
