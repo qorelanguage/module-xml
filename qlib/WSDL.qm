@@ -1375,7 +1375,6 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
 
     AbstractDataProviderType getDataProviderType() {
         AbstractDataProviderType rv = type.getDataProviderType();
-        printf("element %y: mo: %d (%y)\n", name, minOccurs, rv.getName());
         if (maxOccurs != 1 && !(rv instanceof ListDataType) && !rv.isList()) {
            rv = new SoftListDataType(rv.getName(), rv, False, NOTHING, rv.getTags());
         }
