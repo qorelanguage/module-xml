@@ -1374,7 +1374,15 @@ public class WSDL::XsdElement inherits WSDL::XsdTypedData {
     }
 
     AbstractDataProviderType getDataProviderType() {
-        return type.getDataProviderType();
+        AbstractDataProviderType rv = type.getDataProviderType();
+        printf("element %y: mo: %d (%y)\n", name, minOccurs, rv.getName());
+        if (maxOccurs != 1 && !(rv instanceof ListDataType) && !rv.isList()) {
+           rv = new SoftListDataType(rv.getName(), rv, False, NOTHING, rv.getTags());
+        }
+        if (!minOccurs || nillable) {
+            rv = rv.getOrNothingType();
+        }
+        return rv;
     }
 
     *list<auto> getAllowedValues() {
@@ -1996,6 +2004,13 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
     }
 
     AbstractDataProviderType getDataProviderType() {
+        AbstractDataProviderType rv = getDataProviderTypeIntern();
+        return nillable || !required
+            ? rv.getOrNothingType()
+            : rv;
+    }
+
+    private AbstractDataProviderType getDataProviderTypeIntern() {
         if (array) {
             return array.getDataProviderType();
         }
@@ -4257,7 +4272,8 @@ public class WSDL::Binding inherits WSDL::XsdNamedData {
         if (msg.pmap.size() == 1) {  # some args may be defined without part name so use pmap to test
             return msg.pmap.firstKey();
         } else {
-            throw WSDL_ERROR, sprintf("message %y must have exactly one part to resolve the part name with binding %y: %s (parts: %y args: %y)", msg.name, name, errs, keys msg.pmap, keys msg.args);
+            throw WSDL_ERROR, sprintf("message %y must have exactly one part to resolve the part name with binding "
+                "%y: %s (parts: %y args: %y)", msg.name, name, errs, keys msg.pmap, keys msg.args);
         }
     }
 
