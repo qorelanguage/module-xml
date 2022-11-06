@@ -20,7 +20,10 @@ noinst_HEADERS = src/QC_XmlDoc.h \
 
 USER_MODULES = qlib/XmlRpcHandler.qm qlib/WSDL.qm qlib/SoapClient.qm qlib/SoapHandler.qm qlib/XmlRpcConnection.qm qlib/SalesforceSoapClient.qm
 
-USER_SPLIT_MODULES = qlib/SoapDataProvider qlib/WebDavHandler
+USER_SPLIT_MODULES = qlib/SaxDataProvider qlib/SoapDataProvider qlib/WebDavHandler
+
+SaxDataProvider_moddir= $(moddir)/SaxDataProvider
+dist_SaxDataProvider_mod_DATA = $(wildcard qlib/SaxDataProvider*.q[cm])
 
 SoapDataProvider_moddir= $(moddir)/SoapDataProvider
 dist_SoapDataProvider_mod_DATA = $(wildcard qlib/SoapDataProvider/*.q[cm])

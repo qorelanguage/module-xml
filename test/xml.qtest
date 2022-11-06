@@ -2,7 +2,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
 # make sure we have the right version of qore
-%requires qore >= 0.9
+%requires qore >= 1.12
 
 %new-style
 %require-types
@@ -18,6 +18,7 @@
 
 %requires Util
 %requires xml
+%requires SaxDataProvider
 
 %exec-class XmlTest
 
@@ -108,10 +109,16 @@ class XmlTest inherits QUnit::Test {
         const Rec = (
             "^attributes^": ("id": "1"),
             "name": "test1",
-            );
+        );
+
+        const Rec2 = (
+            "^attributes^": ("id": "2"),
+            "name": "test2",
+        );
     }
 
     constructor() : QUnit::Test("XmlTest", "1.0") {
+        addTestCase("SaxDataProviderTestCase", \saxDataProviderTestCase());
         addTestCase("XmlTestCase", \xmlTestCase());
         addTestCase("DeprecatedXmlTestCase", \deprecatedXmlTestCase());
         addTestCase("FileSaxIteratorTestCase", \fileSaxIteratorTestCase());
@@ -129,6 +136,32 @@ class XmlTest inherits QUnit::Test {
         addTestCase("XmlDocConstructorFromStringTestCase", \XmlDocConstructorFromStringTestCase());
         addTestCase("XmlDocValidateSchemaTestCase", \XmlDocValidateSchemaTestCase());
         set_return_value(main());
+    }
+
+    saxDataProviderTestCase() {
+        string fn = sprintf("%s%s%s.xml", tmp_location(), DirSep, get_random_string());
+        File f();
+        f.open(fn, O_CREAT | O_WRONLY | O_TRUNC);
+        f.write(Str);
+        on_exit
+            unlink(fn);
+        SaxDataProvider prov({
+            "location": "file://" + fn,
+            "element_name": "record",
+        });
+        assertEq(Rec, prov.searchSingleRecord({"name": "test1"}, {"limit": 1}));
+
+        prov = new SaxDataProvider({
+            "location": "file://" + fn,
+            "element_name": "record",
+        });
+        assertEq(Rec, prov.searchSingleRecord({}, {"limit": 1}));
+
+        prov = new SaxDataProvider({
+            "location": "file://" + fn,
+            "element_name": "record",
+        });
+        assertEq(Rec2, prov.searchSingleRecord({"name": "test2"}, {"limit": 1}));
     }
 
     dtdTest() {

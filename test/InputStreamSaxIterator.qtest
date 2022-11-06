@@ -2,7 +2,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 
 # make sure we have the right version of qore
-%requires qore >= 0.8.13
+%requires qore >= 1.12
 
 %new-style
 %require-types
@@ -14,15 +14,16 @@
 
 %requires Util
 %requires xml
+%requires SaxDataProvider
 
 %exec-class InputStreamSaxIteratorTest
 
 class TestInputStream inherits InputStream {
     private {
-        list data;
+        list<auto> data;
     }
 
-    constructor(list data) {
+    constructor(list<auto> data) {
         self.data = data;
     }
 
@@ -56,13 +57,33 @@ class TestInputStream inherits InputStream {
 }
 
 class InputStreamSaxIteratorTest inherits QUnit::Test {
-
     constructor() : QUnit::Test("InputStreamSaxIteratorTest", "1.0") {
+        addTestCase("data provider", \dataProviderTest());
         addTestCase("success", \success());
         addTestCase("failInHeader", \failInHeader());
         addTestCase("failInNext", \failInNext());
         addTestCase("failInGetValue", \failInGetValue());
         set_return_value(main());
+    }
+
+    dataProviderTest() {
+        SaxDataProvider prov({
+            "stream": new StringInputStream("<r><x>a0</x><x>a1</x></r>"),
+            "element_name": "x",
+        });
+        assertEq(({"data": "a0"}, {"data": "a1"}), (map $1,prov.searchRecords()));
+
+        prov = new SaxDataProvider({
+            "stream": new StringInputStream("<r><x>a0</x><x>a1</x></r>"),
+            "element_name": "x",
+        });
+        assertEq(({"data": "a0"},), (map $1,prov.searchRecords(<DataProviderExpression>{
+            "exp": DP_SEARCH_OP_EQ,
+            "args": (
+                <DataProviderFieldReference>{"field": "data"},
+                "a0",
+            ),
+        })));
     }
 
     success() {

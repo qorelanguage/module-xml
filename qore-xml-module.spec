@@ -1,4 +1,4 @@
-%global mod_ver 1.7.1
+%global mod_ver 1.8.0
 
 %{?_datarootdir: %global mydatarootdir %_datarootdir}
 %{!?_datarootdir: %global mydatarootdir /usr/share}
@@ -75,7 +75,7 @@ xml module.
 
 %files doc
 %defattr(-,root,root,-)
-%doc docs/xml docs/XmlRpcHandler docs/SalesforceSoapClient docs/SoapClient docs/SoapDataProvider docs/SoapHandler docs/WSDL docs/XmlRpcConnection test examples
+%doc docs/xml docs/XmlRpcHandler docs/SalesforceSoapClient docs/SaxDataProvider docs/SoapClient docs/SoapDataProvider docs/SoapHandler docs/WSDL docs/XmlRpcConnection test examples
 
 %prep
 %setup -q
@@ -106,6 +106,9 @@ rm -rf $RPM_BUILD_ROOT
 %doc COPYING.LGPL COPYING.MIT README RELEASE-NOTES AUTHORS
 
 %changelog
+* Sun Nov 6 2022 David Nichols <david@qore.org> - 1.8.0
+- updated to version 1.8.0
+
 * Fri Oct 14 2022 David Nichols <david@qore.org> - 1.7.1
 - updated to version 1.7.1
 

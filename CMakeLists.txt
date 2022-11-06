@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 2.8.3)
 project(qore-xml-module)
 
 set (VERSION_MAJOR 1)
-set (VERSION_MINOR 7)
-set (VERSION_PATCH 1)
+set (VERSION_MINOR 8)
+set (VERSION_PATCH 0)
 
 find_package(Qore 1.0 REQUIRED)
 
@@ -90,6 +90,7 @@ set(QMOD
     qlib/WSDL.qm
     qlib/XmlRpcHandler.qm
     qlib/XmlRpcConnection.qm
+    qlib/SaxDataProvider
     qlib/SoapDataProvider
     qlib/WebDavHandler
 )
@@ -121,6 +122,7 @@ qore_external_user_module("qlib/SoapDataProvider" "WSDL;SoapClient")
 qore_external_user_module("qlib/WebDavHandler" "")
 qore_external_user_module("qlib/XmlRpcConnection.qm" "")
 qore_external_user_module("qlib/XmlRpcHandler.qm" "")
+qore_external_user_module("qlib/SaxDataProvider" "")
 
 qore_dist("${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 
