@@ -40,7 +40,7 @@
 
 /** @defgroup xml_option_constants XML Module Option Constants
  */
-//@{
+///@{
 namespace Qore::Xml::Option;
 
 //! Indicates if parseXMLWithRelaxNG() and Qore::Xml::XmlReader::relaxNGValidate() are available
@@ -48,4 +48,4 @@ const HAVE_PARSEXMLWITHRELAXNG = {HAVE_PARSEXMLWITHRELAXNG}bool(XML_CONST_HAVE_X
 
 //! Indicates if parseXMLWithSchema() and Qore::Xml::XmlReader::schemaValidate() are available
 const HAVE_PARSEXMLWITHSCHEMA = {HAVE_PARSEXMLWITHSCHEMA}bool(XML_CONST_HAVE_XMLTEXTREADERSETSCHEMA);
-//@}
+///@}

@@ -1507,7 +1507,7 @@ static QoreValue parse_xmlrpc_value(const QoreStringNode* xml, const QoreStringN
 /** @defgroup xml_generation_constants XML Generation Constants
     The constants in this group can be combined with @ref bitwise_or_operator "binary or" to affect the output of generated XML
  */
-//@{
+///@{
 namespace Qore::Xml;
 
 //! no flags; standard XML generation without whitespace formatting and characters without unicode character references
@@ -1521,13 +1521,13 @@ const XGF_USE_NUMERIC_REFS = XGF_USE_NUMERIC_REFS;
 
 //! use whitespace formatting including line breaks to make generated XML more readable
 const XGF_ADD_FORMATTING = XGF_ADD_FORMATTING;
-//@}
+///@}
 
 /** @defgroup xml_parsing_constants XML Parsing Constants
     The constants in this group can be combined with @ref bitwise_or_operator "binary or" to affect the output of
     parsed XML
  */
-//@{
+///@{
 namespace Qore::Xml;
 
 //! no flags; standard XML parsing without character reference conversion
@@ -1557,11 +1557,11 @@ const XPF_ADD_COMMENTS = XPF_ADD_COMMENTS;
 /** @since xml 1.4
 */
 const XPF_STRIP_NS_PREFIXES = XPF_STRIP_NS_PREFIXES;
-//@}
+///@}
 
 /** @defgroup xml_functions XML Functions
  */
-//@{
+///@{
 namespace Qore::Xml;
 
 //! serializes a hash into an XML string with an XML header
@@ -2104,11 +2104,11 @@ hash parse_xml_with_dtd(string xml, string dtd, *int pflags, *string encoding) [
         return QoreValue();
     return reader.parseXmlData(encoding ? QEM.findCreate(encoding) : QCS_UTF8, pflags, xsink);
 }
-//@}
+///@}
 
 /** @defgroup xmlrpc_functions XML-RPC Functions
  */
-//@{
+///@{
 namespace Qore::Xml;
 
 //! Serializes the argument into an XML string in XML-RPC call format
@@ -2692,4 +2692,4 @@ auto get_xml_value(auto n) [flags=CONSTANT] {
     return rv.release();
 }
 
-//@}
+///@}

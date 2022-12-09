@@ -48,7 +48,7 @@ static QoreObject* doObject(QoreXmlNodeData *data) {
     values returned by:
     - XmlNode::getElementType()
  */
-//@{
+///@{
 namespace Qore::Xml;
 
 //! Indicates an element
@@ -138,13 +138,13 @@ const ElementTypeMap = (
    "20" : "XML_XINCLUDE_END",
    "21" : "XML_DOCB_DOCUMENT_NODE",
    );
-//@}
+///@}
 
 /** @defgroup XmlNodeTypes XML Node Type Constants
     Values returned by:
     - XmlReader::nodeType()
  */
-//@{
+///@{
 namespace Qore::Xml;
 
 //! Indicates no node is available
@@ -222,7 +222,7 @@ const NodeTypeMap = (
    "16": "XML_NODE_TYPE_END_ENTITY",
    "17": "XML_NODE_TYPE_XML_DECLARATION",
    );
-//@}
+///@}
 
 //! The XmlNode class provides information about the components of an XML document
 /** This class currently cannot be constructed manually, but rather can only be returned by the XmlDoc class. It is possible that future versions of the xml module will remove this restriction.
