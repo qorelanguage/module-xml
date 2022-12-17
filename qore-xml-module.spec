@@ -49,12 +49,14 @@ Source: http://prdownloads.sourceforge.net/qore/%{name}-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 Requires: /usr/bin/env
 Requires: qore-module(abi)%{?_isa} = %{module_api}
+BuildRequires: cmake >= 3.5
 BuildRequires: gcc-c++
 BuildRequires: qore-devel >= 1.0
 BuildRequires: libxml2-devel
 BuildRequires: openssl-devel
 BuildRequires: qore
 BuildRequires: fdupes
+BuildRequires: doxygen
 
 %description
 This package contains the xml module for the Qore Programming Language.
@@ -79,20 +81,20 @@ xml module.
 
 %prep
 %setup -q
-./configure RPM_OPT_FLAGS="$RPM_OPT_FLAGS" --prefix=/usr --disable-debug
 
 %build
+%if 0%{?el7}
+# enable devtoolset7
+. /opt/rh/devtoolset-7/enable
+%endif
+export CXXFLAGS="%{?optflags}"
+cmake -DCMAKE_INSTALL_PREFIX=%{_prefix} -DCMAKE_BUILD_TYPE=RELWITHDEBINFO -DCMAKE_SKIP_RPATH=1 -DCMAKE_SKIP_INSTALL_RPATH=1 -DCMAKE_SKIP_BUILD_RPATH=1 -DCMAKE_PREFIX_PATH=${_prefix}/lib64/cmake/Qore .
+make %{?_smp_mflags}
 %{__make}
-find test -type f|xargs chmod 644
-find docs -type f|xargs chmod 644
+%{__make} docs
 
 %install
-rm -rf $RPM_BUILD_ROOT
-mkdir -p $RPM_BUILD_ROOT/%{module_dir}
-mkdir -p $RPM_BUILD_ROOT/%{user_module_dir}
-mkdir -p $RPM_BUILD_ROOT/usr/share/doc/qore-xml-module
-make install DESTDIR=$RPM_BUILD_ROOT
-%fdupes -s %{__builddir}/html
+make DESTDIR=%{buildroot} install %{?_smp_mflags}
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -106,6 +108,9 @@ rm -rf $RPM_BUILD_ROOT
 %doc COPYING.LGPL COPYING.MIT README RELEASE-NOTES AUTHORS
 
 %changelog
+* Sat Dec 17 2022 David Nichols <david@qore.org> - 1.8.0
+- use cmake for build
+
 * Sun Nov 6 2022 David Nichols <david@qore.org> - 1.8.0
 - updated to version 1.8.0
 
