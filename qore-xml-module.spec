@@ -19,10 +19,8 @@
 # get *suse release minor version without trailing zeros
 %global os_min %(echo %suse_version|rev|cut -b-2|rev|sed s/0*$//)
 
-%if %suse_version > 1010
+%if %suse_version
 %global dist .opensuse%{os_maj}_%{os_min}
-%else
-%global dist .suse%{os_maj}_%{os_min}
 %endif
 
 %endif
@@ -42,21 +40,30 @@ Summary: XML module for Qore
 Name: qore-xml-module
 Version: %{mod_ver}
 Release: 1%{dist}
-License: LGPL-2.1-or-later OR GPL-2.0-or-later OR MIT
+License: MIT
 Group: Development/Languages/Other
 URL: http://qore.org
 Source: http://prdownloads.sourceforge.net/qore/%{name}-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 Requires: /usr/bin/env
 Requires: qore-module(abi)%{?_isa} = %{module_api}
+%if 0%{?el7}
+BuildRequires: devtoolset-7-gcc-c++
+%endif
 BuildRequires: cmake >= 3.5
 BuildRequires: gcc-c++
-BuildRequires: qore-devel >= 1.0
+BuildRequires: qore-devel >= 1.12.4
+BuildRequires: qore-stdlib >= 1.12.4
+BuildRequires: qore >= 1.12.4
 BuildRequires: libxml2-devel
 BuildRequires: openssl-devel
-BuildRequires: qore
 BuildRequires: fdupes
 BuildRequires: doxygen
+%if 0%{?suse_version} || 0%{?sles_version}
+BuildRequires: timezone
+%else
+BuildRequires: tzdata
+%endif
 
 %description
 This package contains the xml module for the Qore Programming Language.
@@ -69,7 +76,7 @@ XML is a markup language for encoding information.
 
 %package doc
 Summary: Documentation and examples for the Qore xml module
-Group: Development/Languages
+Group: Development/Languages/Other
 
 %description doc
 This package contains the HTML documentation and example programs for the Qore
@@ -92,6 +99,7 @@ cmake -DCMAKE_INSTALL_PREFIX=%{_prefix} -DCMAKE_BUILD_TYPE=RELWITHDEBINFO -DCMAK
 make %{?_smp_mflags}
 %{__make}
 %{__make} docs
+sed -i 's/#!\/usr\/bin\/env qore/#!\/usr\/bin\/qore/' test/*.qtest
 
 %install
 make DESTDIR=%{buildroot} install %{?_smp_mflags}
@@ -107,8 +115,22 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/webdav-server
 %doc COPYING.LGPL COPYING.MIT README RELEASE-NOTES AUTHORS
 
+%check
+export QORE_MODULE_DIR=$QORE_MODULE_DIR:qlib
+qore -l ./xml-api-1.3.qmod test/InputStreamSaxIterator.qtest -v
+qore -l ./xml-api-1.3.qmod test/Salesforce.com.qtest -v
+qore -l ./xml-api-1.3.qmod test/SoapClient.qtest -v
+qore -l ./xml-api-1.3.qmod test/SoapHandler.qtest -v
+qore -l ./xml-api-1.3.qmod test/XmlRpcClient.qtest -v
+qore -l ./xml-api-1.3.qmod test/XmlRpcHandler.qtest -v
+qore -l ./xml-api-1.3.qmod test/soap.qtest -v
+qore -l ./xml-api-1.3.qmod test/webdav_DummyWebDavHandler.qtest -v
+qore -l ./xml-api-1.3.qmod test/webdav_FsWebDavHandler.qtest -v
+#qore -l ./xml-api-1.3.qmod test/webdav_FsWebDavHandler_litmus.qtest -v
+qore -l ./xml-api-1.3.qmod test/xml.qtest -v
+
 %changelog
-* Sat Dec 17 2022 David Nichols <david@qore.org> - 1.8.0
+* Mon Dec 19 2022 David Nichols <david@qore.org> - 1.8.0
 - use cmake for build
 
 * Sun Nov 6 2022 David Nichols <david@qore.org> - 1.8.0
@@ -138,7 +160,7 @@ rm -rf $RPM_BUILD_ROOT
 * Tue Jun 19 2018 David Nichols <david@qore.org> - 1.5
 - updated to version 1.5
 
-* Fri May 15 2018 David Nichols <david@qore.org> - 1.4.2
+* Tue May 15 2018 David Nichols <david@qore.org> - 1.4.2
 - updated to version 1.4.2
 
 * Fri Apr 13 2018 David Nichols <david@qore.org> - 1.4.1
