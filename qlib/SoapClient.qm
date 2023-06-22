@@ -43,7 +43,7 @@
 %enable-all-warnings
 
 module SoapClient {
-    version = "1.0";
+    version = "1.0.1";
     desc = "SoapClient module";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -110,7 +110,11 @@ auto result = sc.call("SubmitDocument", msg);
 
     @section soapclientrelnotes SoapClient Release Notes
 
-    @subsection soapclient_1.0 SoapClient v1.0
+    @subsection soapclient_1_0_1 SoapClient v1.0.1
+    - allow connection options designating files to be selected as files
+      (<a href="https://github.com/qorelanguage/qore/issues/4725">issue 4725</a>)
+
+    @subsection soapclient_1_0 SoapClient v1.0
     - added information about data provider capabilities to connection info
       (<a href="https://github.com/qorelanguage/qore/issues/4576">issue 4576</a>)
 
@@ -167,7 +171,7 @@ public namespace SoapClient {
 #! SOAP client class implementation, publically inherits qore's HTTPClient class
 public class SoapClient inherits HTTPClient {
     #! version of the implementation of this class
-    const Version = "0.2.5";
+    const Version = "1.0.1";
 
     #! default HTTP headers
     const Headers = {"User-Agent": ("Qore-Soap-Client/" + SoapClient::Version)};
@@ -774,8 +778,9 @@ public class SoapConnection inherits HttpBasedConnection {
                     "desc": "overrides the URL in the WSDL",
                 },
                 "wsdl": <ConnectionOptionInfo>{
-                    "type": "string",
+                    "type": "file-as-string",
                     "desc": "overrides the WSDL URL provided by the connection URL",
+                    "freeform": True,
                 },
             },
         };
