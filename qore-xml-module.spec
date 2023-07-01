@@ -117,17 +117,17 @@ rm -rf $RPM_BUILD_ROOT
 
 %check
 export QORE_MODULE_DIR=$QORE_MODULE_DIR:qlib
-qore -l ./xml-api-1.3.qmod test/InputStreamSaxIterator.qtest -v
-qore -l ./xml-api-1.3.qmod test/Salesforce.com.qtest -v
-qore -l ./xml-api-1.3.qmod test/SoapClient.qtest -v
-qore -l ./xml-api-1.3.qmod test/SoapHandler.qtest -v
-qore -l ./xml-api-1.3.qmod test/XmlRpcClient.qtest -v
-qore -l ./xml-api-1.3.qmod test/XmlRpcHandler.qtest -v
-qore -l ./xml-api-1.3.qmod test/soap.qtest -v
-qore -l ./xml-api-1.3.qmod test/webdav_DummyWebDavHandler.qtest -v
-qore -l ./xml-api-1.3.qmod test/webdav_FsWebDavHandler.qtest -v
-#qore -l ./xml-api-1.3.qmod test/webdav_FsWebDavHandler_litmus.qtest -v
-qore -l ./xml-api-1.3.qmod test/xml.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/InputStreamSaxIterator.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/Salesforce.com.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/SoapClient.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/SoapHandler.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/XmlRpcClient.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/XmlRpcHandler.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/soap.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/webdav_DummyWebDavHandler.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/webdav_FsWebDavHandler.qtest -v
+#qore -l ./xml-api-%{module_api}.qmod test/webdav_FsWebDavHandler_litmus.qtest -v
+qore -l ./xml-api-%{module_api}.qmod test/xml.qtest -v
 
 %changelog
 * Thu Jun 15 2023 David Nichols <david@qore.org> - 1.8.1
