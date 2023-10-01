@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 # AC_PREREQ(2.59)
-AC_INIT([qore-xml-module], [1.8.1],
+AC_INIT([qore-xml-module], [2.0],
         [David Nichols <david@qore.org>],
         [qore-xml-module])
 AM_INIT_AUTOMAKE([no-dist-gzip dist-bzip2])

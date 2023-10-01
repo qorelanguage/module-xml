@@ -23,7 +23,7 @@
 */
 
 # minimum required Qore version
-%requires qore >= 1.0
+%requires qore >= 2.0
 # assume local scope for variables, do not use "$" signs
 %new-style
 # require type definitions everywhere
@@ -38,7 +38,7 @@
 %requires(reexport) SoapClient
 
 module SoapDataProvider {
-    version = "1.1";
+    version = "2.0";
     desc = "user module providing a data provider API for SOAP messaging";
     author = "David Nichols <david@qore.org>";
     url = "http://qore.org";
@@ -46,6 +46,29 @@ module SoapDataProvider {
     init = sub () {
         # register the data provider factory
         DataProvider::registerFactory(new SoapDataProviderFactory());
+
+        # register the data provider application
+        DataProviderActionCatalog::registerApp(<DataProviderAppInfo>{
+            "name": SoapDataProvider::AppName,
+            "desc": "SOAP server for SOAP API calls",
+            "scheme": "soap",
+            "logo": SoapLogo,
+            "logo_file_name": "generic-soap-logo.svg",
+            "logo_mime_type": MimeTypeSvg,
+        });
+
+        # register all supported actions
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": SoapDataProvider::AppName,
+            "path": "/{api}",
+            "action": "call-soap-api",
+            "short_desc": "Call a SOAP API",
+            "desc": "Call a SOAP API",
+            "action_code": DPAT_API,
+            "path_vars": {
+                "api": "The SOAP operation to call",
+            },
+        });
     };
 }
 
@@ -82,6 +105,10 @@ module SoapDataProvider {
 
     @section soapdataprovider_relnotes Release Notes
 
+    @subsection soapdataprovider_v2_0 SoapDataProvider v2.0
+    - added support for the data provider action catalog API
+      (<a href="https://github.com/qorelanguage/qore/issues/4808">issue 4808</a>)
+
     @subsection soapdataprovider_v1_1 SoapDataProvider v1.1
     - fixed a bug where data providers could return local names as paths with \c "/" characters in them, breaking
       some clients traversing the data provider hierarchy
@@ -93,4 +120,27 @@ module SoapDataProvider {
 
 #! contains all public definitions in the SoapDataProvider module
 public namespace SoapDataProvider {
+}
+
+namespace Priv {
+    const SoapLogo = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
+<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">
+<svg width=\"100%\" height=\"100%\" viewBox=\"0 0 800 800\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xml:space=\"preserve\" xmlns:serif=\"http://www.serif.com/\" style=\"fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;\">
+    <g transform=\"matrix(1,0,0,1,83.5143,487.103)\">
+        <g id=\"text1\">
+            <g transform=\"matrix(266.667,0,0,266.667,0,0)\">
+                <path d=\"M0.5,-0.193C0.5,-0.06 0.418,0.007 0.253,0.007C0.201,0.007 0.146,0.002 0.087,-0.007C0.074,-0.009 0.068,-0.015 0.068,-0.025L0.068,-0.065C0.068,-0.076 0.074,-0.081 0.085,-0.081L0.088,-0.081C0.134,-0.077 0.189,-0.075 0.253,-0.075C0.354,-0.075 0.405,-0.114 0.405,-0.193C0.405,-0.218 0.396,-0.239 0.379,-0.258C0.363,-0.275 0.332,-0.298 0.285,-0.327L0.188,-0.386C0.096,-0.442 0.05,-0.504 0.05,-0.573C0.05,-0.691 0.13,-0.75 0.289,-0.75C0.354,-0.75 0.412,-0.746 0.463,-0.738C0.474,-0.736 0.48,-0.73 0.48,-0.721L0.48,-0.678C0.48,-0.667 0.474,-0.662 0.463,-0.662L0.461,-0.662C0.402,-0.666 0.345,-0.668 0.289,-0.668C0.236,-0.668 0.199,-0.661 0.177,-0.648C0.154,-0.634 0.142,-0.609 0.142,-0.573C0.142,-0.536 0.178,-0.496 0.251,-0.452L0.343,-0.397C0.448,-0.335 0.5,-0.267 0.5,-0.193Z\" style=\"fill:rgb(0,0,128);fill-rule:nonzero;\"/>
+            </g>
+            <g transform=\"matrix(266.667,0,0,266.667,146.667,0)\">
+                <path d=\"M0.601,-0.307C0.601,-0.2 0.576,-0.12 0.525,-0.067C0.478,-0.018 0.414,0.007 0.331,0.007C0.248,0.007 0.184,-0.018 0.137,-0.067C0.086,-0.121 0.06,-0.201 0.06,-0.307L0.06,-0.436C0.06,-0.542 0.086,-0.622 0.137,-0.676C0.184,-0.725 0.248,-0.75 0.331,-0.75C0.414,-0.75 0.478,-0.725 0.525,-0.676C0.576,-0.623 0.601,-0.543 0.601,-0.436L0.601,-0.307ZM0.509,-0.436C0.509,-0.591 0.45,-0.668 0.331,-0.668C0.212,-0.668 0.152,-0.591 0.152,-0.436L0.152,-0.307C0.152,-0.152 0.212,-0.075 0.331,-0.075C0.45,-0.075 0.509,-0.152 0.509,-0.307L0.509,-0.436Z\" style=\"fill:rgb(0,0,128);fill-rule:nonzero;\"/>
+            </g>
+            <g transform=\"matrix(266.667,0,0,266.667,316.267,0)\">
+                <path d=\"M0.604,-0.016C0.604,-0.005 0.598,-0 0.587,-0L0.528,-0C0.519,-0 0.514,-0.005 0.511,-0.015L0.446,-0.245L0.187,-0.245L0.123,-0.015C0.12,-0.005 0.114,-0 0.105,-0L0.046,-0C0.035,-0 0.029,-0.005 0.029,-0.016C0.029,-0.019 0.029,-0.022 0.03,-0.023L0.215,-0.674C0.229,-0.725 0.263,-0.75 0.317,-0.75C0.37,-0.75 0.404,-0.725 0.418,-0.675L0.603,-0.023C0.604,-0.022 0.604,-0.019 0.604,-0.016ZM0.336,-0.653C0.333,-0.665 0.326,-0.671 0.317,-0.671C0.307,-0.671 0.3,-0.665 0.297,-0.653L0.206,-0.324L0.427,-0.324L0.336,-0.653Z\" style=\"fill:rgb(0,0,128);fill-rule:nonzero;\"/>
+            </g>
+            <g transform=\"matrix(266.667,0,0,266.667,485.067,0)\">
+                <path d=\"M0.548,-0.52C0.548,-0.371 0.455,-0.296 0.268,-0.296C0.245,-0.296 0.211,-0.298 0.168,-0.301L0.168,-0.02C0.168,-0.007 0.162,-0 0.15,-0L0.096,-0C0.084,-0 0.078,-0.007 0.078,-0.02L0.078,-0.717C0.078,-0.732 0.086,-0.74 0.102,-0.742C0.148,-0.747 0.203,-0.75 0.268,-0.75C0.455,-0.75 0.548,-0.678 0.548,-0.533L0.548,-0.52ZM0.457,-0.533C0.457,-0.583 0.442,-0.619 0.411,-0.641C0.381,-0.662 0.333,-0.673 0.268,-0.673C0.233,-0.673 0.2,-0.672 0.168,-0.669L0.168,-0.376L0.268,-0.372C0.336,-0.372 0.385,-0.384 0.414,-0.407C0.443,-0.43 0.457,-0.467 0.457,-0.52L0.457,-0.533Z\" style=\"fill:rgb(0,0,128);fill-rule:nonzero;\"/>
+            </g>
+        </g>
+    </g>
+</svg>";
 }

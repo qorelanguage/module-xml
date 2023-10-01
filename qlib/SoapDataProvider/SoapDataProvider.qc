@@ -24,6 +24,9 @@
 
 #! contains all public definitions in the SoapDataProvider module
 public namespace SoapDataProvider {
+#! The application name for SOAP servers
+public const AppName = "SOAP";
+
 #! The Soap data provider class
 public class SoapDataProvider inherits AbstractDataProvider {
     public {

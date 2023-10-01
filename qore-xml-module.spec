@@ -1,4 +1,4 @@
-%global mod_ver 1.8.1
+%global mod_ver 2.0.0
 
 %{?_datarootdir: %global mydatarootdir %_datarootdir}
 %{!?_datarootdir: %global mydatarootdir /usr/share}
@@ -52,9 +52,9 @@ BuildRequires: devtoolset-7-gcc-c++
 %endif
 BuildRequires: cmake >= 3.5
 BuildRequires: gcc-c++
-BuildRequires: qore-devel >= 1.12.4
-BuildRequires: qore-stdlib >= 1.12.4
-BuildRequires: qore >= 1.12.4
+BuildRequires: qore-devel >= 2.0
+BuildRequires: qore-stdlib >= 2.0
+BuildRequires: qore >= 2.0
 BuildRequires: libxml2-devel
 BuildRequires: openssl-devel
 BuildRequires: fdupes
@@ -130,6 +130,9 @@ qore -l ./xml-api-%{module_api}.qmod test/webdav_FsWebDavHandler.qtest -v
 qore -l ./xml-api-%{module_api}.qmod test/xml.qtest -v
 
 %changelog
+* Sun Oct 1 2023 David Nichols <david@qore.org> - 2.0.0
+- added support for the DataProvider app/action catalog
+
 * Thu Jun 15 2023 David Nichols <david@qore.org> - 1.8.1
 - allow wsdl to be chosen as a file in the SoapClient connection
 
