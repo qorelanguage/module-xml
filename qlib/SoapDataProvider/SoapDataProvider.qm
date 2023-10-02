@@ -50,6 +50,7 @@ module SoapDataProvider {
         # register the data provider application
         DataProviderActionCatalog::registerApp(<DataProviderAppInfo>{
             "name": SoapDataProvider::AppName,
+            "display_name": "SOAP Server",
             "desc": "SOAP server for SOAP API calls",
             "scheme": "soap",
             "logo": SoapLogo,
