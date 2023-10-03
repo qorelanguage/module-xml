@@ -51,6 +51,7 @@ module SoapDataProvider {
         DataProviderActionCatalog::registerApp(<DataProviderAppInfo>{
             "name": SoapDataProvider::AppName,
             "display_name": "SOAP Server",
+            "short_desc": "SOAP server for SOAP API calls",
             "desc": "SOAP server for SOAP API calls",
             "scheme": "soap",
             "logo": SoapLogo,
@@ -63,6 +64,7 @@ module SoapDataProvider {
             "app": SoapDataProvider::AppName,
             "path": "/{api}",
             "action": "call-soap-api",
+            "display_name": "Call SOAP API",
             "short_desc": "Call a SOAP API",
             "desc": "Call a SOAP API",
             "action_code": DPAT_API,
