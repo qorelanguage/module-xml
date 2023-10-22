@@ -69,7 +69,11 @@ module SoapDataProvider {
             "desc": "Call a SOAP API",
             "action_code": DPAT_API,
             "path_vars": {
-                "api": "The SOAP operation to call",
+                "api": <DataProviderPathVarInfo>{
+                    "display_name": "API",
+                    "short_desc": "The SOAP operation to call",
+                    "desc": "The SOAP operation to call",
+                },
             },
         });
     };
