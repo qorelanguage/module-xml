@@ -765,21 +765,29 @@ public class SoapConnection inherits HttpBasedConnection {
             "cls": Class::forName("SoapConnection"),
             "options": HttpConnection::ConnectionScheme.options + {
                 "service": <ConnectionOptionInfo>{
+                    "display_name": "SOAP Service",
+                    "short_desc": "The name of the SOAP service to use",
                     "type": "string",
-                    "desc": "the name of the SOAP service to use (if more than 1 service is defined in the WSDL then "
+                    "desc": "The name of the SOAP service to use (if more than 1 service is defined in the WSDL then "
                         "this key is mandatory",
                 },
                 "port": <ConnectionOptionInfo>{
+                    "display_name": "SOAP Port",
+                    "short_desc": "The SOAP port to use",
                     "type": "string",
-                    "desc": "in case multiple port entries are found in the WSDL, give the one to be used here",
+                    "desc": "In case multiple port entries are found in the WSDL, give the one to be used here",
                 },
                 "target_url": <ConnectionOptionInfo>{
+                    "display_name": "Override URL",
+                    "short_desc": "Overrides the URL in the WSDL",
                     "type": "string",
-                    "desc": "overrides the URL in the WSDL",
+                    "desc": "Overrides the URL in the WSDL",
                 },
                 "wsdl": <ConnectionOptionInfo>{
+                    "display_name": "WSDL URL",
+                    "short_desc": "The URL for the WSDL",
                     "type": "file-as-string",
-                    "desc": "overrides the WSDL URL provided by the connection URL",
+                    "desc": "Overrides the WSDL URL provided by the connection URL",
                     "freeform": True,
                 },
             },

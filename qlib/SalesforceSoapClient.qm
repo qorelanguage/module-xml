@@ -436,21 +436,29 @@ public class SalesforceSoapConnection inherits SoapConnection {
             "cls": Class::forName("SalesforceSoapConnection"),
             "options": SoapConnection::ConnectionScheme.options + {
                 "force_logout": <ConnectionOptionInfo>{
+                    "display_name": "Force Logout On Close",
+                    "short_desc": "Forces a logout when deleting the object",
                     "type": "bool",
-                    "desc": "forces a logout when the SalesforceSoapClient object is destroyed",
+                    "desc": "Forces a logout when the `SalesforceSoapClient` object is destroyed",
                     "default_value": False,
                 },
                 "token": <ConnectionOptionInfo>{
+                    "display_name": "Authorization Token",
+                    "short_desc": "Sets an Salesforce authorization token to be included in requests",
                     "type": "string",
-                    "desc": "Salesforce.com user API token",
+                    "desc": "Sets an Salesforce authorization token to be included in requests",
                 },
                 "username": <ConnectionOptionInfo>{
+                    "display_name": "Username",
+                    "short_desc": "The Salesforce username to use when connecting",
                     "type": "string",
-                    "desc": "Salesforce.com user name",
+                    "desc": "The Salesforce username to use when connecting",
                 },
                 "password": <ConnectionOptionInfo>{
+                    "display_name": "Password",
+                    "short_desc": "The Salesforce password to use when connecting",
                     "type": "string",
-                    "desc": "Salesforce.com password",
+                    "desc": "The Salesforce password to use when connecting",
                     "sensitive": True,
                 },
             },

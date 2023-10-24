@@ -58,6 +58,8 @@ public class SoapDataProvider inherits AbstractDataProvider {
         #! Constructor options
         const ConstructorOptions = {
             "schema": <DataProviderOptionInfo>{
+                "display_name": "WSDL",
+                "short_desc": "The location to the WSDL or the WSDL object itself",
                 "type": (
                     AbstractDataProviderType::get(StringType, NOTHING, {
                         DTT_FromFile: True,
@@ -65,16 +67,20 @@ public class SoapDataProvider inherits AbstractDataProvider {
                     }),
                     AbstractDataProviderType::get(new Type("WebService")),
                 ),
-                "desc": "the SOAP schema object (WebService) or source URL for the WSDL",
+                "desc": "The SOAP schema object (WebService) or source URL for the WSDL",
                 "required": True,
             },
             "soapclient": <DataProviderOptionInfo>{
+                "display_name": "SOAP Client",
+                "short_desc": "The SOAP client object to use",
                 "type": AbstractDataProviderType::get(new Type("SoapClient"), NOTHING, {
                     DTT_ClientOnly: True,
                 }),
-                "desc": "the SoapClient object",
+                "desc": "The SoapClient object to use",
             },
             "url": <DataProviderOptionInfo>{
+                "display_name": "URL",
+                "short_desc": "The URL to the SOAP server",
                 "type": AbstractDataProviderType::get(StringType, NOTHING, {
                     DTT_ClientOnly: True,
                 }),
@@ -82,10 +88,12 @@ public class SoapDataProvider inherits AbstractDataProvider {
                     "passed as an option",
             },
             "soapclient_options": <DataProviderOptionInfo>{
+                "display_name": "SOAP Client Options",
+                "short_desc": "Options to use when creating the SOAP client",
                 "type": AbstractDataProviderType::get(AutoHashType, NOTHING, {
                     DTT_ClientOnly: True,
                 }),
-                "desc": "options to the SoapClient constructor; only used if a SoapClient object is created for a "
+                "desc": "Options to the SoapClient constructor; only used if a SoapClient object is created for a "
                     "call",
             },
         };

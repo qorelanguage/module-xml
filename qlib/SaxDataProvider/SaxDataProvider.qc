@@ -46,26 +46,36 @@ public class SaxDataProvider inherits DataProvider::AbstractDataProvider {
         #! Constructor options
         const ConstructorOptions = {
             "location": <DataProviderOptionInfo>{
+                "display_name": "XML Location",
+                "short_desc": "The location of the XML data to parse",
                 "type": AbstractDataProviderType::get(StringType),
-                "desc": "the location of the XML data; mutually exclusive with \"stream\"; resolved with a call to "
+                "desc": "The location of the XML data; mutually exclusive with \"stream\"; resolved with a call to "
                     "FileLocationHandler::getBinaryStreamFromLocation()",
             },
             "stream": <DataProviderOptionInfo>{
+                "display_name": "Input Stream",
+                "short_desc": "An input stream for XML data",
                 "type": AbstractDataProviderType::get(new Type("InputStream")),
-                "desc": "an input stream for XML data; mutually exclusive with \"location\"",
+                "desc": "An input stream for XML data; mutually exclusive with \"location\"",
             },
             "element_name": <DataProviderOptionInfo>{
+                "display_name": "Element Name",
+                "short_desc": "The name of the element to iterate",
                 "type": AbstractDataProviderTypeMap."string",
                 "desc": "the name of the element to iterate",
                 "required": True,
             },
             "encoding": <DataProviderOptionInfo>{
+                "display_name": "Character Encoding",
+                "short_desc": "The character encoding of the data",
                 "type": AbstractDataProviderTypeMap."string",
-                "desc": "the character encoding of the data at `location` or in `stream`",
+                "desc": "The character encoding of the data at `location` or in `stream`",
             },
             "xsd": <DataProviderOptionInfo>{
+                "display_name": "XML Schema Definition",
+                "short_desc": "An XSD string to use to validate the input XML",
                 "type": AbstractDataProviderTypeMap."string",
-                "desc": "an XSD string to validate the input XML",
+                "desc": "An XSD string to validate the input XML",
             },
         };
 

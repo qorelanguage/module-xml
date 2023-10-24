@@ -163,26 +163,36 @@ public class SoapRequestDataProvider inherits SoapDataProviderBase {
     private *hash<string, hash<DataProviderOptionInfo>> getApiOptions() {
         return {
             "soap_header": <DataProviderOptionInfo>{
+                "display_name": "SOAP Headers",
+                "short_desc": "SOAP headers to use in the message",
                 "type": new HashDataType(),
-                "desc": "a hash giving SOAP header information, if required by the message",
+                "desc": "A hash giving SOAP header information, if required by the message",
             },
             "http_header": <DataProviderOptionInfo>{
+                "display_name": "HTTP Headers",
+                "short_desc": "HTTP headers to send in the message",
                 "type": new HashDataType(),
-                "desc": "a hash giving HTTP header information to include in the message (does not override "
+                "desc": "A hash giving HTTP header information to include in the message (does not override "
                     "automatically-generated SOAP message headers)",
             },
             "xml_opts": <DataProviderOptionInfo>{
+                "display_name": "XML Generation Options",
+                "short_desc": "XML generation options",
                 "type": new QoreIntDataType(),
-                "desc": "an integer XML generation option code",
+                "desc": "An integer XML generation option code",
             },
             "soapaction": <DataProviderOptionInfo>{
+                "display_name": "SOAP Action",
+                "short_desc": "Overrides the SOAPAction for the request",
                 "type": new QoreStringDataType(),
-                "desc": "an optional string that will override the SOAPAction for the request; en empty string here "
+                "desc": "An optional string that will override the SOAPAction for the request; en empty string here "
                     "will prevent the SOAPAction from being sent",
             },
             "binding": <DataProviderOptionInfo>{
+                "display_name": "SOAP Binding",
+                "short_desc": "The SOAP binding name",
                 "type": new QoreStringDataType(),
-                "desc": " SOAP binding name, if not provided the first binding assigned to the operation will be "
+                "desc": "The SOAP binding name, if not provided the first binding assigned to the operation will be "
                     "used",
             },
         };
