@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 #! @file SoapClient.qm SOAP Client module implementation based on the WSDL classes
 
-/*  SoapClient.qm Copyright (C) 2012 - 2022 Qore Technologies, s.r.o.
+/*  SoapClient.qm Copyright (C) 2012 - 2023 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -23,7 +23,7 @@
 */
 
 # make sure we have the required qore version
-%requires qore >= 1.0
+%requires qore >= 2.0
 
 %requires(reexport) xml
 %requires(reexport) WSDL
@@ -762,6 +762,9 @@ public class SoapConnection inherits HttpBasedConnection {
 
         #! Connection entry info
         const ConnectionScheme = <ConnectionSchemeInfo>{
+            "display_name": "SOAP Connection",
+            "short_desc": "A connection to a SOAP server",
+            "desc": "A connection to a SOAP server",
             "cls": Class::forName("SoapConnection"),
             "options": HttpConnection::ConnectionScheme.options + {
                 "service": <ConnectionOptionInfo>{

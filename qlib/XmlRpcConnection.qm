@@ -23,7 +23,7 @@
 */
 
 # minimum required Qore version
-%requires qore >= 0.9
+%requires qore >= 2.0
 
 # require type definitions everywhere
 %require-types
@@ -115,6 +115,9 @@ public class XmlRpcConnection inherits ConnectionProvider::HttpBasedConnection {
 
         #! Connection entry info
         const ConnectionScheme = <ConnectionSchemeInfo>{
+            "display_name": "XML-RPC Connection",
+            "short_desc": "A connection to an XML-RPC server",
+            "desc": "A connection to an XML-RPC server",
             "cls": Class::forName("XmlRpcConnection"),
             "options": HttpConnection::ConnectionScheme.options,
         };

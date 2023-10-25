@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
 # @file SalesforceSoapClient.qm Salesforce SOAP Client Definition Module
 
-/*  SalesforceSoapClient.qm Copyright (C) 2015 - 2022 Qore Technologies, s.r.o.
+/*  SalesforceSoapClient.qm Copyright (C) 2015 - 2023 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -22,7 +22,8 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-%requires qore >= 0.9.5
+%requires qore >= 2.0
+
 %requires(reexport) xml
 %requires(reexport) Mime
 %requires(reexport) SoapClient
@@ -433,6 +434,9 @@ public class SalesforceSoapConnection inherits SoapConnection {
     public {
         #! Connection entry info
         const ConnectionScheme = <ConnectionSchemeInfo>{
+            "display_name": "Salesforce SOAP Connection",
+            "short_desc": "A connection to a Salesforce instance with SOAP",
+            "desc": "A connection to a Salesforce instance with SOAP",
             "cls": Class::forName("SalesforceSoapConnection"),
             "options": SoapConnection::ConnectionScheme.options + {
                 "force_logout": <ConnectionOptionInfo>{
