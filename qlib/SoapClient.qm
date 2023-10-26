@@ -766,6 +766,14 @@ public class SoapConnection inherits HttpBasedConnection {
             "short_desc": "A connection to a SOAP server",
             "desc": "A connection to a SOAP server",
             "cls": Class::forName("SoapConnection"),
+            "schemes": {
+                "soaps": True,
+                "soap": True,
+            },
+            "base_scheme_map": {
+                "https": "soaps",
+                "http": "soap",
+            },
             "options": HttpConnection::ConnectionScheme.options + {
                 "service": <ConnectionOptionInfo>{
                     "display_name": "SOAP Service",

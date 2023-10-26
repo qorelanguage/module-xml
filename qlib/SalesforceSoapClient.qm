@@ -438,6 +438,12 @@ public class SalesforceSoapConnection inherits SoapConnection {
             "short_desc": "A connection to a Salesforce instance with SOAP",
             "desc": "A connection to a Salesforce instance with SOAP",
             "cls": Class::forName("SalesforceSoapConnection"),
+            "schemes": {
+                "sfsoap": True,
+            },
+            "base_scheme_map": {
+                "https": "sfsoap",
+            },
             "options": SoapConnection::ConnectionScheme.options + {
                 "force_logout": <ConnectionOptionInfo>{
                     "display_name": "Force Logout On Close",

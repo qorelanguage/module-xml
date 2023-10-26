@@ -119,6 +119,14 @@ public class XmlRpcConnection inherits ConnectionProvider::HttpBasedConnection {
             "short_desc": "A connection to an XML-RPC server",
             "desc": "A connection to an XML-RPC server",
             "cls": Class::forName("XmlRpcConnection"),
+            "schemes": {
+                "xmlrpcs": True,
+                "xmlrpc": True,
+            },
+            "base_scheme_map": {
+                "https": "xmlrpcs",
+                "http": "xmlrpc",
+            },
             "options": HttpConnection::ConnectionScheme.options,
         };
     }
