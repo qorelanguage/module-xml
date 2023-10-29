@@ -23,7 +23,7 @@
 */
 
 # minimum qore version
-%requires qore >= 0.8.10
+%requires qore >= 2.0
 
 # requires the binary xml module
 %requires xml >= 1.1

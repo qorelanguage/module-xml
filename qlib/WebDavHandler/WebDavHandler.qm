@@ -21,6 +21,9 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+# minimum required Qore version
+%requires qore >= 2.0
+
 module WebDavHandler {
     version = "1.0";
     desc = "User module for WebDAV server-side protocol support";
@@ -28,9 +31,6 @@ module WebDavHandler {
     url = "http://qore.org";
     license = "MIT";
 }
-
-# minimum required Qore version
-%requires qore >= 0.10.0
 
 %new-style
 %enable-all-warnings
