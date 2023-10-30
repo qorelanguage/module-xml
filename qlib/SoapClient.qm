@@ -815,20 +815,30 @@ public class SoapConnection inherits HttpBasedConnection {
         See @ref AbstractConnection::constructor() for \c attributes and \c options reference.
     */
     constructor(string name, string description, string url, hash<auto> attributes = {}, hash<auto> options = {})
-        : HttpBasedConnection(name, description, url, attributes, options) {
-        # do environment variable substitution in wsdl option if applicable
-        if (!opts.wsdl) {
-            # check if we have a local path to the WSDL
-            hash<auto> h = parse_url(real_url);
-            if (h.protocol == "http" && h.size() == 2 && h.path)
-                real_url =~ s/^http/file/;
-        }
+            : HttpBasedConnection(name, description, url, attributes, options) {
+        soapSetup();
+    }
 
-        real_opts = ("wsdl": real_url) + opts;
-        # rename "target_url" to "url"
-        real_opts.url = remove opts.target_url;
+    #! Creates the SoapConnection object
+    /** @param config with the following keys:
+        - name (required string): the connection name
+        - display_name (optional string): the display name
+        - short_desc (optional string): a short description in plain text
+        - desc (optional string): a long description with markdown formatting
+        - url (required string): the connection URL
+        - opts (optional hash): connection options
+        - logger (optional LoggerInterface object): logger for the connection
+        @param attr optional connection attributes
+        - monitor (optional bool): should the connection be monitored? Default: True
+        - enabled (optional bool): is the connection enabled? Default: True
+        - locked (optional bool): is the connection locked? Default: False
+        - debug_data (optional bool): debug data? Default: False
+        - tags (optional hash): tags for the connection; no default value
 
-        children_can_support_apis = True;
+        @throw CONNECTION-OPTION-ERROR missing or invalid connection option or attribute
+    */
+    constructor(hash<auto> config, *hash<auto> attr) : HttpBasedConnection(config, attr) {
+        soapSetup();
     }
 
     #! returns \c "soap"
@@ -868,6 +878,26 @@ public class SoapConnection inherits HttpBasedConnection {
     */
     bool hasDataProvider() {
         return True;
+    }
+
+    #! Common constructor initialization
+    private soapSetup() {
+        # do environment variable substitution in wsdl option if applicable
+        if (!opts.wsdl) {
+            # check if we have a local path to the WSDL
+            hash<auto> h = parse_url(real_url);
+            if (h.protocol == "http" && h.size() == 2 && h.path)
+                real_url =~ s/^http/file/;
+        }
+
+        real_opts = {"wsdl": real_url} + opts;
+        # rename "target_url" to "url"
+        real_opts.url = remove opts.target_url;
+    }
+
+    #! Set child capabilities
+    private setChildCapabilities() {
+        children_can_support_apis = True;
     }
 
     #! returns a @ref SoapClient object
