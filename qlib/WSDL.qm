@@ -1542,15 +1542,15 @@ public class WSDL::UnionDataType inherits AbstractDataProviderType {
         return rv;
     }
 
-    hash<string, bool> getAcceptTypeHash() {
+    hash<string, bool> getAcceptTypeHash(*bool simple) {
         hash<string, bool> rv;
-        map rv += $1.getAcceptTypeHash(), types;
+        map rv += $1.getAcceptTypeHash(simple), types;
         return rv;
     }
 
-    hash<string, bool> getReturnTypeHash() {
+    hash<string, bool> getReturnTypeHash(*bool simple) {
         hash<string, bool> rv;
-        map rv += $1.getReturnTypeHash(), types;
+        map rv += $1.getReturnTypeHash(simple), types;
         return rv;
     }
 
