@@ -150,6 +150,10 @@ class Main {
       no partial file at the target.
     - <b>Note</b>: HTTP/1.1 request bodies are framework-buffered regardless of
       `wantsBodyStreaming()`; the streaming branch engages only on HTTP/2 and HTTP/3.
+    - Fixed a bug where @ref WebDavHandler::FsWebDavHandler "FsWebDavHandler" returned
+      \c "500 Internal Server Error" for every \c PROPFIND request targeting a regular file; the
+      resource hash literal narrowed to \c "hash<string, *string>" for non-directories, so setting
+      the integer \c "DAV:getcontentlength" property failed with a \c RUNTIME-TYPE-ERROR
 
     @subsection webdavhandler_v1_2 WebDavHandler v1.2
     - <b>Migrated to the async-only `HttpServer` 1.6 handler model.</b> Asynchronous socket

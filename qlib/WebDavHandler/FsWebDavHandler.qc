@@ -118,7 +118,11 @@ public class FsWebDavHandler inherits AbstractWebDavHandler {
 
     #! Returns resources for use in a PROPFIND request based on a StatInfo hash
     private hash<auto> hstat2Resource(string path, string displayname, hash<StatInfo> h) {
-        hash<auto> rv = {
+        # NOTE: the "{} +" prefix is required to keep the value type of the hash as "auto"; a hash
+        # literal takes its value type from the values actually present, which would otherwise narrow
+        # this hash to "hash<string, *string>" for non-directories and make the
+        # "DAV:getcontentlength" assignment below fail with a RUNTIME-TYPE-ERROR
+        hash<auto> rv = {} + {
             "DAV:displayname": displayname,
             # creationdate uses ISO-8601 format
             "DAV:creationdate": h.ctime.format("YYYY-MM-DDTHH:mm:SSZ"),
