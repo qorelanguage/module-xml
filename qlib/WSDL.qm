@@ -146,6 +146,11 @@ module WSDL {
       and array-serialization tests) must update to the new names. \c Qore::Serializable's
       \c serialize() / \c deserialize() byte-level API on \c WebService and the surrounding
       classes is unchanged.
+    - fixed serializing a scalar value for a \c complexType declaring \c xs:anyAttribute; the hash
+      wrapping the value in \c "^value^" narrowed its value type to the type of the scalar, so the
+      \c "^attributes^" hash added afterwards was silently folded to an empty string, dropping
+      \c "xsi:type" and any other attributes from the serialized message (and raising a
+      \c RUNTIME-TYPE-ERROR when the \c soapenc:arrayType attribute was also required)
 
     @subsection wsdl_0_5_7 WSDL v0.5.7
     - moved WSDL class declarations inside the WSDL namespace for compatibility with %strong-encapsulation
@@ -5044,7 +5049,13 @@ public class XsdComplexType inherits WSDL::XsdAbstractType {
                     throw SOAP_SERIALIZATION_ERROR, sprintf("expecting hash<auto> argument to serialize from "
                         "complexType %y (got %y, type %y)", getName(), h, type(h));
                 } else {
-                    rh = {"^value^": h};
+                    # NOTE: the "{} +" prefix is required to keep the value type of the hash as
+                    # "auto"; a hash literal takes its value type from the values actually present,
+                    # so without it this hash would narrow to "hash<string, string>" (or int, date,
+                    # etc, according to the runtime type of "h"), and the "^attributes^" updates
+                    # below would then either throw a RUNTIME-TYPE-ERROR or, worse, silently fold
+                    # the attribute hash to an empty string and drop the attributes
+                    rh = {} + {"^value^": h};
                 }
             } else if (cx_type == XET_SEQUENCE || cx_type == XET_ALL) {
                 foreach string p in (keys elementmap) {
@@ -5195,7 +5206,15 @@ public class XsdComplexType inherits WSDL::XsdAbstractType {
                 throw SOAP_DESERIALIZATION_ERROR, sprintf("cannot deserialize complex type %y from Qore type %y "
                     "(expecting \"hash\")", getName(), oval.type());
             } else {
-                oval = {"^value^": oval};
+                # NOTE: the "{} +" prefix is required to keep the value type of the hash as "auto";
+                # a hash literal takes its value type from the values actually present, so without
+                # it this hash would narrow to "hash<string, string>" (or int, date, etc, according
+                # to the runtime type of "oval"), and the narrowed type survives the assignments to
+                # "val" and "rh" below.  The "^attributes^" assignment at the end of this method
+                # would then fail with a RUNTIME-TYPE-ERROR; that is currently unreachable, since
+                # the attribute hash is only populated when the input is already a hash (which
+                # skips this branch), but the widening keeps the two independent of each other
+                oval = {} + {"^value^": oval};
             }
         }
         *hash<auto> val = oval;

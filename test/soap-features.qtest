@@ -110,6 +110,23 @@ class SoapFeaturesTest inherits QUnit::Test {
           <xsd:element name="content" type="xsd:base64Binary"/>
         </xsd:sequence>
       </xsd:complexType>
+
+      <!-- For anyAttribute tests: structured content plus anyAttribute, which allows a
+           scalar to be supplied for the type and wrapped as "^value^" -->
+      <xsd:complexType name="AnyAttrSeqType">
+        <xsd:sequence>
+          <xsd:element name="part" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+        <xsd:attribute name="lang" type="xsd:string"/>
+        <xsd:anyAttribute namespace="##other" processContents="skip"/>
+      </xsd:complexType>
+
+      <!-- the same shape without anyAttribute: a scalar must be rejected -->
+      <xsd:complexType name="StrictSeqType">
+        <xsd:sequence>
+          <xsd:element name="part" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+      </xsd:complexType>
     </xsd:schema>
   </types>
 
@@ -299,6 +316,14 @@ class SoapFeaturesTest inherits QUnit::Test {
         # REMOVENKEYS FALSY VALUE TESTS
         # ============================================================
         addTestCase("RemoveNSKeys: preserves falsy values", \testRemoveNSKeysFalsyValues());
+
+        # ============================================================
+        # anyAttribute SCALAR CONTENT TESTS
+        # ============================================================
+        addTestCase("anyAttribute: scalar serialization keeps attributes", \testAnyAttrScalarSerialization());
+        addTestCase("anyAttribute: scalar serialization value types", \testAnyAttrScalarValueTypes());
+        addTestCase("anyAttribute: scalar deserialization", \testAnyAttrScalarDeserialization());
+        addTestCase("anyAttribute: negative - scalar without anyAttribute", \testAnyAttrNegativeStrict());
 
         set_return_value(main());
     }
@@ -1003,6 +1028,89 @@ class SoapFeaturesTest inherits QUnit::Test {
         assertFalse(exists h."ns:empty", "ns:empty removed");
         assertFalse(exists h."ns:false", "ns:false removed");
         assertFalse(exists h."ns:normal", "ns:normal removed");
+    }
+
+    # ============================================================
+    # anyAttribute SCALAR CONTENT TESTS
+    # ============================================================
+
+    #! Returns the named complexType from the test WSDL
+    private XsdComplexType getComplexType(string name) {
+        *XsdAbstractType t = ws.tmap{name};
+        assertTrue(exists t, sprintf("type %y exists in the WebService type map", name));
+        assertTrue(t instanceof XsdComplexType, sprintf("type %y is a complexType", name));
+        return cast<XsdComplexType>(t);
+    }
+
+    #! A complexType with anyAttribute accepts a scalar, wrapped as "^value^"
+    /** The resulting hash must keep an "auto" value type: the "^attributes^" key added afterwards
+        holds a hash, so a hash narrowed to "hash<string, string>" by the scalar would silently fold
+        the attributes to an empty string and drop "xsi:type" from the serialized message.
+    */
+    testAnyAttrScalarSerialization() {
+        XsdComplexType ct = getComplexType("AnyAttrSeqType");
+
+        auto rv = ct.serializeValue(ct.nsc, "scalar-text", False);
+        assertEq(NT_HASH, rv.typeCode(), "serializing a scalar for an anyAttribute type gives a hash");
+        assertEq("scalar-text", rv."^value^", "the scalar is wrapped as the \"^value^\" key");
+
+        # this is the assertion that fails if the hash narrows to hash<string, string>
+        assertEq(NT_HASH, rv."^attributes^".typeCode(), "\"^attributes^\" is a hash, not a folded string");
+        assertEq("AnyAttrSeqType", (rv."^attributes^"."xsi:type" =~ x/:(.*)/)[0],
+            "the \"xsi:type\" attribute names the complexType");
+    }
+
+    #! Non-string scalars narrow to their own types, so cover them too
+    testAnyAttrScalarValueTypes() {
+        XsdComplexType ct = getComplexType("AnyAttrSeqType");
+
+        # a hash narrowed by an int/date/bool value throws rather than folding silently
+        hash<auto> values = {
+            "int": 42,
+            "date": 2026-01-15T10:30:00Z,
+            "bool": True,
+            "float": 3.14,
+        };
+        foreach hash<auto> i in (values.pairIterator()) {
+            auto rv = ct.serializeValue(ct.nsc, i.value, False);
+            assertEq(i.value, rv."^value^", sprintf("%s scalar wrapped as \"^value^\"", i.key));
+            assertEq(NT_HASH, rv."^attributes^".typeCode(),
+                sprintf("\"^attributes^\" is a hash for a %s scalar", i.key));
+        }
+    }
+
+    #! Deserializing a scalar through the anyAttribute branch round-trips the value
+    testAnyAttrScalarDeserialization() {
+        XsdComplexType ct = getComplexType("AnyAttrSeqType");
+        hash<string, XsdAbstractType> tmap = ws.tmap;
+
+        # a bare scalar collapses back to the scalar, since "^value^" is the only key
+        assertEq("scalar-text", ct.deserializeValue("body", tmap, NOTHING, "scalar-text"),
+            "a scalar deserializes back to the scalar");
+
+        # with attributes present the attribute hash must survive alongside the value
+        auto rv = ct.deserializeValue("body", tmap, NOTHING,
+            {"^attributes^": {"lang": "en"}, "^value^": "scalar-text"});
+        assertEq("scalar-text", rv."^value^", "the value survives deserialization with attributes");
+        assertEq({"lang": "en"}, rv."^attributes^", "declared attributes survive deserialization");
+
+        # structured content still deserializes normally
+        auto sv = ct.deserializeValue("body", tmap, NOTHING,
+            {"^attributes^": {"lang": "en"}, "part": "p"});
+        assertEq("p", sv.part, "structured content deserializes normally");
+        assertEq({"lang": "en"}, sv."^attributes^", "attributes survive with structured content");
+    }
+
+    #! Without anyAttribute, a scalar for a structured complexType must be rejected
+    testAnyAttrNegativeStrict() {
+        XsdComplexType strict = getComplexType("StrictSeqType");
+
+        assertThrows("SOAP-SERIALIZATION-ERROR", \strict.serializeValue(),
+            (strict.nsc, "scalar-text", False),
+            "serializing a scalar without anyAttribute throws");
+        assertThrows("SOAP-DESERIALIZATION-ERROR", \strict.deserializeValue(),
+            ("body", ws.tmap, NOTHING, "scalar-text"),
+            "deserializing a scalar without anyAttribute throws");
     }
 
     # ============================================================
