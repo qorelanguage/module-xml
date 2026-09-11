@@ -549,6 +549,7 @@ class SoapTest inherits QUnit::Test {
         addTestCase("XSD include", \xsdIncludeTest());
         addTestCase("attributes and choices", \attributeAndChoiceTest());
         addTestCase("nested model groups", \nestedModelGroupTest());
+        addTestCase("element order", \elementOrderTest());
         addTestCase("XSD pattern facets", \xsdPatternTest());
         addTestCase("XSD regular expression dialect", \xsdRegexTest());
         addTestCase("XSD constraining facets", \xsdFacetTest());
@@ -905,6 +906,131 @@ class SoapTest inherits QUnit::Test {
         # elements declared in a nested sequence in a response are included as well
         assertEq(("r1", "r2"),
             keys op.output.getDataProviderType().getFields().parameters.getType().getFields());
+    }
+
+    #! tests that elements are serialized in the order in which they are declared in the schema (issue #5452)
+    /** The order of the elements of an \c xs:sequence is significant; a \c choice block or a nested model group
+        declared between two elements must not move the elements declared after it to the front of the message
+    */
+    elementOrderTest() {
+        WebService ws = WSDLLib::getWebServiceFromUrl(get_script_dir() + "/element-order.wsdl");
+
+        # a choice declared before the other elements of the sequence must be serialized first
+        WSOperation op = ws.getOperation("Order");
+        hash<auto> req = {
+            "^attributes^": {"msisdn": "tel:+436600000007"},
+            "msisdn": "tel:+436600000007",
+            "records": (
+                {
+                    "^attributes^": {"publicId": "sip:+436600000007@example.com"},
+                    "publicId": "sip:+436600000007@example.com",
+                    "flags": "nu",
+                    "order": 100,
+                },
+            ),
+        };
+        hash<auto> h = op.serializeRequest(req);
+        hash<auto> body = parse_xml(h.body).firstValue()."soapenv:Body"."ns:OrderReq";
+        assertEq(("^attributes^", "ns:msisdn", "ns:records"), keys body);
+        assertEq("tel:+436600000007", body."ns:msisdn");
+        assertEq("tel:+436600000007", body."^attributes^".msisdn);
+        # the elements of the record type keep their declared order as well
+        assertEq(("^attributes^", "ns:publicId", "ns:flags", "ns:order"), keys body."ns:records");
+        assertEq("100", body."ns:records"."ns:order");
+
+        # the message round-trips with the members in the declared order
+        hash<auto> rt = op.deserializeRequest(parse_xml(h.body));
+        assertEq(("msisdn", "dnsname", "records", "^attributes^"), keys rt);
+        assertEq("tel:+436600000007", rt.msisdn);
+        assertEq(NOTHING, rt.dnsname);
+        assertEq("tel:+436600000007", rt."^attributes^".msisdn);
+        assertEq(100, rt.records.order);
+        assertEq("sip:+436600000007@example.com", rt.records."^attributes^".publicId);
+
+        # the other alternative of the choice is serialized in the same position
+        hash<auto> h1 = op.serializeRequest({"e164": "436600000007", "dnsname": "example.com"});
+        assertEq(("ns:e164", "ns:dnsname"),
+            keys parse_xml(h1.body).firstValue()."soapenv:Body"."ns:OrderReq");
+
+        # the choice is required, so a message with no member of the choice cannot be serialized
+        assertThrows("SOAP-SERIALIZATION-ERROR", "expecting one of", \op.serializeRequest(),
+            ({"dnsname": "example.com"},));
+
+        # only one member of the choice may be serialized
+        assertThrows("SOAP-SERIALIZATION-ERROR", "more than 1 member", \op.serializeRequest(),
+            ({"msisdn": "tel:+43", "e164": "43"},));
+
+        # unknown elements are still rejected
+        assertThrows("SOAP-SERIALIZATION-ERROR", "remains unserialized", \op.serializeRequest(),
+            ({"msisdn": "tel:+43", "bogus": "x"},));
+        assertThrows("SOAP-SERIALIZATION-ERROR", "invalid member", \op.serializeRequest(),
+            ({"msisdn": "tel:+43", "records": {"publicId": "x", "flags": "nu", "order": 1, "bogus": "x"}},));
+
+        # the data provider type reports the fields in the declared order; choice members are optional
+        AbstractDataProviderType t = op.input.getDataProviderType().getFields().parameters.getType();
+        assertEq(("msisdn", "e164", "dnsname", "records"), keys t.getFields());
+        assertFalse(t.getFields().msisdn.isMandatory());
+        assertFalse(t.getFields().e164.isMandatory());
+
+        # elements, choice blocks, and a nested model group interleaved in a single sequence
+        WSOperation mop = ws.getOperation("Mixed");
+        hash<auto> mreq = {
+            "a": "A",
+            "a2": "A2",
+            "m": "M",
+            "b": "B",
+            "b2": "B2",
+            "c": "C",
+            "d": "D",
+            "q": "Q",
+            "e": "E",
+        };
+        hash<auto> mh = mop.serializeRequest(mreq);
+        hash<auto> mbody = parse_xml(mh.body).firstValue()."soapenv:Body"."ns:MixedReq";
+        assertEq(("ns:a", "ns:a2", "ns:m", "ns:b", "ns:b2", "ns:c", "ns:d", "ns:q", "ns:e"), keys mbody);
+        assertEq(mreq, mop.deserializeRequest(parse_xml(mh.body)));
+
+        # the second choice is optional, so it can be omitted without affecting the order of the other elements
+        hash<auto> mh1 = mop.serializeRequest(mreq - ("q", "c", "a2"));
+        assertEq(("ns:a", "ns:m", "ns:b", "ns:b2", "ns:d", "ns:e"),
+            keys parse_xml(mh1.body).firstValue()."soapenv:Body"."ns:MixedReq");
+
+        # the first choice is required
+        assertThrows("SOAP-SERIALIZATION-ERROR", "expecting one of", \mop.serializeRequest(),
+            (mreq - "m",));
+
+        # members of different choice blocks are serialized independently in their own positions
+        hash<auto> mh2 = mop.serializeRequest(mreq - ("m", "q") + {"n": "N", "p": "P"});
+        assertEq(("ns:a", "ns:a2", "ns:n", "ns:b", "ns:b2", "ns:c", "ns:d", "ns:p", "ns:e"),
+            keys parse_xml(mh2.body).firstValue()."soapenv:Body"."ns:MixedReq");
+
+        # the data provider type reports the fields of both choice blocks in the declared order
+        AbstractDataProviderType mt = mop.input.getDataProviderType().getFields().parameters.getType();
+        assertEq(("a", "a2", "m", "n", "b", "b2", "c", "d", "p", "q", "e"), keys mt.getFields());
+        assertTrue(mt.getFields().a.isMandatory());
+        assertFalse(mt.getFields().m.isMandatory());
+        assertFalse(mt.getFields().p.isMandatory());
+
+        # a choice block declared in a base type is inherited as a choice block
+        WSOperation eop = ws.getOperation("Ext");
+        hash<auto> eh = eop.serializeRequest({"b1": "B1", "b3": "B3", "x1": "X1"});
+        assertEq(("ns:b1", "ns:b3", "ns:x1"),
+            keys parse_xml(eh.body).firstValue()."soapenv:Body"."ns:ExtReq");
+        assertEq({"b1": "B1", "b3": "B3", "x1": "X1"}, eop.deserializeRequest(parse_xml(eh.body)));
+
+        # both members of the inherited choice cannot be serialized together
+        assertThrows("SOAP-SERIALIZATION-ERROR", "more than 1 member", \eop.serializeRequest(),
+            ({"b1": "B1", "b2": "B2"},));
+
+        # the inherited choice is required
+        assertThrows("SOAP-SERIALIZATION-ERROR", "expecting one of", \eop.serializeRequest(),
+            ({"x1": "X1"},));
+
+        # example messages are generated in the declared order as well
+        WSMessageHelper mhelper(ws);
+        assertEq(("^attributes^", "msisdn", "dnsname", "records"), keys mhelper.getMessage(op.input).OrderReq);
+        assertEq(("a", "a2", "m", "b", "b2", "c", "d", "p", "e"),
+            keys mhelper.getMessage(mop.input).MixedReq);
     }
 
     #! tests \c pattern facet validation

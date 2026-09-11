@@ -81,6 +81,25 @@ module WSDL {
     @section wsdlrelnotes WSDL Module Release Notes
 
     @subsection wsdl_0_5_7 WSDL v0.5.7
+    - fixed serializing and deserializing elements declared after an \c xs:choice or a nested model group in an
+      \c xs:sequence; the members of the \c choice were always serialized after all the other elements of the
+      sequence instead of in the position where the \c choice is declared, so messages violating the element
+      order required by the schema were generated.  The XML parser reports XML elements with the same name that
+      do not appear next to each other in separate keys, which was not taken into account either, so elements
+      declared after a \c choice or a nested model group were moved to the front of the message as well
+    - fixed serializing document-style message parts whose type declares a \c choice block in an \c xs:sequence;
+      the members of the \c choice were not recognized as part of the message, so a
+      \c SOAP-SERIALIZATION-ERROR exception was thrown reporting that the data remained unserialized
+    - fixed serializing document-style message parts with XML attributes given in the \c "^attributes^" key of the
+      message hash; the attributes were not recognized as part of the message, so a \c SOAP-SERIALIZATION-ERROR
+      exception was thrown reporting that the data remained unserialized
+    - fixed handling \c xs:choice blocks declared in a model group with no \c minOccurs attribute; the default
+      value of \c minOccurs is \c 1, so such choices are required, but they were treated as optional, meaning
+      that messages missing a required element were serialized and accepted silently
+    - fixed inheriting \c xs:choice blocks from a base type in a \c complexType \c extension or \c restriction;
+      the members of the inherited \c choice were serialized and deserialized as if they were normal elements of
+      the model group, so more than one of them could be used at a time
+      (<a href="https://github.com/qoretechnologies/qore/issues/5452">issue 5452</a>)
     - added validation of XSD \c pattern facets; \c pattern facets were parsed neither on serialization nor on
       deserialization, so values violating the pattern declared for their type were sent and accepted silently.
       Multiple \c pattern facets declared in the same restriction are combined as if they appeared in a single
@@ -748,8 +767,176 @@ class WsdlLibPriv {
     }
 }
 
+#! describes a single particle (child element) of an XSD model group
+/** @since %WSDL 0.5.7
+*/
+public hashdecl WSDL::ParticleInfo {
+    #! the local name of the particle (ex: \c "element", \c "choice", \c "sequence")
+    string name;
+
+    #! the parsed XML data for the particle
+    *hash<auto> value;
+}
+
 #! base class with helper methods for XSD data processing
 public class WSDL::XsdBase inherits Qore::Serializable {
+    public {
+        #! the key used to store the document order of the particles of an XSD model group
+        /** @see @ref XsdBase::normalizeModelGroupOrder()
+
+            @since %WSDL 0.5.7
+        */
+        const ModelGroupOrderKey = "^order^";
+
+        #! the local names of the XSD model group elements
+        /** @since %WSDL 0.5.7
+        */
+        const ModelGroupNames = {
+            "sequence": True,
+            "choice": True,
+            "all": True,
+            "group": True,
+        };
+    }
+
+    #! restores the standard parsed XML structure and records the document order of XSD model group particles
+    /** @param v a reference to a data structure parsed with
+        @ref Qore::Xml::parse_xml() "parse_xml(str, XPF_PRESERVE_ORDER)"
+        @param model_group if the node given is an XSD model group (\c xs:sequence, \c xs:choice, \c xs:all, or
+        \c xs:group)
+
+        XML elements with the same name that do not appear next to each other are stored by
+        @ref XPF_PRESERVE_ORDER in keys with a \c "^<n>" suffix in order to preserve the document order of the
+        elements.  This method merges such keys back into a single key holding a list of values, which is the
+        structure that the rest of this module expects, and, for XSD model groups, stores the local names of the
+        child elements in document order in the @ref XsdBase::ModelGroupOrderKey key, so that the order of the
+        particles of the model group is not lost.
+
+        The document order of the particles of a model group is significant; elements must be serialized in the
+        order in which they are declared, even when a \c choice or a nested model group is declared between them
+
+        @since %WSDL 0.5.7
+    */
+    static normalizeModelGroupOrder(reference<auto> v, bool model_group = False) {
+        switch (v.typeCode()) {
+            case NT_LIST: {
+                foreach auto e in (\v) {
+                    XsdBase::normalizeModelGroupOrder(\e, model_group);
+                }
+                return;
+            }
+
+            case NT_HASH:
+                break;
+
+            default:
+                return;
+        }
+
+        hash<auto> nh;
+        list<string> order();
+        foreach string k in (keys v) {
+            auto val = remove v{k};
+            # internal keys (ex: "^attributes^", "^value^") do not correspond to XML elements
+            if (k[0] == "^") {
+                nh{k} = val;
+                continue;
+            }
+            # remove any "^<n>" suffix added to preserve the document order of the element
+            string base = XsdBase::getUnorderedKey(k);
+            string lname = XsdBase::getLocalName(base);
+            # a value list holds multiple occurrences of the same element
+            if (val.typeCode() == NT_LIST) {
+                map order += lname, val;
+            } else {
+                order += lname;
+            }
+            if (nh.hasKey(base)) {
+                softlist<auto> l = nh{base};
+                l += val;
+                nh{base} = l;
+            } else {
+                nh{base} = val;
+            }
+        }
+
+        # recurse into child elements
+        foreach string k in (keys nh) {
+            if (k[0] == "^") {
+                continue;
+            }
+            XsdBase::normalizeModelGroupOrder(\nh{k}, XsdBase::ModelGroupNames{XsdBase::getLocalName(k)} ?? False);
+        }
+
+        if (model_group) {
+            nh{XsdBase::ModelGroupOrderKey} = order;
+        }
+        v = nh;
+    }
+
+    #! returns the key name without any \c "^<n>" document order suffix
+    /** @since %WSDL 0.5.7
+    */
+    static string getUnorderedKey(string k) {
+        *string base = (k =~ x/^(.+)\^[0-9]+$/)[0];
+        return base ?? k;
+    }
+
+    #! returns the key name without any namespace prefix
+    /** @since %WSDL 0.5.7
+    */
+    static string getLocalName(string k) {
+        *string lname = (k =~ x/^[^:]+:([^:]+)$/)[0];
+        return lname ?? k;
+    }
+
+    #! returns the particles of a parsed XSD model group in document order
+    /** @param mg the model group to process; namespace prefixes must have been removed with
+        @ref XsdBase::removeNS() already
+
+        The document order is taken from the @ref XsdBase::ModelGroupOrderKey key added by
+        @ref XsdBase::normalizeModelGroupOrder(); if the key is not present (ex: a model group with a single
+        particle), then the particles are returned in the order in which their keys appear in the hash
+
+        @since %WSDL 0.5.7
+    */
+    static list<hash<ParticleInfo>> getModelGroupParticles(hash<auto> mg) {
+        *list<string> order = remove mg{XsdBase::ModelGroupOrderKey};
+        if (!order) {
+            # no document order info; use the order in which the keys appear
+            order = ();
+            foreach string k in (keys mg) {
+                if (k[0] == "^") {
+                    continue;
+                }
+                if (mg{k}.typeCode() == NT_LIST) {
+                    map order += k, mg{k};
+                } else {
+                    order += k;
+                }
+            }
+        }
+        # the index of the next value to use for each particle name
+        hash<string, int> ix;
+        list<hash<ParticleInfo>> rv();
+        foreach string k in (order) {
+            auto v = mg{k};
+            int i = ix{k} ?? 0;
+            ix{k} = i + 1;
+            if (v.typeCode() == NT_LIST) {
+                v = v[i];
+            } else if (i) {
+                # the order info does not match the data; ignore the extra particle
+                continue;
+            }
+            rv += <ParticleInfo>{
+                "name": k,
+                "value": v.typeCode() == NT_HASH ? v : NOTHING,
+            };
+        }
+        return rv;
+    }
+
     static removeNS(reference v) {
         foreach hash<auto> h in (\v) {
             foreach string k in (keys h) {
@@ -3559,6 +3746,10 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
 
         bool usedocns;
 
+        #! all elements declared in the type's model group in document order
+        /** elements declared in a \c choice block in the model group are included as well; use
+            @ref choice_index to find the \c choice block that an element belongs to
+        */
         hash<string, XsdElement> elementmap();
         bool anyAttribute = False;
 
@@ -3582,6 +3773,11 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
 
         # multiple choice blocks
         list<hash<ChoiceInfo>> choices();
+
+        #! maps element names in @ref elementmap to the index of the \c choice block in @ref choices they belong to
+        /** @since %WSDL 0.5.7
+        */
+        hash<string, int> choice_index();
 
         #! the alternatives of a complexType that is itself a choice
         /** each alternative is a hash of the elements belonging to it; alternatives declared as nested model groups
@@ -3711,6 +3907,9 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                 throw WSDL_ERROR, sprintf("cannot restrict complexType %y with type %y", name, t.name);
             cast<XsdComplexType>(t).finalize(tmap, nsc);
             elementmap = cast<hash<string, XsdElement>>(cast<XsdComplexType>(t).elementmap + elementmap);
+            # issue #5452: the choice blocks of the base type must be inherited as well, otherwise their members
+            # would be serialized as if they were normal elements of the model group
+            mergeChoices(cast<XsdComplexType>(t));
             #printf("DEBUG: extended %s with %s (%y)\n", name, restriction, cast<XsdComplexType>(t).elementmap.keys());
         } else if (extension) {
             # process extension info
@@ -3720,8 +3919,26 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             cast<XsdComplexType>(t).finalize(tmap, nsc);
             # combine base type and new type
             elementmap = cast<hash<string, XsdElement>>(cast<XsdComplexType>(t).elementmap + elementmap);
+            # issue #5452: the choice blocks of the base type must be inherited as well, otherwise their members
+            # would be serialized as if they were normal elements of the model group
+            mergeChoices(cast<XsdComplexType>(t));
             #printf("DEBUG: extended %s (%s) with %s (%y) elements: %y\n", name, self.uniqueHash(), extension,
             #     cast<XsdComplexType>(t).elementmap.keys(), keys elementmap);
+        }
+    }
+
+    #! prepends the \c choice blocks of a base type to this type's \c choice blocks
+    /** @since %WSDL 0.5.7
+    */
+    private mergeChoices(XsdComplexType base) {
+        if (!base.choices) {
+            return;
+        }
+        choices = base.choices + choices;
+        # the indexes of this type's own choice blocks have changed; rebuild the map
+        choice_index = {};
+        for (int i = 0; i < choices.size(); ++i) {
+            map choice_index{$1} = i, keys choices[i].elementmap;
         }
     }
 
@@ -3800,8 +4017,9 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         Elements declared in nested model groups belong to the enclosing model group, so they are added to the
         element map of this complexType; \c choice blocks are added to @ref choices.
 
-        @note the XML parser does not preserve the relative order of elements with different names, therefore the
-        keys of the model group are processed in the order in which they first appear in the schema
+        @note the particles of the model group are processed in the order in which they are declared in the schema,
+        so that elements are serialized in document order even when a \c choice or a nested model group is declared
+        between them (issue #5452)
 
         @since %WSDL 0.5.6
     */
@@ -3811,26 +4029,22 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             return;
         }
         WSDL::XsdBase::removeNS(\mg);
-        foreach string k in (keys mg) {
-            switch (k) {
+        foreach hash<ParticleInfo> p in (XsdBase::getModelGroupParticles(mg)) {
+            switch (p.name) {
                 case "element": {
-                    elementmap += parseElements(mg.element, unresolved, nsc, True, optional);
+                    elementmap += parseElements(p.value, unresolved, nsc, True, optional);
                     break;
                 }
 
                 case "choice": {
-                    foreach hash<auto> ch in (mg.choice) {
-                        addChoiceBlock(ch, unresolved, nsc, optional);
-                    }
+                    addChoiceBlock(p.value, unresolved, nsc, optional);
                     break;
                 }
 
                 case "sequence":
                 case "all": {
-                    foreach hash<auto> nested in (mg{k}) {
-                        parseModelGroup(nested, unresolved, nsc,
-                            optional || XsdComplexType::isOptionalGroup(nested));
-                    }
+                    parseModelGroup(p.value, unresolved, nsc,
+                        optional || XsdComplexType::isOptionalGroup(p.value));
                     break;
                 }
 
@@ -3850,9 +4064,16 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
         hash<string, XsdElement> h();
         map h += $1, alts;
         if (h) {
+            # issue #5452: the members of the choice belong to the enclosing model group and must be serialized in
+            # the position where the choice is declared, therefore they are added to the element map in document
+            # order; "choice_index" maps them back to the choice block they belong to
+            int i = choices.size();
+            map choice_index{$1} = i, keys h;
+            elementmap += h;
             choices += <ChoiceInfo>{
                 "elementmap": h,
-                "required": !optional && ch."^attributes^".minOccurs > 0,
+                # issue #5452: "minOccurs" defaults to 1, so a choice with no "minOccurs" attribute is required
+                "required": !optional && !XsdComplexType::isOptionalGroup(ch),
                 "alternatives": alts,
             };
         }
@@ -3872,23 +4093,19 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             return rv;
         }
         WSDL::XsdBase::removeNS(\ch);
-        foreach string k in (keys ch) {
-            switch (k) {
+        foreach hash<ParticleInfo> p in (XsdBase::getModelGroupParticles(ch)) {
+            switch (p.name) {
                 case "element": {
-                    foreach hash<auto> e in (ch.element) {
-                        rv += parseElements(e, unresolved, nsc, False);
-                    }
+                    rv += parseElements(p.value, unresolved, nsc, False);
                     break;
                 }
 
                 case "sequence":
                 case "all":
                 case "choice": {
-                    foreach hash<auto> nested in (ch{k}) {
-                        hash<string, XsdElement> h = flattenModelGroup(nested, unresolved, nsc);
-                        if (h) {
-                            rv += h;
-                        }
+                    hash<string, XsdElement> h = flattenModelGroup(p.value, unresolved, nsc);
+                    if (h) {
+                        rv += h;
                     }
                     break;
                 }
@@ -3908,19 +4125,17 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             return rv;
         }
         WSDL::XsdBase::removeNS(\mg);
-        foreach string k in (keys mg) {
-            switch (k) {
+        foreach hash<ParticleInfo> p in (XsdBase::getModelGroupParticles(mg)) {
+            switch (p.name) {
                 case "element": {
-                    rv += parseElements(mg.element, unresolved, nsc, False);
+                    rv += parseElements(p.value, unresolved, nsc, False);
                     break;
                 }
 
                 case "sequence":
                 case "all":
                 case "choice": {
-                    foreach hash<auto> nested in (mg{k}) {
-                        rv += flattenModelGroup(nested, unresolved, nsc);
-                    }
+                    rv += flattenModelGroup(p.value, unresolved, nsc);
                     break;
                 }
             }
@@ -4021,14 +4236,15 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
             case XET_SEQUENCE:
             case XET_ALL: {
                 HashDataType rv(name);
-                map rv.addField(new QoreDataField($1.key, NOTHING, $1.value.getDataProviderType(), NOTHING,
-                    $1.value.getAllowedValues())), elementmap.pairIterator();
-                # issue #5410: elements declared in a choice block in the model group must be included as well; at
+                # issue #5410: elements declared in a choice block in the model group are included as well; at
                 # most one alternative of a choice can be present, therefore all its members must be optional
-                foreach hash<ChoiceInfo> ch in (choices) {
-                    map rv.addField(new QoreDataField($1.key, NOTHING,
-                        $1.value.getDataProviderType().getOrNothingType(), NOTHING, $1.value.getAllowedValues())),
-                        ch.elementmap.pairIterator();
+                # issue #5452: fields are reported in the order in which the elements are declared in the schema
+                foreach hash<auto> i in (elementmap.pairIterator()) {
+                    AbstractDataProviderType t = i.value.getDataProviderType();
+                    if (exists choice_index{i.key}) {
+                        t = t.getOrNothingType();
+                    }
+                    rv.addField(new QoreDataField(i.key, NOTHING, t, NOTHING, i.value.getAllowedValues()));
                 }
                 return rv;
             }
@@ -4122,12 +4338,6 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                     rh = {"^value^": h};
                 }
             } else if (cx_type == XET_SEQUENCE || cx_type == XET_ALL) {
-                foreach string p in (keys elementmap) {
-                    #printf("DEBUG element: %y (%y)\nvalue: %y\n", p, elementmap{p}, h{p});
-                    rh += serializeElement(nsc, p, elementmap{p}, h, omitType);
-                    delete h{p};
-                }
-
                 # when generating example messages we need generate all choices, in this case extra ^choices^ tag is used
                 # choice name is unique in element so ne merge all choices together first
                 *hash<auto> hch;
@@ -4136,8 +4346,25 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                         hch += remove h{k};
                     }
                 }
-                # also serialize each choice block, if any
-                foreach hash<ChoiceInfo> ch in (choices) {
+
+                # issue #5452: elements and choice blocks must be serialized in the order in which they are
+                # declared in the model group; "elementmap" holds all the elements of the model group in document
+                # order, and choice members are serialized in the position of the choice block they belong to
+                hash<string, bool> choice_done;
+                foreach string p in (keys elementmap) {
+                    *int ci = choice_index{p};
+                    if (!exists ci) {
+                        #printf("DEBUG element: %y (%y)\nvalue: %y\n", p, elementmap{p}, h{p});
+                        rh += serializeElement(nsc, p, elementmap{p}, h, omitType);
+                        delete h{p};
+                        continue;
+                    }
+                    # serialize each choice block once, in the position where it is declared
+                    if (choice_done{ci}) {
+                        continue;
+                    }
+                    choice_done{ci} = True;
+                    hash<ChoiceInfo> ch = choices[ci];
                     list<string> kl = ch.elementmap.keys();
                     *hash<auto> vh = h{kl};
                     *hash<auto> vhch = hch{kl};
@@ -4344,13 +4571,23 @@ public class WSDL::XsdComplexType inherits WSDL::XsdAbstractType {
                     && !exists val{elementmap.firstKey()} && !required && !choices)
                     return;
 
+                # issue #5452: "elementmap" holds all the elements of the model group in document order; choice
+                # members are deserialized as part of the choice block they belong to
+                hash<string, bool> choice_done;
                 foreach string p in (keys elementmap) {
-                    #printf("element %y\n", p);
-                    rh{p} = elementmap{p}.deserialize(tmap, mrh, getValue(mrh, val{p}), val.hasKey(p));
-                    delete val{p};
-                }
-                # also parse each choice block, if any
-                foreach hash<ChoiceInfo> ch in (choices) {
+                    *int ci = choice_index{p};
+                    if (!exists ci) {
+                        #printf("element %y\n", p);
+                        rh{p} = elementmap{p}.deserialize(tmap, mrh, getValue(mrh, val{p}), val.hasKey(p));
+                        delete val{p};
+                        continue;
+                    }
+                    # parse each choice block once, in the position where it is declared
+                    if (choice_done{ci}) {
+                        continue;
+                    }
+                    choice_done{ci} = True;
+                    hash<ChoiceInfo> ch = choices[ci];
                     *hash<auto> vh = val.(ch.elementmap.keys());
                     *hash<auto> h = parseChoice(vh, ch.elementmap, en, tmap, mrh, ch.required, ch.alternatives);
                     if (h)
@@ -5155,6 +5392,11 @@ public class WSDL::WSMessage inherits WSDL::XsdNamedData {
                 # special case, empty complex type
                 return NULL;
             } else {
+                # issue #5452: XML attributes declared for the element must be taken from the message hash as
+                # well, otherwise they would be reported as unserialized data
+                if (type.attrs && v.typeCode() == NT_HASH && v.hasKey("^attributes^")) {
+                    rv."^attributes^" = removeFound ? (remove v."^attributes^") : v."^attributes^";
+                }
                 foreach string ename in (keys type.elementmap) {
                     auto val = getValueFromHash(ename, \v, removeFound);
                     if (exists val) {
@@ -7208,8 +7450,9 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
             }
         }
 
-        # parse XML to Qore data structure ignoring XML element order
-        hash<auto> xh = parse_xml(xsd);
+        # issue #5452: parse the XML preserving the document order of XSD model group particles
+        hash<auto> xh = parse_xml(xsd, XPF_PRESERVE_ORDER);
+        XsdBase::normalizeModelGroupOrder(\xh);
 
         # parse namespace definitions in schema attributes
         if (xh.size() != 1) {
@@ -7508,7 +7751,9 @@ public class WSDL::WebService inherits WSDL::XsdBase, Qore::Serializable {
     /** @since %WSDL 0.4
     */
     private:internal doInit(string str, *hash<auto> opts) {
-        hash<auto> h = parse_xml(str);
+        # issue #5452: parse the XML preserving the document order of XSD model group particles
+        hash<auto> h = parse_xml(str, XPF_PRESERVE_ORDER);
+        XsdBase::normalizeModelGroupOrder(\h);
 
         # save WSDL text
         wsdl = str;
@@ -7817,21 +8062,33 @@ public class WSDL::WSMessageHelper {
                                 opts.comments ? sprintf("choice[1/%d]", ct.elementmap.size()) : NOTHING);
                         }
                     } else {
+                        # issue #5452: elements and choice blocks are generated in the order in which they are
+                        # declared in the schema; "elementmap" holds the members of the choice blocks as well
+                        hash<string, bool> choice_done;
                         foreach string name2 in (keys ct.elementmap) {
-                            val += getMessage(ct.elementmap{name2});
-                        }
-                    }
-                    foreach hash<ChoiceInfo> choice in (ct.choices) {
-                        if (opts.choices) {
-                            hash<auto> ch;
-                            int j = 1;
-                            foreach string name2 in (keys choice.elementmap) {
-                                ch += getMessage(choice.elementmap{name2}, opts.comments ? sprintf("choice[%d]", j) : NOTHING);
-                                j++;
+                            *int ci = ct.choice_index{name2};
+                            if (!exists ci) {
+                                val += getMessage(ct.elementmap{name2});
+                                continue;
                             }
-                            val{sprintf("^choices%d^", $#+1)} = ch;
-                        } else {
-                            val += getMessage(choice.elementmap.firstValue(), opts.comments ? sprintf("choice[1/%d]", ct.choices.size()) : NOTHING);
+                            if (choice_done{ci}) {
+                                continue;
+                            }
+                            choice_done{ci} = True;
+                            hash<ChoiceInfo> choice = ct.choices[ci];
+                            if (opts.choices) {
+                                hash<auto> ch;
+                                int j = 1;
+                                foreach string name3 in (keys choice.elementmap) {
+                                    ch += getMessage(choice.elementmap{name3},
+                                        opts.comments ? sprintf("choice[%d]", j) : NOTHING);
+                                    j++;
+                                }
+                                val{sprintf("^choices%d^", ci + 1)} = ch;
+                            } else {
+                                val += getMessage(choice.elementmap.firstValue(),
+                                    opts.comments ? sprintf("choice[1/%d]", choice.elementmap.size()) : NOTHING);
+                            }
                         }
                     }
                 }

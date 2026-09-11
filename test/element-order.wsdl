@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- WSDL for testing that elements are serialized in the order in which they are declared (issue #5452) -->
+<definitions xmlns="http://schemas.xmlsoap.org/wsdl/"
+             xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+             xmlns:xs="http://www.w3.org/2001/XMLSchema"
+             xmlns:tns="urn:qore:test:element-order"
+             targetNamespace="urn:qore:test:element-order">
+    <types>
+        <!-- note that top-level element and complexType declarations are interleaved on purpose; the XML parser
+             must not lose the declarations that do not appear next to each other -->
+        <xs:schema targetNamespace="urn:qore:test:element-order"
+                   xmlns="urn:qore:test:element-order"
+                   elementFormDefault="qualified" attributeFormDefault="unqualified">
+            <!-- a choice declared before the other elements of the sequence -->
+            <xs:element name="OrderReq">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:choice>
+                            <xs:element name="msisdn" type="xs:string"/>
+                            <xs:element name="e164" type="xs:string"/>
+                        </xs:choice>
+                        <xs:element name="dnsname" type="xs:string" minOccurs="0"/>
+                        <xs:element name="records" type="RecordType" minOccurs="0" maxOccurs="unbounded"/>
+                    </xs:sequence>
+                    <xs:attribute name="msisdn" type="xs:string"/>
+                </xs:complexType>
+            </xs:element>
+
+            <xs:complexType name="RecordType">
+                <xs:sequence>
+                    <xs:element name="publicId" type="xs:string"/>
+                    <xs:element name="flags" type="xs:string"/>
+                    <xs:element name="order" type="xs:int"/>
+                </xs:sequence>
+                <xs:attribute name="publicId" type="xs:string"/>
+            </xs:complexType>
+
+            <!-- elements, choice blocks, and a nested model group interleaved in a single sequence -->
+            <xs:element name="MixedReq">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="a" type="xs:string"/>
+                        <xs:element name="a2" type="xs:string" minOccurs="0"/>
+                        <xs:choice>
+                            <xs:element name="m" type="xs:string"/>
+                            <xs:element name="n" type="xs:string"/>
+                        </xs:choice>
+                        <xs:element name="b" type="xs:string"/>
+                        <xs:element name="b2" type="xs:string" minOccurs="0"/>
+                        <xs:sequence>
+                            <xs:element name="c" type="xs:string" minOccurs="0"/>
+                        </xs:sequence>
+                        <xs:element name="d" type="xs:string" minOccurs="0"/>
+                        <xs:choice minOccurs="0">
+                            <xs:element name="p" type="xs:string"/>
+                            <xs:element name="q" type="xs:string"/>
+                        </xs:choice>
+                        <xs:element name="e" type="xs:string" minOccurs="0"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+
+            <!-- a base type declaring a choice block; the choice must be inherited as a choice -->
+            <xs:complexType name="BaseType">
+                <xs:sequence>
+                    <xs:choice>
+                        <xs:element name="b1" type="xs:string"/>
+                        <xs:element name="b2" type="xs:string"/>
+                    </xs:choice>
+                    <xs:element name="b3" type="xs:string" minOccurs="0"/>
+                </xs:sequence>
+            </xs:complexType>
+
+            <xs:element name="ExtReq">
+                <xs:complexType>
+                    <xs:complexContent>
+                        <xs:extension base="BaseType">
+                            <xs:sequence>
+                                <xs:element name="x1" type="xs:string" minOccurs="0"/>
+                            </xs:sequence>
+                        </xs:extension>
+                    </xs:complexContent>
+                </xs:complexType>
+            </xs:element>
+
+            <xs:element name="Resp">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="r1" type="xs:string"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:schema>
+    </types>
+
+    <message name="OrderReqM">
+        <part name="parameters" element="tns:OrderReq"/>
+    </message>
+    <message name="MixedReqM">
+        <part name="parameters" element="tns:MixedReq"/>
+    </message>
+    <message name="ExtReqM">
+        <part name="parameters" element="tns:ExtReq"/>
+    </message>
+    <message name="RespM">
+        <part name="parameters" element="tns:Resp"/>
+    </message>
+
+    <portType name="ElementOrderPort">
+        <operation name="Order">
+            <input message="tns:OrderReqM"/>
+            <output message="tns:RespM"/>
+        </operation>
+        <operation name="Mixed">
+            <input message="tns:MixedReqM"/>
+            <output message="tns:RespM"/>
+        </operation>
+        <operation name="Ext">
+            <input message="tns:ExtReqM"/>
+            <output message="tns:RespM"/>
+        </operation>
+    </portType>
+
+    <binding name="ElementOrderBinding" type="tns:ElementOrderPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <operation name="Order">
+            <soap:operation soapAction="Order" style="document"/>
+            <input><soap:body use="literal"/></input>
+            <output><soap:body use="literal"/></output>
+        </operation>
+        <operation name="Mixed">
+            <soap:operation soapAction="Mixed" style="document"/>
+            <input><soap:body use="literal"/></input>
+            <output><soap:body use="literal"/></output>
+        </operation>
+        <operation name="Ext">
+            <soap:operation soapAction="Ext" style="document"/>
+            <input><soap:body use="literal"/></input>
+            <output><soap:body use="literal"/></output>
+        </operation>
+    </binding>
+
+    <service name="ElementOrderService">
+        <port name="ElementOrderPort" binding="tns:ElementOrderBinding">
+            <soap:address location="http://localhost:8080/element-order"/>
+        </port>
+    </service>
+</definitions>
