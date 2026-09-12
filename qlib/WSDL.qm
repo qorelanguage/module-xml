@@ -833,61 +833,80 @@ public class WSDL::XsdBase inherits Qore::Serializable {
                 return;
         }
 
-        hash<auto> nh;
-        list<string> order();
-        foreach string k in (keys v) {
-            auto val = remove v{k};
-            # internal keys (ex: "^attributes^", "^value^") do not correspond to XML elements
-            if (k[0] == "^") {
-                nh{k} = val;
-                continue;
+        # the great majority of nodes have no keys to merge and are not model groups; rewriting the hash is by far
+        # the most expensive part of this method, so it is only done when the node actually requires it
+        bool rewrite = model_group;
+        if (!rewrite) {
+            foreach string k in (keys v) {
+                if (k[0] != "^" && XsdBase::getUnorderedKey(k) != k) {
+                    rewrite = True;
+                    break;
+                }
             }
-            # remove any "^<n>" suffix added to preserve the document order of the element
-            string base = XsdBase::getUnorderedKey(k);
-            string lname = XsdBase::getLocalName(base);
-            # a value list holds multiple occurrences of the same element
-            if (val.typeCode() == NT_LIST) {
-                map order += lname, val;
-            } else {
-                order += lname;
+        }
+
+        if (rewrite) {
+            hash<auto> nh;
+            list<string> order();
+            foreach string k in (keys v) {
+                auto val = v{k};
+                # internal keys (ex: "^attributes^", "^value^") do not correspond to XML elements
+                if (k[0] == "^") {
+                    nh{k} = val;
+                    continue;
+                }
+                # remove any "^<n>" suffix added to preserve the document order of the element
+                string base = XsdBase::getUnorderedKey(k);
+                # a value list holds multiple occurrences of the same element
+                if (val.typeCode() == NT_LIST) {
+                    string lname = XsdBase::getLocalName(base);
+                    map order += lname, val;
+                } else {
+                    order += XsdBase::getLocalName(base);
+                }
+                if (nh.hasKey(base)) {
+                    softlist<auto> l = nh{base};
+                    l += val;
+                    nh{base} = l;
+                } else {
+                    nh{base} = val;
+                }
             }
-            if (nh.hasKey(base)) {
-                softlist<auto> l = nh{base};
-                l += val;
-                nh{base} = l;
-            } else {
-                nh{base} = val;
+            if (model_group) {
+                nh{XsdBase::ModelGroupOrderKey} = order;
             }
+            v = nh;
         }
 
         # recurse into child elements
-        foreach string k in (keys nh) {
+        foreach string k in (keys v) {
             if (k[0] == "^") {
                 continue;
             }
-            XsdBase::normalizeModelGroupOrder(\nh{k}, XsdBase::ModelGroupNames{XsdBase::getLocalName(k)} ?? False);
+            XsdBase::normalizeModelGroupOrder(\v{k}, XsdBase::ModelGroupNames{XsdBase::getLocalName(k)} ?? False);
         }
-
-        if (model_group) {
-            nh{XsdBase::ModelGroupOrderKey} = order;
-        }
-        v = nh;
     }
 
     #! returns the key name without any \c "^<n>" document order suffix
     /** @since %WSDL 0.5.7
     */
     static string getUnorderedKey(string k) {
-        *string base = (k =~ x/^(.+)\^[0-9]+$/)[0];
-        return base ?? k;
+        # the suffix is "^" followed by at least one digit at the end of the key; string operations are used here
+        # instead of a regular expression, as this method is called for every key of every parsed XML node
+        int i = k.rfind("^");
+        if (i <= 0 || i == (k.size() - 1)) {
+            return k;
+        }
+        string suffix = k.substr(i + 1);
+        return suffix.toInt().toString() == suffix ? k.substr(0, i) : k;
     }
 
     #! returns the key name without any namespace prefix
     /** @since %WSDL 0.5.7
     */
     static string getLocalName(string k) {
-        *string lname = (k =~ x/^[^:]+:([^:]+)$/)[0];
-        return lname ?? k;
+        int i = k.find(":");
+        return i >= 0 ? k.substr(i + 1) : k;
     }
 
     #! returns the particles of a parsed XSD model group in document order
